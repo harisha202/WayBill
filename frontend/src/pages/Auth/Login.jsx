@@ -64,7 +64,7 @@ function Login({ role, onSubmit, onBack, onSignupClick, onGuestClick }) {
   })[role] || role
 
   return (
-    <main className="auth-scene">
+    <main className="auth-scene auth-login-theme">
       <form onSubmit={handleSubmit} className="auth-panel" autoComplete="off">
 
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
