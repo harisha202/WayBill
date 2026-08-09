@@ -16,14 +16,17 @@
 .auth-scene.auth-login-theme {
   background: linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%);
 }
+.auth-scene.auth-login-theme .auth-panel { background: #f8fbff; }
 
 .auth-scene.auth-signup-theme {
   background: linear-gradient(135deg, #fffbeb 0%, #ffedd5 100%);
 }
+.auth-scene.auth-signup-theme .auth-panel { background: #fffdfa; }
 
 .auth-scene.auth-guest-theme {
   background: linear-gradient(135deg, #faf5ff 0%, #fce7f3 100%);
 }
+.auth-scene.auth-guest-theme .auth-panel { background: #fefaff; }
 
 .auth-panel {
   background: #ffffff;
