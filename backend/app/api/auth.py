@@ -28,7 +28,7 @@ from app.services.otp_service import OTPService
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from fastapi import Request
+from fastapi import Request, Depends, HTTPException, status, APIRouter
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 limiter = Limiter(key_func=get_remote_address)
@@ -54,7 +54,7 @@ class SignupRequest(BaseModel):
 
 class SendOTPRequest(BaseModel):
     email: str
-    name: str = Field(default="User", min_length=1, max_length=80)
+    name: str = Field(default="User", max_length=80)
 
 
 class VerifyOTPRequest(BaseModel):
