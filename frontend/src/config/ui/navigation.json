@@ -4,25 +4,40 @@
       "Control Tower",
       "Supply Chain Depth",
       "Supplier Risk",
-      "Activity Log"
+      "Activity Log",
+      "Global Compliance",
+      "User Management",
+      "System Settings"
     ],
     "Manufacturer": [
       "Dashboard",
       "Production",
-      "AI Forecast"
+      "AI Forecast",
+      "Raw Material Sourcing",
+      "Quality Assurance",
+      "Factory Settings"
     ],
     "Transporter": [
       "Dashboard",
       "Live Map",
-      "Route Optimizer"
+      "Route Optimizer",
+      "Fleet Management",
+      "Driver Logs",
+      "Maintenance Alerts"
     ],
     "Dealer": [
       "Dashboard",
-      "Inventory"
+      "Inventory",
+      "Order Fulfillment",
+      "Pricing Strategies",
+      "Partner Network"
     ],
     "RetailShop": [
       "Dashboard",
-      "Inventory"
+      "Inventory",
+      "POS Analytics",
+      "Customer Demographics",
+      "Promotions"
     ]
   },
   "PATH_BY_ROLE_LINK": {
@@ -30,25 +45,40 @@
       "Control Tower": "/admin",
       "Supply Chain Depth": "/admin/depth",
       "Supplier Risk": "/admin/risk",
-      "Activity Log": "/admin/activity"
+      "Activity Log": "/admin/activity",
+      "Global Compliance": "/admin",
+      "User Management": "/admin",
+      "System Settings": "/admin"
     },
     "Manufacturer": {
       "Dashboard": "/manufacturer",
       "Production": "/manufacturer/production",
-      "AI Forecast": "/manufacturer/forecast"
+      "AI Forecast": "/manufacturer/forecast",
+      "Raw Material Sourcing": "/manufacturer",
+      "Quality Assurance": "/manufacturer",
+      "Factory Settings": "/manufacturer"
     },
     "Transporter": {
       "Dashboard": "/transporter",
       "Live Map": "/transporter/map",
-      "Route Optimizer": "/transporter/routes"
+      "Route Optimizer": "/transporter/routes",
+      "Fleet Management": "/transporter",
+      "Driver Logs": "/transporter",
+      "Maintenance Alerts": "/transporter"
     },
     "Dealer": {
       "Dashboard": "/dealer",
-      "Inventory": "/dealer/inventory"
+      "Inventory": "/dealer/inventory",
+      "Order Fulfillment": "/dealer",
+      "Pricing Strategies": "/dealer",
+      "Partner Network": "/dealer"
     },
     "RetailShop": {
       "Dashboard": "/retail",
-      "Inventory": "/retail/inventory"
+      "Inventory": "/retail/inventory",
+      "POS Analytics": "/retail",
+      "Customer Demographics": "/retail",
+      "Promotions": "/retail"
     }
   },
   "SOCKET_USER_BY_ROLE": {

@@ -7,6 +7,7 @@ const defaultState = {
   role: null,
   isGuest: false,
   token: null,
+  entryMethod: null,
 }
 
 function normalizeDisplayName(name, fallback = 'User') {
@@ -97,13 +98,14 @@ export function useAuthStore(selector = selectAuthState) {
   )
 }
 
-export function setUserSession({ user, role, token, access_token, accessToken } = {}) {
+export function setUserSession({ user, role, token, access_token, accessToken, entryMethod = 'login' } = {}) {
   const resolvedToken = token ?? access_token ?? accessToken ?? user?.token ?? null
   setAuthState({
     user: normalizeUser(user || null),
     role: role || null,
     isGuest: false,
     token: resolvedToken,
+    entryMethod: entryMethod,
   })
 }
 
@@ -117,6 +119,7 @@ export function enterGuest(role = 'Guest', name = 'Guest User') {
     role: role || 'Guest',
     isGuest: true,
     token: null,
+    entryMethod: 'guest',
   })
 }
 

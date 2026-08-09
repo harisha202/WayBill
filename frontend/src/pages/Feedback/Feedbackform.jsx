@@ -36,7 +36,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 /* ── Component ─────────────────────────────────────────────────── */
 export default function FeedbackForm({ initialData = null, onSubmitted }) {
-  const badgeLogoSrc = `${import.meta.env.BASE_URL}favicon.svg`
+  const badgeLogoSrc = '/favicon.svg'
   const [step, setStep]       = useState(1)
   const [done, setDone]       = useState(false)
   const [loading, setLoading] = useState(false)

@@ -1,5 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DataTable } from '../ui/DataTable';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { connectGpsSocket, disconnectGpsSocket } from '../../api/socket';
+
+const truckIcon = L.divIcon({
+  html: '<div style="font-size: 36px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5)); transform: scaleX(-1);">🚛</div>',
+  className: 'truck-marker',
+  iconSize: [40, 40],
+  iconAnchor: [20, 20]
+});
 
 export function RouteOptimizer() {
   const [routes, setRoutes] = useState([
@@ -10,7 +21,6 @@ export function RouteOptimizer() {
   const [inputData, setInputData] = useState('Location A, Location B, Location C');
 
   const handleOptimize = () => {
-    // Mock optimize call
     const numStops = inputData.split(',').length;
     setRoutes([
       ...routes, 
@@ -45,20 +55,45 @@ export function RouteOptimizer() {
 }
 
 export function LiveMapOverlay() {
+  const [shipments, setShipments] = useState({});
+
+  useEffect(() => {
+    connectGpsSocket({
+      onMessage: (data) => {
+        if (data && data.type === 'gps:update' && data.shipments) {
+          setShipments(data.shipments);
+        }
+      }
+    });
+
+    return () => {
+      disconnectGpsSocket();
+    };
+  }, []);
+
+  const shipmentList = Object.values(shipments).filter(s => s.lat != null && s.lng != null);
+  const defaultCenter = [19.0760, 72.8777]; // Mumbai
+
   return (
-    <div className="card">
+    <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <h2 className="card-title">Live Port & Traffic Congestion Map</h2>
       <p className="muted" style={{ marginBottom: '16px' }}>Real-time GPS tracking overlay mapped against global congestion APIs.</p>
-      <div style={{ width: '100%', height: '300px', background: '#e2e8f0', borderRadius: '12px', position: 'relative', overflow: 'hidden' }}>
-        {/* CSS Mock Map Grid */}
-        <div style={{ position: 'absolute', width: '100%', height: '100%', background: 'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
-        
-        {/* Mock Map Nodes */}
-        <div style={{ position: 'absolute', top: '40%', left: '30%', width: 14, height: 14, background: '#0F6E56', borderRadius: '50%', boxShadow: '0 0 10px #0F6E56' }}></div>
-        <div style={{ position: 'absolute', top: '41%', left: '32%', width: 100, height: 3, background: '#0F6E56', transform: 'rotate(15deg)', transformOrigin: '0 0' }}></div>
-        
-        <div style={{ position: 'absolute', top: '49%', left: '46%', width: 14, height: 14, background: '#BA7517', borderRadius: '50%', boxShadow: '0 0 10px #BA7517' }}></div>
-        <div style={{ position: 'absolute', top: '46%', left: '49%', color: '#BA7517', fontSize: '11px', fontWeight: 'bold', background: 'white', padding: '2px 6px', borderRadius: '4px' }}>Congestion Detected</div>
+      <div style={{ width: '100%', flex: 1, borderRadius: '12px', overflow: 'hidden', position: 'relative', zIndex: 0, minHeight: '500px' }}>
+        <MapContainer center={defaultCenter} zoom={5} style={{ width: '100%', height: '100%' }}>
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution="&copy; OpenStreetMap contributors"
+          />
+          {shipmentList.map(s => (
+            <Marker key={s.shipment_id || s.id} position={[s.lat, s.lng]} icon={truckIcon}>
+              <Popup>
+                <strong>{s.shipment_id || s.id}</strong><br/>
+                Status: {s.status}<br/>
+                Vehicle: {s.vehicle_number || 'N/A'}
+              </Popup>
+            </Marker>
+          ))}
+        </MapContainer>
       </div>
     </div>
   );

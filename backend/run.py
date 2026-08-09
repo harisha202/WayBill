@@ -20,6 +20,7 @@ from app.api.tracking import get_tracking_socket_payload
 from app.services.ai_service import ai_status
 from app.services.database_service import DatabaseError, check_database_connection, initialize_database
 from app.services.notification_service import notification_service
+from app.services.simulation_service import start_simulation
 
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -34,6 +35,10 @@ def create_app() -> FastAPI:
     initialize_database()
 
     app = FastAPI(title=settings.app_name)
+    
+    @app.on_event("startup")
+    async def startup_event():
+        start_simulation(app)
 
     app.state.limiter = auth.limiter
     app.add_middleware(SlowAPIMiddleware)

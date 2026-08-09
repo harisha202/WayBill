@@ -119,6 +119,7 @@ function App() {
   const handleLogout = () => {
     const activeUser = auth.user
     const activeRole = auth.role
+    const entryMethod = auth.entryMethod || 'login'
 
     setLogoutFeedbackPrefill({
       name: activeUser?.name || '',
@@ -128,9 +129,16 @@ function App() {
     })
 
     logout()
-    setScreen('feedback')
-    setEntryIntent('login')
-    navigate('/feedback')
+    
+    if (entryMethod === 'signup' || entryMethod === 'guest') {
+      setScreen('feedback')
+      setEntryIntent('login')
+      navigate('/feedback')
+    } else {
+      setScreen('home')
+      setEntryIntent('login')
+      navigate('/')
+    }
   }
 
   const openRoleSelection = (intent) => {
@@ -244,6 +252,7 @@ function App() {
           setUserSession({
             user: { ...data.user, token: data.access_token },
             role: normalizedRole,
+            entryMethod: 'signup',
           })
         }}
       />

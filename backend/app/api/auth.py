@@ -213,12 +213,25 @@ def _build_otp_response(data: SendOTPRequest) -> dict:
 
 @router.post("/send-otp")
 @limiter.limit(lambda: os.getenv("RATE_LIMIT_AUTH", "5/minute"))
-async def send_otp(request: Request, data: SendOTPRequest) -> dict:
+async def send_otp(request: Request) -> dict:
+    try:
+        body = await request.json()
+        data = SendOTPRequest(**body)
+    except Exception as exc:
+        logger.error(f"OTP parsing failed: {exc}")
+        raise HTTPException(status_code=422, detail=f"Invalid request payload: {exc}")
     return _build_otp_response(data)
 
 
 @router.post("/verify-otp")
-def verify_otp(data: VerifyOTPRequest) -> dict:
+async def verify_otp(request: Request) -> dict:
+    try:
+        body = await request.json()
+        data = VerifyOTPRequest(**body)
+    except Exception as exc:
+        logger.error(f"OTP verify parsing failed: {exc}")
+        raise HTTPException(status_code=422, detail=f"Invalid request payload: {exc}")
+        
     email = normalize_email(data.email)
     is_valid, message = otp_service.verify_otp(email, data.otp)
 
@@ -230,12 +243,24 @@ def verify_otp(data: VerifyOTPRequest) -> dict:
 
 @router.post("/resend-otp")
 @limiter.limit(lambda: os.getenv("RATE_LIMIT_AUTH", "5/minute"))
-async def resend_otp(request: Request, data: SendOTPRequest) -> dict:
+async def resend_otp(request: Request) -> dict:
+    try:
+        body = await request.json()
+        data = SendOTPRequest(**body)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail="Invalid request payload")
     return _build_otp_response(data)
 
 
 @router.post("/signup", response_model=LoginResponse, status_code=status.HTTP_201_CREATED)
-def signup(data: SignupRequest) -> LoginResponse:
+async def signup(request: Request) -> LoginResponse:
+    try:
+        body = await request.json()
+        data = SignupRequest(**body)
+    except Exception as exc:
+        logger.error(f"Signup parsing failed: {exc}")
+        raise HTTPException(status_code=422, detail=f"Invalid request payload: {exc}")
+        
     email = normalize_email(data.email)
     try:
         existing_user = get_user_by_email(email)
@@ -297,7 +322,13 @@ def signup(data: SignupRequest) -> LoginResponse:
 
 @router.post("/login", response_model=LoginResponse)
 @limiter.limit(lambda: os.getenv("RATE_LIMIT_AUTH", "5/minute"))
-async def login(request: Request, data: LoginRequest) -> LoginResponse:
+async def login(request: Request) -> LoginResponse:
+    try:
+        body = await request.json()
+        data = LoginRequest(**body)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail="Invalid request payload")
+
     email = normalize_email(data.email)
     try:
         db_user = get_user_by_email(email)
