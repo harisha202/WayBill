@@ -179,11 +179,7 @@ export default function FeedbackForm({ initialData = null, onSubmitted }) {
   /* ── Render ──────────────────────────────────────────────────── */
   return (
     <div className="fb-scene">
-      {/* Ambient glow orbs */}
-      <div className="fb-orb fb-orb-1" />
-      <div className="fb-orb fb-orb-2" />
-      <div className="fb-orb fb-orb-3" />
-      <div className="fb-orb fb-orb-4" />
+
 
       <div className="fb-wrap">
 
@@ -207,7 +203,7 @@ export default function FeedbackForm({ initialData = null, onSubmitted }) {
             Share Your <span className="fb-title-accent">Experience</span>
           </h1>
           <p className="fb-subtitle">
-            Help us improve the platform. Your insights shape the next version of the system.
+            Help us improve WayBill: AI-driven logistics, blockchain verification, and supply chain control.
           </p>
 
         </div>
@@ -239,10 +235,7 @@ export default function FeedbackForm({ initialData = null, onSubmitted }) {
 
         {/* ── Card ── */}
         <div className="fb-card">
-          {/* Corner decorations */}
-          <div className="fb-card-corner-tl" />
-          <div className="fb-card-corner-tr" />
-          <div className="fb-card-corner-bl" />
+
 
           {/* ══ SUCCESS ══ */}
           {done && (
