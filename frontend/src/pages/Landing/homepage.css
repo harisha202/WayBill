@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════════
    WAYBILL PLATFORM — homepage.css
-   Theme: Clean SaaS
+   Theme: Premium Flat SaaS
    ═══════════════════════════════════════════════════════════════════ */
 
 .homepage-scene {
@@ -8,8 +8,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 48px 24px;
-  background: #f8fafc;
+  padding: 64px 24px;
+  background: linear-gradient(135deg, #f8fafc 0%, #ecfdf5 100%);
   font-family: var(--app-font-normal);
 }
 
@@ -23,15 +23,15 @@
 
 .homepage-card {
   background: #ffffff;
-  border-radius: 16px;
-  padding: 48px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  border-radius: 20px;
+  padding: 56px 48px;
+  border: 1px solid rgba(15, 110, 86, 0.1);
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.05), 0 10px 15px -3px rgba(15, 110, 86, 0.03);
 }
 
 .homepage-header {
   text-align: center;
-  margin-bottom: 40px;
+  margin-bottom: 48px;
 }
 
 .logo-container {
@@ -43,10 +43,11 @@
 }
 
 .homepage-title {
-  font-size: 42px;
+  font-size: 48px;
   font-weight: 800;
   color: #0f172a;
   margin: 0;
+  letter-spacing: -0.02em;
 }
 
 .title-highlight {
@@ -54,9 +55,9 @@
 }
 
 .homepage-subtitle {
-  font-size: 16px;
+  font-size: 18px;
   color: #475569;
-  max-width: 560px;
+  max-width: 600px;
   margin: 16px auto;
   line-height: 1.6;
 }
@@ -66,63 +67,77 @@
   gap: 12px;
   justify-content: center;
   flex-wrap: wrap;
-  margin-top: 24px;
+  margin-top: 28px;
 }
 
 .feature-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #f0fdf4;
+  border: 1px solid #d1fae5;
   border-radius: 50px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
-  color: #334155;
+  color: #0f6e56;
 }
 
 .homepage-actions {
   display: flex;
-  gap: 12px;
+  gap: 16px;
   justify-content: center;
   flex-wrap: wrap;
-  margin-bottom: 40px;
+  margin-bottom: 24px;
 }
 
 .primary-btn, .secondary-btn, .ghost-btn {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 24px;
-  font-size: 15px;
+  padding: 14px 28px;
+  font-size: 16px;
   font-weight: 600;
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
   border: none;
-  min-width: 140px;
+  min-width: 160px;
   justify-content: center;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
 }
 
 .primary-btn {
   background: #0f6e56;
   color: white;
+  box-shadow: 0 4px 12px rgba(15, 110, 86, 0.2);
 }
-.primary-btn:hover { background: #0c5946; }
+.primary-btn:hover { 
+  background: #0c5946; 
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(15, 110, 86, 0.3);
+}
 
 .secondary-btn {
-  background: #4338ca;
+  background: #2563eb;
   color: white;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
 }
-.secondary-btn:hover { background: #3730a3; }
+.secondary-btn:hover { 
+  background: #1d4ed8; 
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.3);
+}
 
 .ghost-btn {
   background: #ffffff;
   color: #475569;
   border: 1px solid #cbd5e1;
 }
-.ghost-btn:hover { background: #f1f5f9; }
+.ghost-btn:hover { 
+  background: #f8fafc; 
+  color: #0f172a;
+  border-color: #94a3b8;
+}
 
 .guest-mode-banner {
   display: flex;
@@ -150,40 +165,6 @@
 }
 .primary-btn-small:hover { background: #0c5946; }
 
-.homepage-footer {
-  border-top: 1px solid #e2e8f0;
-  padding-top: 32px;
-}
-
-.stats-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0;
-}
-
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 8px;
-  border-right: 1px solid #e2e8f0;
-}
-.stat-item:last-child { border-right: none; }
-
-.stat-value {
-  font-size: 20px;
-  font-weight: 700;
-  color: #0f6e56;
-}
-
-.stat-label {
-  font-size: 12px;
-  color: #64748b;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
 .homepage-features {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -192,36 +173,48 @@
 
 .feature-card {
   background: #ffffff;
-  padding: 24px;
-  border-radius: 12px;
+  padding: 32px 24px;
+  border-radius: 16px;
   text-align: center;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-  transition: transform 0.2s, box-shadow 0.2s;
+  border: 1px solid rgba(15, 110, 86, 0.1);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .feature-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
-  border-color: #cbd5e1;
+  transform: translateY(-6px);
+  box-shadow: 0 20px 25px -5px rgba(15, 110, 86, 0.1), 0 10px 10px -5px rgba(15, 110, 86, 0.04);
+  border-color: #a7f3d0;
 }
 
 .feature-icon {
-  font-size: 32px;
-  margin-bottom: 16px;
+  font-size: 40px;
+  margin-bottom: 20px;
   display: block;
 }
 
 .feature-card h3 {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
   color: #0f172a;
-  margin: 0 0 8px 0;
+  margin: 0 0 12px 0;
 }
 
 .feature-card p {
-  font-size: 14px;
+  font-size: 15px;
   color: #475569;
-  line-height: 1.5;
+  line-height: 1.6;
   margin: 0;
+}
+
+@media (max-width: 768px) {
+  .homepage-features {
+    grid-template-columns: 1fr;
+  }
+  .homepage-card {
+    padding: 32px 24px;
+  }
+  .homepage-title {
+    font-size: 36px;
+  }
 }

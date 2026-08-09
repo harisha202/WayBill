@@ -67,22 +67,7 @@ function Homepage({ onGuestEntry, onLoginClick, onSignupClick, isGuestView = fal
             </div>
           )}
 
-          <div className="homepage-footer">
-            <div className="stats-row">
-              <div className="stat-item">
-                <span className="stat-value">10K+</span>
-                <span className="stat-label">Active Users</span>
-              </div>
-              <div className="stat-item">
-                <span className="stat-value">99.9%</span>
-                <span className="stat-label">Uptime</span>
-              </div>
-              <div className="stat-item">
-                <span className="stat-value">500M+</span>
-                <span className="stat-label">Tracked</span>
-              </div>
-            </div>
-          </div>
+
         </div>
 
         <div className="homepage-features">
