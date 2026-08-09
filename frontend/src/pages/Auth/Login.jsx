@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Logo } from '../../components/ui/Logo'
 import './auth.css'
 
 function Login({ role, onSubmit, onBack, onSignupClick, onGuestClick }) {
@@ -65,6 +66,10 @@ function Login({ role, onSubmit, onBack, onSignupClick, onGuestClick }) {
   return (
     <main className="auth-scene">
       <form onSubmit={handleSubmit} className="auth-panel" autoComplete="off">
+
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+          <Logo style={{ width: 60, height: 60 }} />
+        </div>
 
         {/* ── Role Badge ── */}
         <div style={{ textAlign: 'center', marginBottom: 8 }}>

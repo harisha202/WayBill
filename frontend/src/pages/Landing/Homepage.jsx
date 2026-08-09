@@ -1,21 +1,15 @@
-import GlassCard from '../../components/ui/GlassCard'
+import { Logo } from '../../components/ui/Logo'
 import './homepage.css'
 
 function Homepage({ onGuestEntry, onLoginClick, onSignupClick, isGuestView = false }) {
   return (
-    <main className="homepage-scene homepage-theme-command">
-      <div className="homepage-background">
-        <div className="gradient-orb orb-1"></div>
-        <div className="gradient-orb orb-2"></div>
-        <div className="gradient-orb orb-3"></div>
-      </div>
-
+    <main className="homepage-scene">
       <section className="homepage-content">
-        <GlassCard className="homepage-card">
+        <div className="homepage-card">
           <div className="homepage-header">
             <div className="logo-container">
               <div className="logo-icon">
-                <img src="/favicon.svg" alt="WayBill logo" />
+                <Logo style={{ width: 130, height: 130, marginBottom: '-10px' }} />
               </div>
               <h1 className="homepage-title">
                 <span className="title-highlight">WayBill</span>
@@ -85,11 +79,11 @@ function Homepage({ onGuestEntry, onLoginClick, onSignupClick, isGuestView = fal
               </div>
               <div className="stat-item">
                 <span className="stat-value">500M+</span>
-                <span className="stat-label">Tracked Items</span>
+                <span className="stat-label">Tracked</span>
               </div>
             </div>
           </div>
-        </GlassCard>
+        </div>
 
         <div className="homepage-features">
           <div className="feature-card">

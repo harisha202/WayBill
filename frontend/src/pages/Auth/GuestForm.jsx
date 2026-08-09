@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { createGuestWithDetails } from '../../auth/guestAccess'
+import { Logo } from '../../components/ui/Logo'
 import './guestform.css'
 
 function GuestForm({ role, onSubmit, onBack }) {
@@ -38,7 +39,9 @@ function GuestForm({ role, onSubmit, onBack }) {
     <main className="auth-scene auth-guest-theme">
       <form onSubmit={handleSubmit} className="auth-panel guest-form auth-guest-panel">
         <div className="auth-header">
-          <div className="guest-icon">G</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+            <Logo style={{ width: 60, height: 60 }} />
+          </div>
           <h2 className="auth-panel-title">Guest Access</h2>
           <p className="auth-panel-subtitle">Explore the {role} dashboard with read-only access.</p>
         </div>

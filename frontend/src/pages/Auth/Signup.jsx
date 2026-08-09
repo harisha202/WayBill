@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { authApi } from '../../api/axiosInstance'
+import { Logo } from '../../components/ui/Logo'
 import './signup.css'
 
 function Signup({ role, onSubmit, onBack, onLoginClick }) {
@@ -191,6 +192,9 @@ function Signup({ role, onSubmit, onBack, onLoginClick }) {
   return (
     <main className="auth-scene auth-signup-theme">
       <form onSubmit={handleSubmit} className="auth-panel auth-signup-panel">
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+          <Logo style={{ width: 60, height: 60 }} />
+        </div>
         <h1 className="auth-panel-title">
           Signup
           <span className="signup-role-label">({role})</span>

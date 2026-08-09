@@ -8,7 +8,7 @@ function Sidebar({ role, activeLink = 'Dashboard', onNavigate }) {
     <aside className="nav-sidebar">
       <div className="brand-block">
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-          <Logo style={{ width: 40, height: 25 }} />
+          <Logo style={{ width: 44, height: 44 }} />
           <p className="brand-name" style={{ margin: 0 }}>WayBill</p>
         </div>
         <p className="brand-role">{role ?? 'Portal'}</p>

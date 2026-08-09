@@ -1,5 +1,5 @@
 import './roleselection.css'
-
+import { Logo } from '../../components/ui/Logo'
 import ROLE_SELECTION_CONFIG from '../../config/ui/roleSelection.json'
 
 function getRoleCssKey(roleId) {
@@ -97,15 +97,13 @@ function RoleSelection({ selectedRole, onSelectRole, onSelect, onBack, includeAd
   const visibleRoles = includeAdmin ? roles : roles.filter((role) => role.id !== 'Admin')
 
   return (
-    <main className="role-selection-scene role-selection-theme-matrix">
-      <div className="role-selection-background">
-        <div className="gradient-orb orb-1"></div>
-        <div className="gradient-orb orb-2"></div>
-        <div className="gradient-orb orb-3"></div>
-      </div>
+    <main className="role-selection-scene">
 
       <section className="role-selection-container">
         <div className="role-selection-header">
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+            <Logo style={{ width: 60, height: 60 }} />
+          </div>
           <h1 className="role-selection-title">{ROLE_SELECTION_CONFIG.title || 'Choose Your Role'}</h1>
           <p className="role-selection-subtitle">
             {ROLE_SELECTION_CONFIG.subtitle || 'Select your role to access the appropriate dashboard and features'}
