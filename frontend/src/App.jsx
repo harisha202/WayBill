@@ -25,6 +25,8 @@ const ROLE_TO_API = {
   RetailShop: 'retail_shop',
 }
 
+const LOCATION_CHANGE_EVENT = 'waybill:location_change'
+
 
 
 function normalizePath(pathname) {

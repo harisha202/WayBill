@@ -281,7 +281,7 @@ async function request(path, { method = 'GET', data, headers = {}, responseType 
       if (contentType.includes('application/json')) {
         const payload = tryParseJson(rawBody)
         if (payload !== null) {
-          return normalizeCurrencyPayload(payload)
+          return payload
         }
         return rawBody || null
       }
@@ -335,7 +335,7 @@ async function request(path, { method = 'GET', data, headers = {}, responseType 
     const rawBody = await safeReadText(response)
     const payload = tryParseJson(rawBody)
     if (payload !== null) {
-      return normalizeCurrencyPayload(payload)
+      return payload
     }
     return rawBody || null
   }
