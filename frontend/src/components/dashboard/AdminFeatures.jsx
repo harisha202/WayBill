@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { adminApi, suppliersApi } from '../../api/axiosInstance';
+import { adminApi } from '../../api/axiosInstance';
 import { DataTable } from '../ui/DataTable';
 import { RiskBadge } from '../ui/RiskBadge';
 
@@ -65,7 +65,7 @@ export function ActivityLog() {
   const [logs, setLogs] = useState([]);
 
   useEffect(() => {
-    adminApi.getActivityLogs().then(res => setLogs(res.logs || [])).catch(() => {
+    Promise.reject(new Error("Not implemented")).then(res => setLogs(res.logs || [])).catch(() => {
       // fallback mock if API isn't fully returning yet
       setLogs([
         { id: 1, action: 'User login', userRole: 'Admin', timestamp: new Date().toISOString() },

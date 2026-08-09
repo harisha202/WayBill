@@ -14,6 +14,7 @@ import Signup from './pages/Auth/Signup'
 import GuestForm from './pages/Auth/GuestForm'
 import RoleSelection from './pages/Auth/RoleSelection'
 import FeedbackForm from './pages/Feedback/Feedbackform'
+import WaybillRouter from './pages/WaybillRouter'
 import { DEFAULT_PATH_BY_ROLE } from './components/layout/navConfig'
 
 const ROLE_TO_API = {
