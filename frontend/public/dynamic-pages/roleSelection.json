@@ -1,0 +1,179 @@
+{
+  "type": "Box",
+  "props": {
+    "as": "main",
+    "className": "role-selection-scene role-selection-theme-matrix"
+  },
+  "events": {
+    "listeners": [
+      {
+        "event": "role.select",
+        "actions": {
+          "$action": "call",
+          "name": "selectRole",
+          "args": [{ "$ref": "event.payload" }]
+        }
+      },
+      {
+        "event": "nav.back",
+        "actions": { "$action": "call", "name": "back", "args": [] }
+      }
+    ]
+  },
+  "children": [
+    {
+      "type": "Box",
+      "props": { "className": "role-selection-background" },
+      "children": [
+        { "type": "Box", "props": { "className": "gradient-orb orb-1" } },
+        { "type": "Box", "props": { "className": "gradient-orb orb-2" } },
+        { "type": "Box", "props": { "className": "gradient-orb orb-3" } }
+      ]
+    },
+    {
+      "type": "Box",
+      "props": { "as": "section", "className": "role-selection-container" },
+      "children": [
+        {
+          "type": "Box",
+          "props": { "className": "role-selection-header" },
+          "children": [
+            {
+              "type": "Heading",
+              "props": {
+                "level": 1,
+                "className": "role-selection-title",
+                "text": { "$ref": "data.title" }
+              }
+            },
+            {
+              "type": "Text",
+              "props": {
+                "className": "role-selection-subtitle",
+                "text": { "$ref": "data.subtitle" }
+              }
+            }
+          ]
+        },
+        {
+          "type": "Box",
+          "props": { "className": "role-grid" },
+          "children": [
+            {
+              "type": "Repeat",
+              "props": { "items": { "$ref": "data.roles" }, "as": "role" },
+              "children": [
+                {
+                  "type": "Button",
+                  "props": {
+                    "type": "button",
+                    "className": {
+                      "$concat": [
+                        "role-card ",
+                        {
+                          "$cond": {
+                            "if": {
+                              "$eq": [
+                                { "$ref": "scope.role.id" },
+                                { "$ref": "data.selectedRole" }
+                              ]
+                            },
+                            "then": "active",
+                            "else": ""
+                          }
+                        }
+                      ]
+                    },
+                    "data-role": { "$ref": "scope.role.cssKey" },
+                    "aria-pressed": {
+                      "$eq": [
+                        { "$ref": "scope.role.id" },
+                        { "$ref": "data.selectedRole" }
+                      ]
+                    }
+                  },
+                  "events": {
+                    "emitters": {
+                      "click": {
+                        "event": "role.select",
+                        "payload": { "$ref": "scope.role.id" }
+                      }
+                    }
+                  },
+                  "children": [
+                    {
+                      "type": "Box",
+                      "props": {
+                        "className": "role-card-icon",
+                        "aria-hidden": "true"
+                      },
+                      "children": [
+                        {
+                          "type": "Box",
+                          "props": {
+                            "as": "span",
+                            "className": "role-card-letter"
+                          },
+                          "children": [{ "$ref": "scope.role.letter" }]
+                        },
+                        {
+                          "type": "Box",
+                          "props": {
+                            "as": "span",
+                            "className": "role-card-logo"
+                          },
+                          "children": [
+                            {
+                              "type": "RoleLogo",
+                              "props": { "roleId": { "$ref": "scope.role.id" } }
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "Box",
+                      "props": { "as": "h3", "className": "role-card-title" },
+                      "children": [{ "$ref": "scope.role.title" }]
+                    },
+                    {
+                      "type": "Text",
+                      "props": {
+                        "className": "role-card-description",
+                        "text": { "$ref": "scope.role.description" }
+                      }
+                    },
+                    {
+                      "type": "Box",
+                      "props": { "className": "role-card-arrow" },
+                      "children": [">"]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "Box",
+          "props": { "className": "role-selection-actions" },
+          "children": [
+            {
+              "type": "Button",
+              "props": {
+                "type": "button",
+                "className": "btn-back"
+              },
+              "events": {
+                "emitters": {
+                  "click": { "event": "nav.back", "payload": null }
+                }
+              },
+              "children": [{ "$ref": "data.backLabel" }]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

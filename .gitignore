@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+.pytest_cache/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+backend/data/
+
+# Logs
+*.log
+*.err
+out.log
+err.log
+
+# Environment
+.env
+.env.*
+!.env.example
+.env.local
+.env.production
+!frontend/.env.production
+
+# Frontend
+node_modules/
+frontend/dist/
+frontend/.env.local
+frontend/.npm-cache/
+
+# OS
+.DS_Store
+Thumbs.db

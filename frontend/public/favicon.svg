@@ -1,0 +1,41 @@
+<svg width="100%" viewBox="0 0 680 430" role="img"><title>Waybill final logo mark</title><desc>A circular tracking seal with a slowly rotating dashed ring carrying three pulsing amber checkpoint nodes, around a central teal document icon with a checkmark, above the wordmark Waybill.</desc>
+
+<style>
+@keyframes floatMark { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+@keyframes spinRing { to { transform: rotate(360deg); } }
+@keyframes nodePulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+@keyframes coreGlow { 0%,100%{opacity:0.35;transform:scale(1)} 50%{opacity:0.15;transform:scale(1.18)} }
+@media (prefers-reduced-motion: no-preference) {
+  .mark { animation: floatMark 3.4s ease-in-out infinite; }
+  .ring { animation: spinRing 14s linear infinite; transform-origin: 340px 190px; }
+  .node1 { animation: nodePulse 2.4s ease-in-out infinite; }
+  .node2 { animation: nodePulse 2.4s ease-in-out infinite .5s; }
+  .node3 { animation: nodePulse 2.4s ease-in-out infinite 1s; }
+  .glow { animation: coreGlow 2.6s ease-in-out infinite; }
+}
+</style>
+
+<g class="mark">
+  <!-- outer fixed ring -->
+  <circle cx="340" cy="190" r="130" fill="none" stroke="#0F6E56" stroke-width="2"/>
+
+  <!-- rotating dashed tracking ring with checkpoint nodes -->
+  <g class="ring">
+    <circle cx="340" cy="190" r="100" fill="none" stroke="#5DCAA5" stroke-width="1.5" stroke-dasharray="4 9"/>
+    <circle class="node1" cx="340" cy="90" r="9" fill="#BA7517"/>
+    <circle class="node2" cx="426.6" cy="240" r="9" fill="#BA7517"/>
+    <circle class="node3" cx="253.4" cy="240" r="9" fill="#BA7517"/>
+  </g>
+
+  <!-- center glow -->
+  <circle class="glow" cx="340" cy="190" r="52" fill="#EF9F27"/>
+
+  <!-- document / waybill card -->
+  <path d="M310 148 H358 L376 166 V236 H310 Z" fill="#FAEEDA" stroke="#0F6E56" stroke-width="1.5"/>
+  <path d="M358 148 V166 H376 Z" fill="#9FE1CB" stroke="#0F6E56" stroke-width="1.5"/>
+  <line x1="320" y1="182" x2="366" y2="182" stroke="#B4B2A9" stroke-width="2"/>
+  <line x1="320" y1="194" x2="366" y2="194" stroke="#B4B2A9" stroke-width="2"/>
+  <path d="M320 210 L332 222 L358 198" fill="none" stroke="#0F6E56" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+
+</svg>

@@ -1,0 +1,61 @@
+{
+  "ROLE_LINKS": {
+    "Admin": [
+      "Control Tower",
+      "Supply Chain Depth",
+      "Supplier Risk",
+      "Activity Log"
+    ],
+    "Manufacturer": [
+      "Dashboard",
+      "Production",
+      "AI Forecast"
+    ],
+    "Transporter": [
+      "Dashboard",
+      "Live Map",
+      "Route Optimizer"
+    ],
+    "Dealer": [
+      "Dashboard",
+      "Inventory"
+    ],
+    "RetailShop": [
+      "Dashboard",
+      "Inventory"
+    ]
+  },
+  "PATH_BY_ROLE_LINK": {
+    "Admin": {
+      "Control Tower": "/admin",
+      "Supply Chain Depth": "/admin/depth",
+      "Supplier Risk": "/admin/risk",
+      "Activity Log": "/admin/activity"
+    },
+    "Manufacturer": {
+      "Dashboard": "/manufacturer",
+      "Production": "/manufacturer/production",
+      "AI Forecast": "/manufacturer/forecast"
+    },
+    "Transporter": {
+      "Dashboard": "/transporter",
+      "Live Map": "/transporter/map",
+      "Route Optimizer": "/transporter/routes"
+    },
+    "Dealer": {
+      "Dashboard": "/dealer",
+      "Inventory": "/dealer/inventory"
+    },
+    "RetailShop": {
+      "Dashboard": "/retail",
+      "Inventory": "/retail/inventory"
+    }
+  },
+  "SOCKET_USER_BY_ROLE": {
+    "Admin": "admin",
+    "Manufacturer": "manufacturer",
+    "Transporter": "transporter",
+    "Dealer": "dealer",
+    "RetailShop": "retail_shop"
+  }
+}
