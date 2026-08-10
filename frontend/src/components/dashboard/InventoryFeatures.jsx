@@ -91,8 +91,8 @@ export function InventoryManagement() {
     <div className="card" style={{ borderTop: '4px solid #10b981' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
         <h2 className="card-title" style={{ margin: 0 }}>
-          <span className="kpi-icon" style={{ background: '#d1fae5', color: '#059669' }}>📦</span>
-          AI-Enhanced Inventory & Reorder Levels
+          <span className="kpi-icon" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", background: "#1e293b", width: "28px", height: "28px", borderRadius: "6px", marginRight: "12px", fontSize: "14px", border: "1px solid #334155" }}>📦</span>
+          Real-Time Master Inventory
         </h2>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', background: '#f1f5f9', padding: '6px 12px', borderRadius: '20px' }}>

@@ -1,7 +1,11 @@
 
 import React from 'react';
-export const DataTable = ({ data, columns }) => {
-    if (!data || data.length === 0) return <div>No data available</div>;
+import { TableSkeleton } from './Skeleton';
+import { EmptyState } from './EmptyState';
+
+export const DataTable = ({ data, columns, loading = false }) => {
+    if (loading) return <TableSkeleton cols={columns.length} />;
+    if (!data || data.length === 0) return <EmptyState />;
     const downloadCsv = () => {
         const header = columns.map(c => c.header).join(',');
         const rows = data.map(row => columns.map(c => row[c.key]).join(',')).join('\n');

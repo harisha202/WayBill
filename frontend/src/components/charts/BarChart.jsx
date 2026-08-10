@@ -39,12 +39,12 @@ function BarChart({ data = [], color = '#0ea5e9', height = 200 }) {
     scales: {
       x: {
         grid: { display: false },
-        ticks: { color: '#64748b', font: { size: 11 } },
+        ticks: { color: '#94a3b8', font: { size: 11 } },
       },
       y: {
         beginAtZero: true,
-        grid: { color: '#e2e8f0' },
-        ticks: { color: '#64748b', font: { size: 11 } },
+        grid: { color: '#334155' },
+        ticks: { color: '#94a3b8', font: { size: 11 } },
       },
     },
   }

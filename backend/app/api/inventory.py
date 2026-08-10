@@ -6,6 +6,8 @@ from fastapi import APIRouter, Depends, Query
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
+from app.schemas.base import APIResponse
+
 from app.core.middleware import require_roles
 from app.models.user import UserRole
 from app.services.blockchain_service import generate_product_hash, generate_tx_hash
@@ -50,8 +52,9 @@ class SaleCreateRequest(BaseModel):
             )
         )
     ],
+    response_model=APIResponse[dict]
 )
-def get_inventory(skip: int = Query(0, ge=0), limit: int = Query(100, le=1000)) -> dict:
+def get_inventory(skip: int = Query(0, ge=0), limit: int = Query(100, le=1000)) -> APIResponse[dict]:
     product_rows = []
     total_stock = 0
     total_inventory_value = 0.0
@@ -83,7 +86,7 @@ def get_inventory(skip: int = Query(0, ge=0), limit: int = Query(100, le=1000)) 
         )
 
     sales = get_sales_analytics(period="week")
-    return {"products": product_rows, "sales": sales.get("trend", [])}
+    return APIResponse(success=True, data={"products": product_rows, "sales": sales.get("trend", [])})
 
 
 @router.get(
@@ -99,10 +102,11 @@ def get_inventory(skip: int = Query(0, ge=0), limit: int = Query(100, le=1000)) 
             )
         )
     ],
+    response_model=APIResponse[dict]
 )
-def get_sales_analytics_endpoint(time_range: str = Query("week", alias="range")) -> dict:
+def get_sales_analytics_endpoint(time_range: str = Query("week", alias="range")) -> APIResponse[dict]:
     period = "month" if str(time_range).lower() == "month" else "week"
-    return get_sales_analytics(period=period)
+    return APIResponse(success=True, data=get_sales_analytics(period=period))
 
 
 @router.post(
@@ -118,8 +122,9 @@ def get_sales_analytics_endpoint(time_range: str = Query("week", alias="range"))
             )
         )
     ],
+    response_model=APIResponse[dict]
 )
-def create_sale(data: SaleCreateRequest) -> dict:
+def create_sale(data: SaleCreateRequest) -> APIResponse[dict]:
     product = get_product_by_sku(data.sku)
     if product is None:
         raise HTTPException(status_code=404, detail="Product SKU not found")
@@ -224,20 +229,26 @@ def create_sale(data: SaleCreateRequest) -> dict:
         metadata={"sku": data.sku, "txHash": tx_hash, "saleId": sale.get("id")},
     )
 
-    return {
-        "success": True,
+    return APIResponse(success=True, data={
         "sale": sale,
         "txHash": tx_hash,
         "updatedStock": int(updated_product.get("quantity") or 0),
         "saleAmount": sale_amount,
-    }
+    })
 
-@router.get("/alerts")
-def get_inventory_alerts():
+@router.get("/alerts", response_model=APIResponse[dict])
+def get_inventory_alerts() -> APIResponse[dict]:
     from app.services.database_service import _engine, products_table
     from sqlalchemy import select
     from app.services.ai_service import check_inventory_alerts
     with _engine().begin() as conn:
         rows = conn.execute(select(products_table)).fetchall()
         items = [dict(row._mapping) for row in rows]
-    return check_inventory_alerts(items)
+    return APIResponse(success=True, data=check_inventory_alerts(items))
+
+@router.get("/analytics/inventory-reorder")
+def get_inventory_vs_reorder(payload: dict = Depends(require_roles(UserRole.admin, UserRole.retail_shop, UserRole.dealer))):
+    from app.services.database_service import get_inventory_vs_reorder
+    data = get_inventory_vs_reorder()
+    return APIResponse(success=True, data=data)
+

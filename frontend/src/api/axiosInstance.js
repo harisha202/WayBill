@@ -367,6 +367,7 @@ export const authApi = {
 }
 
 export const adminApi = {
+  get: http.get,
   stats: () => http.get('/admin/stats'),
   aiForecast: (history, periods) =>
       http.get(`/admin/ai-forecast?history=${encodeURIComponent(history)}&horizon=${periods}`),
@@ -377,6 +378,7 @@ export const adminApi = {
 }
 
 export const manufacturerApi = {
+  get: http.get,
   products: () => http.get('/manufacturer/products'),
   aiForecast: (history, periods) =>
       http.get(`/manufacturer/ai-forecast?history=${encodeURIComponent(history)}&horizon=${periods}`),
@@ -389,6 +391,7 @@ export const manufacturerApi = {
 }
 
 export const trackingApi = {
+  get: http.get,
   liveGps: () => http.get('/tracking/live-gps'),
   analytics: (timeRange = '7d') => http.get(`/tracking/analytics?range=${encodeURIComponent(timeRange)}`),
   updateOrderStage: (orderCode, payload) =>
@@ -398,12 +401,14 @@ export const trackingApi = {
 }
 
 export const inventoryApi = {
+  get: http.get,
   getInventory: (skip = 0, limit = 100) => http.get(`/inventory?skip=${skip}&limit=${limit}`),
   salesAnalytics: (timeRange = 'week') => http.get(`/inventory/sales-analytics?range=${encodeURIComponent(timeRange)}`),
   sellProduct: (payload) => http.post('/inventory/sales', payload),
 }
 
 export const dealerApi = {
+  get: http.get,
   recentOrders: () => http.get('/dealer/orders/recent'),
   orderTrends: () => http.get('/dealer/orders/trends'),
   lowStockAlerts: () => http.get('/dealer/low-stock'),

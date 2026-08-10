@@ -7,9 +7,12 @@ from pydantic import BaseModel, Field
 
 from app.core.middleware import require_roles
 from app.models.user import UserRole
+from app.schemas.inventory import OrderCreateRequest, ReceiptRequest
+from app.schemas.base import APIResponse
 from app.services.blockchain_service import generate_product_hash, generate_tx_hash
 from app.services.database_service import (
     DatabaseError,
+    DatabaseConflictError,
     append_pipeline_event,
     create_ledger_record,
     create_order,
@@ -21,21 +24,13 @@ from app.services.database_service import (
     list_products,
     reorder_recommendations,
     update_order_stage,
+    receive_order_with_discrepancy,
 )
 from app.services.ai_service import predict_low_stock
 from app.core.config import get_settings
 from app.services.notification_service import notification_service
 
 router = APIRouter(prefix="/dealer", tags=["dealer"])
-
-
-class RetailOrderCreateRequest(BaseModel):
-    retailer_name: str = Field(min_length=2, max_length=120)
-    retailer_email: str = Field(min_length=5, max_length=160)
-    product_sku: str
-    quantity: int = Field(gt=0)
-    origin: str = Field(default="Manufacturer Hub")
-    destination: str = Field(default="Dealer Warehouse")
 
 
 class DealerOrderForwardRequest(BaseModel):
@@ -138,8 +133,8 @@ def _pipeline_rows(limit: int = 100) -> list[dict]:
     return rows
 
 
-@router.post("/orders/retail", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer, UserRole.retail_shop))])
-def create_retail_order(data: RetailOrderCreateRequest) -> dict:
+@router.post("/orders/retail", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer, UserRole.retail_shop))], response_model=APIResponse[dict])
+def create_retail_order(data: OrderCreateRequest) -> APIResponse[dict]:
     if get_product_by_sku(data.product_sku) is None:
         raise HTTPException(status_code=404, detail="Product SKU not found")
 
@@ -147,7 +142,7 @@ def create_retail_order(data: RetailOrderCreateRequest) -> dict:
         order = create_order(
             retailer_name=data.retailer_name,
             retailer_email=data.retailer_email,
-            dealer_id="dealer",
+            dealer_id=data.dealer_id,
             product_sku=data.product_sku,
             quantity=data.quantity,
             origin=data.origin,
@@ -163,6 +158,8 @@ def create_retail_order(data: RetailOrderCreateRequest) -> dict:
                 "quantity": data.quantity,
             },
         )
+    except DatabaseConflictError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except DatabaseError as exc:
         raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
 
@@ -172,7 +169,7 @@ def create_retail_order(data: RetailOrderCreateRequest) -> dict:
         message=f"{order['order_code']} placed by {data.retailer_name}.",
         metadata={"orderCode": order["order_code"], "txHash": tx_hash},
     )
-    return {"order": order, "txHash": tx_hash}
+    return APIResponse(success=True, data={"order": order, "txHash": tx_hash})
 
 
 @router.patch("/orders/{order_code}/confirm", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
@@ -228,22 +225,17 @@ def forward_order_to_manufacturer(order_code: str, data: DealerOrderForwardReque
     return {"order": updated, "txHash": tx_hash}
 
 
-@router.patch("/orders/{order_code}/receive", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
-def receive_order(order_code: str) -> dict:
+@router.patch("/orders/{order_code}/receive", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))], response_model=APIResponse[dict])
+def receive_order(order_code: str, data: ReceiptRequest) -> APIResponse[dict]:
     order = get_order(order_code)
     if order is None:
         raise HTTPException(status_code=404, detail="Order not found")
     try:
-        updated = update_order_stage(
-            order_code,
-            stage="dealer_received",
-            status="dealer_received",
-            dealer_received=True,
-        )
+        updated = receive_order_with_discrepancy(order_code, data.received_quantity)
         tx_hash = _write_stage_event(
             updated or order,
             stage="dealer_received",
-            payload={"orderCode": order_code, "receivedBy": "dealer"},
+            payload={"orderCode": order_code, "receivedBy": "dealer", "receivedQuantity": data.received_quantity},
         )
         delivered_tx_hash = _write_stage_event(
             updated or order,
@@ -272,7 +264,7 @@ def receive_order(order_code: str) -> dict:
         message=f"{order_code} received by dealer and ready for retail handoff.",
         metadata={"orderCode": order_code, "txHash": tx_hash, "deliveredTxHash": delivered_tx_hash},
     )
-    return {"order": updated, "txHash": tx_hash, "deliveredTxHash": delivered_tx_hash}
+    return APIResponse(success=True, data={"order": updated, "txHash": tx_hash, "deliveredTxHash": delivered_tx_hash})
 
 
 @router.patch("/orders/{order_code}/retail-receive", dependencies=[Depends(require_roles(UserRole.admin, UserRole.retail_shop, UserRole.dealer))])
@@ -412,3 +404,21 @@ def analytics(time_range: str = Query("30d", alias="range")) -> dict:
         ],
         "categoryMix": top_products,
     }
+
+
+@router.get("/orders/backorders", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
+def backorders(limit: int = Query(100, ge=1, le=500)) -> dict:
+    from app.services.database_service import list_backorders
+    return {"items": list_backorders(limit=limit)}
+
+@router.get("/analytics/backorders")
+def get_backorder_trend(payload: dict = Depends(require_roles(UserRole.admin, UserRole.dealer))):
+    from app.services.database_service import get_backorder_trends
+    data = get_backorder_trends()
+    return APIResponse(success=True, data=data)
+
+@router.get("/analytics/margin")
+def get_margin(payload: dict = Depends(require_roles(UserRole.admin, UserRole.dealer))):
+    from app.services.database_service import get_profit_margins
+    data = get_profit_margins()
+    return APIResponse(success=True, data=data)

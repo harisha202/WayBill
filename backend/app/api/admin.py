@@ -212,3 +212,23 @@ def generate_report(payload: dict) -> Response:
 def get_activity_logs_route(limit: int = 100) -> dict:
     from app.services.database_service import get_activity_logs
     return {"logs": get_activity_logs(limit)}
+
+@router.get("/activity", dependencies=[Depends(require_roles(UserRole.admin))])
+def get_audit_logs(limit: int = Query(100, ge=1, le=1000)) -> dict:
+    from app.services.database_service import list_audit_logs
+    return {"logs": list_audit_logs(limit=limit)}
+
+@router.get("/analytics/revenue-cost")
+def get_revenue_cost(payload: dict = Depends(require_roles(UserRole.admin))):
+    from app.services.database_service import get_revenue_vs_cost
+    data = get_revenue_vs_cost()
+    from app.schemas.base import APIResponse
+    return APIResponse(success=True, data=data)
+
+@router.get("/analytics/order-pipeline")
+def get_order_pipeline(payload: dict = Depends(require_roles(UserRole.admin))):
+    from app.services.database_service import get_order_pipeline_counts
+    data = get_order_pipeline_counts()
+    from app.schemas.base import APIResponse
+    return APIResponse(success=True, data=data)
+

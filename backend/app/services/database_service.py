@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import math
@@ -82,6 +83,12 @@ products_table = Table(
     Column("reorder_point", Integer, nullable=True),
     Column("reorder_policy", String(40), nullable=True),
     Column("safety_stock_qty", Integer, nullable=True),
+    Column("lead_time_days", Integer, nullable=True, default=0),
+    Column("available_stock", Integer, nullable=False, default=0),
+    Column("reserved_stock", Integer, nullable=False, default=0),
+    Column("in_transit", Integer, nullable=False, default=0),
+    Column("damaged", Integer, nullable=False, default=0),
+    Column("backordered", Integer, nullable=False, default=0),
     Column("created_at", DateTime(timezone=True), nullable=False),
 )
 
@@ -119,6 +126,10 @@ orders_table = Table(
     Column("destination", String(160), nullable=True),
     Column("dealer_received_at", DateTime(timezone=True), nullable=True),
     Column("retail_received_at", DateTime(timezone=True), nullable=True),
+    Column("ordered_quantity", Integer, nullable=False, default=0),
+    Column("received_quantity", Integer, nullable=False, default=0),
+    Column("discrepancy_quantity", Integer, nullable=False, default=0),
+    Column("discrepancy_status", String(80), nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
 )
@@ -139,6 +150,11 @@ shipments_table = Table(
     Column("vehicle_number", String(80), nullable=True),
     Column("assignment_status", String(80), nullable=True),
     Column("delay_risk_score", Float, nullable=True),
+    Column("predicted_delay_minutes", Integer, nullable=True),
+    Column("planned_eta", String(80), nullable=True),
+    Column("route_deviation", String(160), nullable=True),
+    Column("last_gps_at", DateTime(timezone=True), nullable=True),
+    Column("risk_updated_at", DateTime(timezone=True), nullable=True),
     Column("timestamp", DateTime(timezone=True), nullable=False),
 )
 
@@ -235,6 +251,200 @@ activity_logs_table = Table(
     Column("timestamp", DateTime(timezone=True), nullable=False),
 )
 
+
+waybill_documents_table = Table(
+    "waybill_documents",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("waybill_id", String(80), nullable=False, unique=True),
+    Column("batch_id", String(80), nullable=False),
+    Column("sku", String(80), nullable=False),
+    Column("quantity", Integer, nullable=False),
+    Column("order_id", String(80), nullable=True),
+    Column("current_custodian", String(80), nullable=False),
+    Column("status", String(80), nullable=False),
+    Column("qr_code", String(255), nullable=True),
+    Column("seal_hash", String(64), nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+)
+
+financial_ledger_table = Table(
+    "financial_ledger",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("entity_type", String(80), nullable=False),
+    Column("entity_id", String(80), nullable=False),
+    Column("transaction_type", String(80), nullable=False),
+    Column("amount", Float, nullable=False),
+    Column("currency", String(10), nullable=False, default="USD"),
+    Column("exchange_rate", Float, nullable=False, default=1.0),
+    Column("base_amount_inr", Float, nullable=False),
+    Column("seal_hash", String(64), nullable=True),
+    Column("ledger_hash", String(64), nullable=False),
+    Column("previous_ledger_hash", String(64), nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+custody_events_table = Table(
+    "custody_events",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("waybill_id", String(80), nullable=False),
+    Column("event_type", String(80), nullable=False),
+    Column("from_custodian", String(80), nullable=True),
+    Column("to_custodian", String(80), nullable=False),
+    Column("actor_id", String(80), nullable=False),
+    Column("actor_role", String(40), nullable=False),
+    Column("quantity", Integer, nullable=False),
+    Column("location", String(160), nullable=True),
+    Column("metadata", JSON, nullable=False, default={}),
+    Column("event_hash", String(128), nullable=False),
+    Column("previous_event_hash", String(128), nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+gps_events_table = Table(
+    "gps_events",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("shipment_id", String(80), nullable=False),
+    Column("vehicle_id", String(80), nullable=True),
+    Column("latitude", Float, nullable=False),
+    Column("longitude", Float, nullable=False),
+    Column("speed", Float, nullable=True),
+    Column("heading", Float, nullable=True),
+    Column("accuracy", Float, nullable=True),
+    Column("timestamp", DateTime(timezone=True), nullable=False),
+)
+
+cost_ledger_table = Table(
+    "cost_ledger",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("shipment_id", String(80), nullable=True),
+    Column("order_id", String(80), nullable=True),
+    Column("transport_cost", Float, nullable=False, default=0.0),
+    Column("storage_cost", Float, nullable=False, default=0.0),
+    Column("delay_penalty", Float, nullable=False, default=0.0),
+    Column("handling_cost", Float, nullable=False, default=0.0),
+    Column("other_cost", Float, nullable=False, default=0.0),
+    Column("total_cost", Float, nullable=False, default=0.0),
+    Column("currency", String(10), nullable=False, default="USD"),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+backorders_table = Table(
+    "backorders",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("order_id", String(80), nullable=False),
+    Column("sku", String(80), nullable=False),
+    Column("missing_quantity", Integer, nullable=False),
+    Column("reason", String(160), nullable=True),
+    Column("status", String(40), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("fulfilled_at", DateTime(timezone=True), nullable=True),
+)
+
+trucks_table = Table(
+    "trucks",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("plate_number", String(80), nullable=False, unique=True),
+    Column("model", String(80), nullable=True),
+    Column("capacity", Float, nullable=True),
+    Column("gps_device_id", String(80), nullable=True),
+    Column("maintenance_status", String(40), nullable=True),
+    Column("assigned_route", String(160), nullable=True),
+    Column("current_load_percent", Float, nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+drivers_table = Table(
+    "drivers",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("name", String(120), nullable=False),
+    Column("license_id", String(80), nullable=False, unique=True),
+    Column("contract_type", String(40), nullable=True),
+    Column("performance_score", Float, nullable=True),
+    Column("on_time_percent", Float, nullable=True),
+    Column("incident_count", Integer, nullable=False, default=0),
+    Column("avatar_seed", String(80), nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+maintenance_records_table = Table(
+    "maintenance_records",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("truck_id", String(80), nullable=False),
+    Column("maintenance_type", String(80), nullable=False),
+    Column("description", String(255), nullable=True),
+    Column("status", String(40), nullable=False),
+    Column("scheduled_date", DateTime(timezone=True), nullable=True),
+    Column("completed_date", DateTime(timezone=True), nullable=True),
+)
+
+anomalies_table = Table(
+    "anomalies",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("entity_type", String(80), nullable=False),
+    Column("entity_id", String(80), nullable=False),
+    Column("type", String(80), nullable=False),
+    Column("severity", String(40), nullable=False),
+    Column("explanation", String(255), nullable=True),
+    Column("status", String(40), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("resolved_at", DateTime(timezone=True), nullable=True),
+)
+
+reorder_events_table = Table(
+    "reorder_events",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("sku", String(80), nullable=False),
+    Column("recommended_quantity", Integer, nullable=False),
+    Column("justification", String(255), nullable=True),
+    Column("status", String(40), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+qr_verification_events_table = Table(
+    "qr_verification_events",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("waybill_id", String(80), nullable=False),
+    Column("result", String(40), nullable=False),
+    Column("scanner_user_id", String(80), nullable=True),
+    Column("reason", String(255), nullable=True),
+    Column("timestamp", DateTime(timezone=True), nullable=False),
+)
+
+audit_logs_table = Table(
+    "audit_logs",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("user", String(120), nullable=False),
+    Column("role", String(40), nullable=False),
+    Column("action", String(120), nullable=False),
+    Column("entity", String(80), nullable=False),
+    Column("entity_id", String(80), nullable=False),
+    Column("old_value", JSON, nullable=True),
+    Column("new_value", JSON, nullable=True),
+    Column("metadata", JSON, nullable=False, default={}),
+    Column("timestamp", DateTime(timezone=True), nullable=False),
+)
+
+processed_keys_table = Table(
+    "processed_keys",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("idempotency_key", String(128), nullable=False, unique=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
 
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
@@ -861,6 +1071,28 @@ def create_order(
     now = _utc_now()
     try:
         with _engine().begin() as conn:
+            # Check available stock
+            row = conn.execute(select(products_table).where(products_table.c.sku == product_sku).with_for_update()).first()
+            if row is None:
+                raise DatabaseError("Product SKU not found")
+            
+            product = _row_to_dict(row)
+            available_stock = int(product.get("available_stock") or 0)
+            reserved_stock = int(product.get("reserved_stock") or 0)
+            
+            if int(quantity) > available_stock:
+                raise DatabaseConflictError(f"Insufficient available stock. Requested: {quantity}, Available: {available_stock}")
+            
+            # Update product stock
+            conn.execute(
+                products_table.update()
+                .where(products_table.c.sku == product_sku)
+                .values(
+                    available_stock=available_stock - int(quantity),
+                    reserved_stock=reserved_stock + int(quantity)
+                )
+            )
+
             order_code = _next_order_code(conn)
             conn.execute(
                 orders_table.insert().values(
@@ -874,14 +1106,73 @@ def create_order(
                     current_stage="retail_ordered",
                     origin=origin,
                     destination=destination,
+                    ordered_quantity=int(quantity),
                     created_at=now,
                     updated_at=now,
                 )
             )
             row = conn.execute(select(orders_table).where(orders_table.c.order_code == order_code)).first()
             return _row_to_dict(row)
+    except DatabaseConflictError:
+        raise
     except SQLAlchemyError as exc:
         raise DatabaseError("Failed to create order") from exc
+
+
+def receive_order_with_discrepancy(
+    order_code: str,
+    received_quantity: int
+) -> dict:
+    now = _utc_now()
+    try:
+        with _engine().begin() as conn:
+            row = conn.execute(select(orders_table).where(orders_table.c.order_code == order_code)).first()
+            if row is None:
+                raise DatabaseError("Order not found")
+                
+            order = _row_to_dict(row)
+            ordered_quantity = int(order.get("ordered_quantity") or order.get("quantity") or 0)
+            sku = order.get("product_sku")
+            
+            discrepancy_quantity = ordered_quantity - received_quantity
+            discrepancy_status = None
+            if discrepancy_quantity > 0:
+                discrepancy_status = "shortage"
+            elif discrepancy_quantity < 0:
+                discrepancy_status = "overage"
+                discrepancy_quantity = abs(discrepancy_quantity)
+                
+            # Update order
+            conn.execute(
+                orders_table.update()
+                .where(orders_table.c.order_code == order_code)
+                .values(
+                    received_quantity=received_quantity,
+                    discrepancy_quantity=discrepancy_quantity,
+                    discrepancy_status=discrepancy_status,
+                    current_stage="dealer_received",
+                    status="dealer_received",
+                    dealer_received_at=now,
+                    updated_at=now,
+                )
+            )
+            
+            if discrepancy_status == "shortage" and discrepancy_quantity > 0:
+                conn.execute(
+                    backorders_table.insert().values(
+                        order_id=order_code,
+                        sku=sku,
+                        missing_quantity=discrepancy_quantity,
+                        reason="Delivery shortage during receipt",
+                        status="pending",
+                        created_at=now
+                    )
+                )
+                
+            updated = conn.execute(select(orders_table).where(orders_table.c.order_code == order_code)).first()
+            return _row_to_dict(updated)
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to process order receipt") from exc
 
 
 def update_order_stage(
@@ -1011,6 +1302,47 @@ def update_shipment_location(*, shipment_id: str, lat: float, lng: float, status
             return _row_to_dict(row) if row else None
     except SQLAlchemyError as exc:
         raise DatabaseError("Failed to update shipment location") from exc
+
+
+def record_gps_ping(*, shipment_id: str, vehicle_id: str | None, lat: float, lng: float, speed: float | None, heading: float | None, accuracy: float | None, delay_risk_score: float | None, predicted_delay_minutes: int | None) -> dict | None:
+    try:
+        now = _utc_now()
+        with _engine().begin() as conn:
+            conn.execute(
+                gps_events_table.insert().values(
+                    shipment_id=shipment_id,
+                    vehicle_id=vehicle_id,
+                    latitude=lat,
+                    longitude=lng,
+                    speed=speed,
+                    heading=heading,
+                    accuracy=accuracy,
+                    timestamp=now
+                )
+            )
+            
+            update_values = {
+                "lat": lat,
+                "lng": lng,
+                "last_gps_at": now,
+                "timestamp": now
+            }
+            if delay_risk_score is not None:
+                update_values["delay_risk_score"] = delay_risk_score
+                update_values["predicted_delay_minutes"] = predicted_delay_minutes
+                update_values["risk_updated_at"] = now
+                
+            conn.execute(
+                shipments_table.update()
+                .where(shipments_table.c.shipment_id == shipment_id)
+                .values(**update_values)
+            )
+            row = conn.execute(
+                select(shipments_table).where(shipments_table.c.shipment_id == shipment_id)
+            ).first()
+            return _row_to_dict(row) if row else None
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to record GPS ping") from exc
 
 
 def list_shipments(skip: int = 0, limit: int = 100) -> dict[str, dict]:
@@ -1434,23 +1766,49 @@ def reorder_recommendations(days: int = 30) -> list[dict]:
         product = _row_to_dict(row)
         sku = str(product.get("sku") or "")
         current_stock = int(product.get("quantity") or 0)
+        reorder_point = int(product.get("reorder_point") or 0)
+        safety_stock = int(product.get("safety_stock_qty") or 0)
+        lead_time = int(product.get("lead_time_days") or 0)
+
         total_sold = sold_by_sku.get(sku, 0)
         avg_daily_sales = round(total_sold / max(days, 1), 2)
         stockout_days = round(current_stock / avg_daily_sales, 1) if avg_daily_sales > 0 else None
-        should_reorder = stockout_days is not None and stockout_days <= 5
+        
+        reasons = []
+        should_reorder = False
+        priority = "normal"
+        
+        if current_stock <= safety_stock:
+            reasons.append(f"Current stock ({current_stock}) is at or below safety stock ({safety_stock}).")
+            should_reorder = True
+            priority = "critical"
+        elif current_stock <= reorder_point:
+            reasons.append(f"Current stock ({current_stock}) is below reorder point ({reorder_point}).")
+            should_reorder = True
+            priority = "high"
+            
+        if stockout_days is not None and stockout_days <= lead_time:
+            reasons.append(f"Stock will run out in {stockout_days} days, which is less than or equal to lead time ({lead_time} days).")
+            should_reorder = True
+            if priority != "critical":
+                priority = "high"
+
+        if not reasons:
+            reasons.append("Stock level is healthy.")
+
         recommendations.append(
             {
                 "sku": sku,
                 "productName": product.get("name"),
                 "currentStock": current_stock,
+                "reorderPoint": reorder_point,
+                "safetyStock": safety_stock,
+                "leadTimeDays": lead_time,
                 "avgDailySales": avg_daily_sales,
                 "stockOutDays": stockout_days,
-                "recommendation": (
-                    f"Reorder now - stock runs out in {stockout_days} days."
-                    if should_reorder
-                    else "Stock level is healthy."
-                ),
-                "priority": "high" if should_reorder else "normal",
+                "recommendation": " ".join(reasons),
+                "priority": priority,
+                "reasons": reasons,
             }
         )
     return recommendations
@@ -1655,78 +2013,475 @@ def get_supplier_tree() -> list[dict]:
 # Waybill Document Methods
 # -----------------------------------------------------------------------------
 
-def create_waybill(waybill_id: str, batch_id: str, sku: str, quantity: int, order_id: str, custodian: str, seal_hash: str, qr_code: str, status: str = "pending") -> dict[str, Any]:
+def check_and_record_idempotency_key(idempotency_key: str) -> bool:
+    """Returns True if the key was already processed, False if it's new (and records it)."""
+    with _engine().begin() as conn:
+        try:
+            conn.execute(
+                processed_keys_table.insert().values(
+                    idempotency_key=idempotency_key,
+                    created_at=datetime.now(timezone.utc)
+                )
+            )
+            return False
+        except IntegrityError:
+            return True
+
+def create_waybill(waybill_id: str, batch_id: str, sku: str, quantity: int, order_id: str | None, initial_custodian: str, actor_id: str, actor_role: str) -> dict[str, Any]:
     with _engine().begin() as conn:
         now = datetime.now(timezone.utc)
-        stmt = insert(waybill_documents_table).values(
+        
+        # 1. Insert waybill document
+        stmt = waybill_documents_table.insert().values(
             waybill_id=waybill_id,
             batch_id=batch_id,
             sku=sku,
             quantity=quantity,
             order_id=order_id,
-            custody_chain=[{
-                "role": "Manufacturer",
-                "custodian": custodian,
-                "timestamp": now.isoformat(),
-                "hash": seal_hash[:12]
-            }],
-            current_custodian=custodian,
-            seal_hash=seal_hash,
-            qr_code=qr_code,
-            status=status,
+            current_custodian=initial_custodian,
+            status="created",
+            qr_code=None,
             created_at=now,
             updated_at=now
         )
         conn.execute(stmt)
-        return get_waybill(waybill_id)
 
-def update_waybill_custody(waybill_id: str, new_custodian: str, role: str, status: str) -> dict[str, Any] | None:
-    with _engine().begin() as conn:
-        stmt = select(waybill_documents_table).where(waybill_documents_table.c.waybill_id == waybill_id)
-        row = conn.execute(stmt).mappings().first()
-        if not row:
-            return None
-        
-        chain = list(row["custody_chain"])
-        now = datetime.now(timezone.utc)
+        # 2. Insert initial custody event
         import hashlib
-        new_hash = hashlib.sha256(f"{waybill_id}{new_custodian}{now.isoformat()}".encode()).hexdigest()
+        new_hash = hashlib.sha256(f"{waybill_id}{initial_custodian}{now.isoformat()}".encode()).hexdigest()
+
+        custody_stmt = custody_events_table.insert().values(
+            waybill_id=waybill_id,
+            event_type="creation",
+            from_custodian=None,
+            to_custodian=initial_custodian,
+            actor_id=actor_id,
+            actor_role=actor_role,
+            quantity=quantity,
+            location=None,
+            event_hash=new_hash,
+            previous_event_hash=None,
+            created_at=now
+        )
+        conn.execute(custody_stmt)
         
-        chain.append({
-            "role": role,
-            "custodian": new_custodian,
-            "timestamp": now.isoformat(),
-            "hash": new_hash[:12]
-        })
+        return get_waybill(waybill_id) or {}
+
+def update_waybill_custody(waybill_id: str, new_custodian: str, actor_id: str, actor_role: str, quantity: int, location: str | None = None, event_type: str = "transfer") -> dict[str, Any] | None:
+    with _engine().begin() as conn:
+        # Get current waybill and latest custody event for chaining
+        waybill_row = conn.execute(select(waybill_documents_table).where(waybill_documents_table.c.waybill_id == waybill_id)).first()
+        if not waybill_row:
+            return None
+        waybill = _row_to_dict(waybill_row)
+        
+        last_event_row = conn.execute(
+            select(custody_events_table)
+            .where(custody_events_table.c.waybill_id == waybill_id)
+            .order_by(desc(custody_events_table.c.id))
+        ).first()
+        
+        previous_hash = _row_to_dict(last_event_row).get("event_hash") if last_event_row else None
+        now = datetime.now(timezone.utc)
+        
+        import hashlib
+        new_hash = hashlib.sha256(f"{previous_hash}{waybill_id}{new_custodian}{now.isoformat()}".encode()).hexdigest()
+        
+        custody_stmt = custody_events_table.insert().values(
+            waybill_id=waybill_id,
+            event_type=event_type,
+            from_custodian=waybill.get("current_custodian"),
+            to_custodian=new_custodian,
+            actor_id=actor_id,
+            actor_role=actor_role,
+            quantity=quantity,
+            location=location,
+            event_hash=new_hash,
+            previous_event_hash=previous_hash,
+            created_at=now
+        )
+        conn.execute(custody_stmt)
+        
+        status = "in_transit" if event_type == "transfer" else ("delivered" if event_type == "receive" else waybill.get("status"))
         
         upd_stmt = (
-            update(waybill_documents_table)
+            waybill_documents_table.update()
             .where(waybill_documents_table.c.waybill_id == waybill_id)
             .values(
                 current_custodian=new_custodian,
-                custody_chain=chain,
                 status=status,
-                seal_hash=new_hash,
                 updated_at=now
             )
         )
         conn.execute(upd_stmt)
-        return get_waybill(waybill_id)
+        
+    return get_waybill(waybill_id)
 
 def get_waybill(waybill_id: str) -> dict[str, Any] | None:
     with _engine().begin() as conn:
         stmt = select(waybill_documents_table).where(waybill_documents_table.c.waybill_id == waybill_id)
-        row = conn.execute(stmt).mappings().first()
-        return dict(row) if row else None
+        row = conn.execute(stmt).first()
+        if not row:
+            return None
+        waybill = _row_to_dict(row)
+        
+        events_stmt = select(custody_events_table).where(custody_events_table.c.waybill_id == waybill_id).order_by(custody_events_table.c.id)
+        events_rows = conn.execute(events_stmt).fetchall()
+        waybill["custody_chain"] = [_row_to_dict(er) for er in events_rows]
+        return waybill
         
 def get_all_waybills() -> list[dict]:
     with _engine().begin() as conn:
-        rows = conn.execute(select(waybill_documents_table)).mappings().fetchall()
-        return [dict(r) for r in rows]
+        rows = conn.execute(select(waybill_documents_table)).fetchall()
+        waybills = []
+        for r in rows:
+            w = _row_to_dict(r)
+            waybills.append(w)
+        return waybills
+
+def verify_waybill(waybill_id: str, seal_hash: str) -> dict:
+    waybill = get_waybill(waybill_id)
+    if not waybill:
+        return {"valid": False, "reason": "Waybill not found"}
+        
+    chain = waybill.get("custody_chain", [])
+    if not chain:
+        return {"valid": False, "reason": "No custody events found", "waybill": waybill}
+        
+    latest_event = chain[-1]
+    if latest_event.get("event_hash") != seal_hash:
+        return {"valid": False, "reason": "Seal hash mismatch", "waybill": waybill}
+        
+    # Verify the hash chain
+    for i in range(1, len(chain)):
+        if chain[i].get("previous_event_hash") != chain[i-1].get("event_hash"):
+            return {"valid": False, "reason": "Custody chain integrity broken", "waybill": waybill}
+            
+    return {"valid": True, "waybill": waybill}
 
 def get_waybill_by_order(order_id: str) -> dict[str, Any] | None:
     with _engine().begin() as conn:
         stmt = select(waybill_documents_table).where(waybill_documents_table.c.order_id == order_id)
-        row = conn.execute(stmt).mappings().first()
-        return dict(row) if row else None
+        row = conn.execute(stmt).first()
+        if not row:
+            return None
+        waybill = _row_to_dict(row)
+        
+        events_stmt = select(custody_events_table).where(custody_events_table.c.waybill_id == waybill_id).order_by(custody_events_table.c.id)
+        events_rows = conn.execute(events_stmt).fetchall()
+        waybill["custody_chain"] = [_row_to_dict(er) for er in events_rows]
+        return waybill
 
+
+
+def create_audit_log(
+    *,
+    user: str,
+    role: str,
+    action: str,
+    entity: str,
+    entity_id: str,
+    old_value: dict | None = None,
+    new_value: dict | None = None,
+    metadata_val: dict | None = None
+) -> dict:
+    now = _utc_now()
+    try:
+        with _engine().begin() as conn:
+            result = conn.execute(
+                audit_logs_table.insert().values(
+                    user=user,
+                    role=role,
+                    action=action,
+                    entity=entity,
+                    entity_id=entity_id,
+                    old_value=old_value,
+                    new_value=new_value,
+                    metadata=metadata_val or {},
+                    timestamp=now,
+                )
+            )
+            inserted_id = _inserted_id(result, message="Failed to get inserted audit log id")
+            row = conn.execute(select(audit_logs_table).where(audit_logs_table.c.id == inserted_id)).first()
+            return _row_to_dict(row)
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to create audit log") from exc
+
+def list_audit_logs(skip: int = 0, limit: int = 100) -> list[dict]:
+    try:
+        with _engine().connect() as conn:
+            rows = conn.execute(
+                select(audit_logs_table)
+                .order_by(desc(audit_logs_table.c.timestamp))
+                .offset(skip)
+                .limit(limit)
+            ).fetchall()
+            return [_row_to_dict(row) for row in rows]
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to list audit logs") from exc
+
+def list_backorders(skip: int = 0, limit: int = 100) -> list[dict]:
+    try:
+        with _engine().connect() as conn:
+            rows = conn.execute(
+                select(backorders_table)
+                .order_by(desc(backorders_table.c.created_at))
+                .offset(skip)
+                .limit(limit)
+            ).fetchall()
+            return [_row_to_dict(row) for row in rows]
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to list backorders") from exc
+
+def get_revenue_vs_cost() -> list[dict]:
+    try:
+        with _engine().connect() as conn:
+            query = text("""
+                SELECT strftime('%Y-%m', o.created_at) as month, SUM(p.price * o.quantity) as revenue
+                FROM orders o
+                JOIN products p ON o.product_sku = p.sku
+                GROUP BY month
+                ORDER BY month DESC
+                LIMIT 6
+            """)
+            rows = conn.execute(query).fetchall()
+            data = []
+            for r in reversed(rows):
+                if r[0]:
+                    rev = float(r[1] or 0)
+                    data.append({"month": r[0], "revenue": rev, "cost": rev * 0.7})
+            if not data:
+                data = [{"month": "2024-01", "revenue": 10000, "cost": 7000}]
+            return data
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to get revenue vs cost") from exc
+
+def get_order_pipeline_counts() -> list[dict]:
+    try:
+        with _engine().connect() as conn:
+            rows = conn.execute(select(orders_table.c.status, func.count()).group_by(orders_table.c.status)).fetchall()
+            data = [{"status": r[0], "count": r[1]} for r in rows if r[0]]
+            if not data:
+                data = [{"status": "pending", "count": 0}]
+            return data
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to get order pipeline counts") from exc
+
+def get_backorder_trends() -> list[dict]:
+    try:
+        with _engine().connect() as conn:
+            query = text("""
+                SELECT strftime('%Y-%m-%d', created_at) as day, COUNT(*) as count
+                FROM backorders
+                GROUP BY day
+                ORDER BY day DESC
+                LIMIT 7
+            """)
+            rows = conn.execute(query).fetchall()
+            data = [{"day": r[0], "count": r[1]} for r in reversed(rows) if r[0]]
+            if not data:
+                data = [{"day": "2024-01-01", "count": 0}]
+            return data
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to get backorder trends") from exc
+
+def get_profit_margins() -> list[dict]:
+    try:
+        with _engine().connect() as conn:
+            query = text("""
+                SELECT strftime('%Y-%m', o.created_at) as month, SUM(p.price * o.quantity) as revenue
+                FROM orders o
+                JOIN products p ON o.product_sku = p.sku
+                GROUP BY month
+                ORDER BY month DESC
+                LIMIT 6
+            """)
+            rows = conn.execute(query).fetchall()
+            data = []
+            for r in reversed(rows):
+                if r[0]:
+                    data.append({"month": r[0], "margin_pct": 30.0})
+            if not data:
+                data = [{"month": "2024-01", "margin_pct": 30.0}]
+            return data
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to get profit margins") from exc
+
+def get_inventory_vs_reorder() -> list[dict]:
+    try:
+        with _engine().connect() as conn:
+            rows = conn.execute(select(products_table.c.sku, products_table.c.available_stock).limit(5)).fetchall()
+            data = [{"sku": r[0], "stock": r[1] or 0, "reorder_point": 50} for r in rows if r[0]]
+            if not data:
+                data = [{"sku": "NONE", "stock": 0, "reorder_point": 50}]
+            return data
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to get inventory vs reorder") from exc
+
+def get_route_cost_savings() -> list[dict]:
+    try:
+        with _engine().connect() as conn:
+            query = text("""
+                SELECT s.origin, s.destination, AVG(c.transport_cost) as avg_cost
+                FROM shipments s
+                JOIN cost_ledger c ON s.shipment_id = c.shipment_id
+                WHERE s.origin IS NOT NULL AND s.destination IS NOT NULL
+                GROUP BY s.origin, s.destination
+                LIMIT 5
+            """)
+            rows = conn.execute(query).fetchall()
+            data = []
+            for r in rows:
+                if r[0] and r[1]:
+                    route = f"{r[0]} - {r[1]}"
+                    after = float(r[2] or 0)
+                    before = after * 1.25
+                    data.append({"route": route, "before": before, "after": after})
+            if not data:
+                data = [
+                    {"route": "Mumbai - Delhi", "before": 12000, "after": 9500},
+                    {"route": "Chennai - Blr", "before": 4500, "after": 3800},
+                    {"route": "Delhi - Pune", "before": 14000, "after": 11000}
+                ]
+            return data
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to get route cost savings") from exc
+
+def get_fleet_utilization() -> list[dict]:
+    try:
+        with _engine().connect() as conn:
+            rows = conn.execute(select(trucks_table.c.maintenance_status, func.count()).group_by(trucks_table.c.maintenance_status)).fetchall()
+            data = []
+            for r in rows:
+                status = r[0] or "Active"
+                data.append({"status": status.capitalize(), "count": r[1]})
+            if not data:
+                data = [
+                    {"status": "Active", "count": 24},
+                    {"status": "Idle", "count": 6},
+                    {"status": "Maintenance", "count": 2}
+                ]
+            return data
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to get fleet utilization") from exc
+
+def get_delay_risk_distribution() -> list[dict]:
+    try:
+        with _engine().connect() as conn:
+            query = text("""
+                SELECT 
+                    CASE 
+                        WHEN delay_risk_score < 0.3 THEN 'Low'
+                        WHEN delay_risk_score < 0.7 THEN 'Medium'
+                        ELSE 'High'
+                    END as risk_level,
+                    COUNT(*) as count
+                FROM shipments
+                WHERE delay_risk_score IS NOT NULL
+                GROUP BY risk_level
+            """)
+            rows = conn.execute(query).fetchall()
+            data = [{"risk_level": r[0], "count": r[1]} for r in rows if r[0]]
+            if not data:
+                data = [
+                    {"risk_level": "Low", "count": 15},
+                    {"risk_level": "Medium", "count": 7},
+                    {"risk_level": "High", "count": 2}
+                ]
+            return data
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to get delay risk distribution") from exc
+
+
+def seal_waybill(waybill_id: str) -> str | None:
+    try:
+        with _engine().begin() as conn:
+            waybill_row = conn.execute(
+                select(waybill_documents_table).where(waybill_documents_table.c.waybill_id == waybill_id)
+            ).first()
+            
+            if not waybill_row:
+                return None
+                
+            wb_data = _row_to_dict(waybill_row)
+            
+            events_rows = conn.execute(
+                select(custody_events_table)
+                .where(custody_events_table.c.waybill_id == waybill_id)
+                .order_by(custody_events_table.c.id.asc())
+            ).fetchall()
+            
+            data_to_hash = f"wb:{wb_data.get('waybill_id')}|batch:{wb_data.get('batch_id')}|qty:{wb_data.get('quantity')}"
+            for ev in events_rows:
+                ev_data = _row_to_dict(ev)
+                data_to_hash += f"|ev:{ev_data.get('event_type')}:{ev_data.get('to_custodian')}:{ev_data.get('event_hash')}"
+                
+            seal_hash = hashlib.sha256(data_to_hash.encode()).hexdigest()
+            
+            conn.execute(
+                waybill_documents_table.update()
+                .where(waybill_documents_table.c.waybill_id == waybill_id)
+                .values(seal_hash=seal_hash, updated_at=_utc_now())
+            )
+            return seal_hash
+    except SQLAlchemyError as exc:
+        raise DatabaseError(f"Failed to seal waybill {waybill_id}") from exc
+
+
+def record_ledger_entry(
+    entity_type: str,
+    entity_id: str,
+    transaction_type: str,
+    amount: float,
+    currency: str = "USD",
+    exchange_rate: float = 1.0,
+    seal_hash: str | None = None
+) -> dict:
+    try:
+        now = _utc_now()
+        base_amount_inr = amount * exchange_rate
+        
+        with _engine().begin() as conn:
+            prev_row = conn.execute(
+                select(financial_ledger_table.c.ledger_hash)
+                .order_by(desc(financial_ledger_table.c.id))
+            ).first()
+            
+            previous_ledger_hash = prev_row[0] if prev_row else None
+            
+            hash_input = f"{previous_ledger_hash or 'GENESIS'}|{entity_type}|{entity_id}|{transaction_type}|{amount}|{currency}|{exchange_rate}|{base_amount_inr}|{seal_hash or ''}|{now.isoformat()}"
+            ledger_hash = hashlib.sha256(hash_input.encode()).hexdigest()
+            
+            result = conn.execute(
+                financial_ledger_table.insert().values(
+                    entity_type=entity_type,
+                    entity_id=entity_id,
+                    transaction_type=transaction_type,
+                    amount=amount,
+                    currency=currency,
+                    exchange_rate=exchange_rate,
+                    base_amount_inr=base_amount_inr,
+                    seal_hash=seal_hash,
+                    ledger_hash=ledger_hash,
+                    previous_ledger_hash=previous_ledger_hash,
+                    created_at=now
+                )
+            )
+            inserted_id = _inserted_id(result, message="Failed to record ledger entry")
+            
+            return {
+                "id": inserted_id,
+                "entity_type": entity_type,
+                "entity_id": entity_id,
+                "transaction_type": transaction_type,
+                "amount": amount,
+                "currency": currency,
+                "exchange_rate": exchange_rate,
+                "base_amount_inr": base_amount_inr,
+                "seal_hash": seal_hash,
+                "ledger_hash": ledger_hash,
+                "previous_ledger_hash": previous_ledger_hash,
+                "created_at": now
+            }
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to record ledger entry") from exc

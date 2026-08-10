@@ -13,8 +13,7 @@ function StatusDonut({ title = 'Distribution', data = [] }) {
   const segments = normalized
 
   return (
-    <section style={{ border: '1px solid #e2e8f0', borderRadius: 12, background: '#ffffff', padding: 16 }}>
-      <h4 style={{ margin: '0 0 12px', color: '#0f172a' }}>{title}</h4>
+    <div style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
       {!total && <p style={{ margin: 0, color: '#64748b' }}>No chart data</p>}
       {!!total && (
         <>
@@ -26,7 +25,7 @@ function StatusDonut({ title = 'Distribution', data = [] }) {
                   {
                     data: normalized.map((item) => item.value),
                     backgroundColor: normalized.map((item) => item.color),
-                    borderColor: '#ffffff',
+                    borderColor: '#0f172a',
                     borderWidth: 2,
                     hoverOffset: 6,
                     spacing: 1,
@@ -52,8 +51,8 @@ function StatusDonut({ title = 'Distribution', data = [] }) {
               }}
             >
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 11, color: '#64748b' }}>Total</div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: '#0f172a' }}>{total}</div>
+                <div style={{ fontSize: 11, color: '#94a3b8' }}>Total</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: '#f8fafc' }}>{total}</div>
               </div>
             </div>
           </div>
@@ -75,7 +74,7 @@ function StatusDonut({ title = 'Distribution', data = [] }) {
           </div>
         </>
       )}
-    </section>
+    </div>
   )
 }
 

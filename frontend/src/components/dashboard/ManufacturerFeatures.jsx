@@ -1,142 +1,326 @@
-import React, { useEffect, useState } from 'react';
-import { manufacturerApi } from '../../api/axiosInstance';
-import ForecastChart from '../charts/ForecastChart';
-import { DataTable } from '../ui/DataTable';
+import React from 'react';
+import BarChart from '../charts/BarChart';
+import StatusDonut from '../charts/StatusDonut';
+import LineChart from '../charts/LineChart';
+import PipelineFunnel from '../charts/PipelineFunnel';
+import GaugeChart from '../charts/GaugeChart';
 
-export function ProductionControls() {
-  const [mode, setMode] = useState('jit');
-  
+export function ManufacturerDashboard() {
+  const kpis = [
+    { label: 'Total Production', value: '14,230 Units', trend: '+5.2%' },
+    { label: 'Active Orders', value: '342', trend: '+12%' },
+    { label: 'Defect Rate', value: '0.8%', trend: '-0.2%' },
+    { label: 'Avg Lead Time', value: '4.5 Days', trend: '-1.1 Days' }
+  ];
+
+  const productionVsDemandData = [
+    { name: 'Jan', Production: 4000, Demand: 4400 },
+    { name: 'Feb', Production: 3000, Demand: 3200 },
+    { name: 'Mar', Production: 2000, Demand: 2400 },
+    { name: 'Apr', Production: 2780, Demand: 2900 },
+    { name: 'May', Production: 1890, Demand: 2100 },
+    { name: 'Jun', Production: 2390, Demand: 2500 },
+  ];
+
   return (
-    <div className="card" style={{ borderTop: '4px solid #0f766e' }}>
-      <h2 className="card-title">
-        <span className="kpi-icon" style={{ background: '#ccfbf1', color: '#0f766e' }}>⚙️</span>
-        Production Strategy Controls
-      </h2>
-      <div style={{ display: 'flex', gap: '16px', marginTop: '16px' }}>
-        <button 
-          className={mode === 'jit' ? 'primary-btn' : 'ghost-btn'}
-          onClick={() => setMode('jit')}
-          style={mode === 'jit' ? { background: 'linear-gradient(135deg, #0f766e, #0e9f8d)' } : {}}
-        >
-          Just-In-Time (JIT) Mode
-        </button>
-        <button 
-          className={mode === 'safety' ? 'primary-btn' : 'ghost-btn'}
-          onClick={() => setMode('safety')}
-          style={mode === 'safety' ? { background: 'linear-gradient(135deg, #BA7517, #d97706)' } : {}}
-        >
-          Safety Stock Mode
-        </button>
+    <div style={{ padding: '24px', backgroundColor: '#0f172a', color: '#f8fafc', minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      <header style={{ marginBottom: '32px' }}>
+        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 8px 0', background: 'linear-gradient(90deg, #38bdf8, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          Manufacturer Dashboard
+        </h1>
+        <p style={{ color: '#94a3b8', margin: 0 }}>Real-time production, forecasting, and supply chain insights.</p>
+      </header>
+
+      {/* KPI Cards Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '32px' }}>
+        {kpis.map((kpi, idx) => (
+          <div key={idx} style={{ backgroundColor: '#1e293b', padding: '20px', borderRadius: '12px', border: '1px solid #334155', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
+            <h3 style={{ fontSize: '0.875rem', color: '#94a3b8', margin: '0 0 8px 0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{kpi.label}</h3>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#f8fafc' }}>{kpi.value}</span>
+              <span style={{ fontSize: '0.875rem', fontWeight: '500', color: kpi.trend.startsWith('+') ? '#34d399' : '#f87171' }}>
+                {kpi.trend}
+              </span>
+            </div>
+          </div>
+        ))}
       </div>
-      <div style={{ marginTop: '20px', padding: '16px', borderRadius: '8px', background: '#f8fafc', borderLeft: `4px solid ${mode === 'jit' ? '#0f766e' : '#BA7517'}` }}>
-        <p className="muted">
-          {mode === 'jit' 
-            ? 'JIT Mode active: Relying on real-time demand forecasts. Risk of stockouts is slightly higher, but inventory holding costs are minimized. System automatically orders raw materials just before production.'
-            : 'Safety Stock Mode active: Maintaining 20% buffer inventory at all times. Holding costs increased, but supply chain disruption risk is mitigated significantly.'}
-        </p>
+
+      {/* Charts CSS Grid Layout */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '24px' }}>
+        {/* Production vs Demand */}
+        <div style={{ gridColumn: 'span 8', backgroundColor: '#1e293b', padding: '24px', borderRadius: '12px', border: '1px solid #334155' }}>
+          <h2 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '16px', color: '#e2e8f0' }}>Production vs Demand</h2>
+          <div style={{ height: '300px' }}>
+            <LineChart data={productionVsDemandData} />
+          </div>
+        </div>
+
+        {/* Capacity Utilization */}
+        <div style={{ gridColumn: 'span 4', backgroundColor: '#1e293b', padding: '24px', borderRadius: '12px', border: '1px solid #334155' }}>
+          <h2 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '16px', color: '#e2e8f0' }}>Capacity Utilization</h2>
+          <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <GaugeChart value={82} label="Utilization" />
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-export function AIForecastChart() {
-  const [forecastData, setForecastData] = useState(null);
+export function Production() {
+  const pipelineData = [
+    { stage: 'Raw Material', count: 5000 },
+    { stage: 'Assembly', count: 3500 },
+    { stage: 'Testing', count: 2000 },
+    { stage: 'Packaging', count: 1800 },
+    { stage: 'Ready for Shipping', count: 1500 },
+  ];
 
-  useEffect(() => {
-    manufacturerApi.aiForecast('100,120,130,125,140,150,160', 4)
-      .then(res => setForecastData(res))
-      .catch(() => setForecastData({ history: [100,120,130,125,140,150,160], forecast: [155, 162, 170, 175] }));
-  }, []);
-
-  if (!forecastData) return <div className="card"><p className="muted">Running SARIMA predictive model...</p></div>;
+  const orderFulfillmentData = [
+    { name: 'Fulfilled', value: 320 },
+    { name: 'Pending', value: 22 },
+  ];
 
   return (
-    <div className="card" style={{ borderTop: '4px solid #0f766e' }}>
-      <h2 className="card-title">
-        <span className="kpi-icon" style={{ background: '#ccfbf1', color: '#0f766e' }}>📈</span>
-        AI Demand Forecasting (SARIMA)
-      </h2>
-      <p className="muted" style={{ marginBottom: '24px' }}>
-        Predictive modeling based on historical sales data. Showing historical trend vs forecasted future demand for the next {forecastData.forecast.length} periods.
-      </p>
-      
-      <div style={{ height: '350px', background: '#ffffff', borderRadius: '8px', padding: '16px', border: '1px solid #e2e8f0' }}>
-        <ForecastChart 
-          title="Demand Projection"
-          data={[...(forecastData.history || forecastData.input || []), ...forecastData.forecast]}
-          predictionStart={(forecastData.history || forecastData.input || []).length - 1}
-        />
+    <div style={{ padding: '24px', backgroundColor: '#0f172a', color: '#f8fafc', minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      <header style={{ marginBottom: '32px' }}>
+        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 8px 0', background: 'linear-gradient(90deg, #38bdf8, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          Production
+        </h1>
+        <p style={{ color: '#94a3b8', margin: 0 }}>Manufacturing pipeline and order fulfillment tracking.</p>
+      </header>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '24px' }}>
+        {/* Manufacturing Pipeline */}
+        <div style={{ gridColumn: 'span 8', backgroundColor: '#1e293b', padding: '24px', borderRadius: '12px', border: '1px solid #334155' }}>
+          <h2 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '16px', color: '#e2e8f0' }}>Manufacturing Pipeline</h2>
+          <div style={{ height: '350px' }}>
+            <PipelineFunnel data={pipelineData} />
+          </div>
+        </div>
+
+        {/* Order Fulfillment */}
+        <div style={{ gridColumn: 'span 4', backgroundColor: '#1e293b', padding: '24px', borderRadius: '12px', border: '1px solid #334155' }}>
+          <h2 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '16px', color: '#e2e8f0' }}>Order Fulfillment</h2>
+          <div style={{ height: '350px' }}>
+            <StatusDonut data={orderFulfillmentData} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function AIForecast() {
+  const forecastData = [
+    { name: 'Jul', Forecast: 2600, Actual: 2550 },
+    { name: 'Aug', Forecast: 2800, Actual: 2900 },
+    { name: 'Sep', Forecast: 3100, Actual: 0 },
+    { name: 'Oct', Forecast: 3400, Actual: 0 },
+  ];
+
+  return (
+    <div style={{ padding: '24px', backgroundColor: '#0f172a', color: '#f8fafc', minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      <header style={{ marginBottom: '32px' }}>
+        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 8px 0', background: 'linear-gradient(90deg, #38bdf8, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          AI Forecast
+        </h1>
+        <p style={{ color: '#94a3b8', margin: 0 }}>Demand forecast and predictions vs actuals.</p>
+      </header>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '24px' }}>
+        {/* Demand Forecast */}
+        <div style={{ gridColumn: 'span 6', backgroundColor: '#1e293b', padding: '24px', borderRadius: '12px', border: '1px solid #334155' }}>
+          <h2 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '16px', color: '#e2e8f0' }}>Demand Forecast</h2>
+          <div style={{ height: '300px' }}>
+            <LineChart data={forecastData} />
+          </div>
+        </div>
+
+        {/* Forecast vs Actual */}
+        <div style={{ gridColumn: 'span 6', backgroundColor: '#1e293b', padding: '24px', borderRadius: '12px', border: '1px solid #334155' }}>
+          <h2 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '16px', color: '#e2e8f0' }}>Forecast vs Actual</h2>
+          <div style={{ height: '300px' }}>
+            <BarChart data={forecastData} />
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
 export function RawMaterialSourcing() {
-  const materials = [
-    { item: 'Silicon Wafers', supplier: 'TechCore Inc', status: 'In Transit', ETA: '2 Days' },
-    { item: 'Aluminum Casings', supplier: 'MetalForge', status: 'Arrived', ETA: '-' },
-    { item: 'Lithium Cells', supplier: 'EnerSys', status: 'Delayed', ETA: '5 Days' }
+  const supplierData = [
+    { name: 'Supplier A', Performance: 95 },
+    { name: 'Supplier B', Performance: 88 },
+    { name: 'Supplier C', Performance: 92 },
+    { name: 'Supplier D', Performance: 78 },
+  ];
+
+  const inventoryData = [
+    { name: 'Steel', value: 400 },
+    { name: 'Aluminum', value: 300 },
+    { name: 'Plastics', value: 300 },
+    { name: 'Electronics', value: 200 },
   ];
 
   return (
-    <div className="card">
-      <h2 className="card-title">Raw Material Sourcing</h2>
-      <p className="muted" style={{ marginBottom: '16px' }}>Track inbound shipments from tier-1 and tier-2 suppliers.</p>
-      <div className="table-wrap">
-      <table className="data-table">
-        <thead>
-          <tr>
-            <th>Material</th>
-            <th>Supplier</th>
-            <th>Status</th>
-            <th>ETA</th>
-          </tr>
-        </thead>
-        <tbody>
-          {materials.map((m, i) => (
-            <tr key={i}>
-              <td>{m.item}</td>
-              <td>{m.supplier}</td>
-              <td>
-                <span className={`pill ${m.status === 'Arrived' ? 'active' : m.status === 'Delayed' ? 'suspended' : 'pending'}`}>
-                  {m.status}
-                </span>
-              </td>
-              <td>{m.ETA}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div style={{ padding: '24px', backgroundColor: '#0f172a', color: '#f8fafc', minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      <header style={{ marginBottom: '32px' }}>
+        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 8px 0', background: 'linear-gradient(90deg, #38bdf8, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          Raw Material Sourcing
+        </h1>
+        <p style={{ color: '#94a3b8', margin: 0 }}>Inventory levels and supplier performance metrics.</p>
+      </header>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '24px' }}>
+        {/* Supplier Performance */}
+        <div style={{ gridColumn: 'span 7', backgroundColor: '#1e293b', padding: '24px', borderRadius: '12px', border: '1px solid #334155' }}>
+          <h2 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '16px', color: '#e2e8f0' }}>Supplier Performance</h2>
+          <div style={{ height: '250px' }}>
+            <BarChart data={supplierData} />
+          </div>
+        </div>
+
+        {/* Raw Material Inventory */}
+        <div style={{ gridColumn: 'span 5', backgroundColor: '#1e293b', padding: '24px', borderRadius: '12px', border: '1px solid #334155' }}>
+          <h2 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '16px', color: '#e2e8f0' }}>Raw Material Inventory</h2>
+          <div style={{ height: '250px' }}>
+            <StatusDonut data={inventoryData} />
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
 export function QualityAssurance() {
-  const [qaStatus, setQaStatus] = React.useState('pending');
-  
-  const handlePassQA = () => {
-    setQaStatus('passed');
-  };
+  const qaData = [
+    { name: 'Pass', value: 98 },
+    { name: 'Fail', value: 2 },
+  ];
 
   return (
-    <div className="card" style={{ borderTop: '4px solid #0f766e' }}>
-      <h2 className="card-title">Quality Assurance & Handoff</h2>
-      <p className="muted" style={{ marginBottom: '16px' }}>Run factory settings log verification before handing off batch to Transporter.</p>
-      <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
-        <p><strong>Batch ID:</strong> BATCH-88392</p>
-        <p><strong>Status:</strong> {qaStatus === 'passed' ? <span style={{ color: '#059669', fontWeight: 'bold' }}>Passed Verification</span> : <span style={{ color: '#d97706', fontWeight: 'bold' }}>Awaiting Checks</span>}</p>
-      </div>
-      
-      {qaStatus === 'pending' ? (
-        <button className="primary-btn" onClick={handlePassQA} style={{ background: '#059669', borderColor: '#059669' }}>
-          Pass QA & Auto-Handoff to Transporter
-        </button>
-      ) : (
-        <div style={{ padding: '16px', background: '#ecfdf5', color: '#065f46', borderRadius: '8px', border: '1px solid #6ee7b7' }}>
-          ✅ QA Passed. Handoff recorded in ledger. Transporter notified.
+    <div style={{ padding: '24px', backgroundColor: '#0f172a', color: '#f8fafc', minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      <header style={{ marginBottom: '32px' }}>
+        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 8px 0', background: 'linear-gradient(90deg, #38bdf8, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          Quality Assurance
+        </h1>
+        <p style={{ color: '#94a3b8', margin: 0 }}>Quality control and pass/fail rates.</p>
+      </header>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '24px' }}>
+        {/* QA Pass/Fail */}
+        <div style={{ gridColumn: 'span 12', backgroundColor: '#1e293b', padding: '24px', borderRadius: '12px', border: '1px solid #334155' }}>
+          <h2 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '16px', color: '#e2e8f0' }}>QA Pass/Fail</h2>
+          <div style={{ height: '300px' }}>
+            <StatusDonut data={qaData} />
+          </div>
         </div>
-      )}
+      </div>
+    </div>
+  );
+}
+
+export function ManufacturerLedger() {
+  const productionCostData = [
+    { name: 'Jan', Cost: 1200000 },
+    { name: 'Feb', Cost: 1350000 },
+    { name: 'Mar', Cost: 1100000 },
+    { name: 'Apr', Cost: 1400000 },
+  ];
+  
+  const rawMaterialCostData = [
+    { name: 'Plastics', value: 400000 },
+    { name: 'Steel', value: 600000 },
+    { name: 'Electronics', value: 800000 },
+  ];
+
+  const supplierPaymentsData = [
+    { name: 'Paid', value: 1500000 },
+    { name: 'Pending', value: 300000 },
+  ];
+
+  const costPerBatchData = [
+    { name: 'Batch A', Cost: 50000 },
+    { name: 'Batch B', Cost: 52000 },
+    { name: 'Batch C', Cost: 48000 },
+    { name: 'Batch D', Cost: 51000 },
+  ];
+
+  const costPerUnitData = [
+    { name: 'Week 1', Cost: 250 },
+    { name: 'Week 2', Cost: 245 },
+    { name: 'Week 3', Cost: 240 },
+    { name: 'Week 4', Cost: 242 },
+  ];
+  
+  const productionMarginData = [
+    { name: 'Q1', Margin: 18 },
+    { name: 'Q2', Margin: 21 },
+    { name: 'Q3', Margin: 19 },
+    { name: 'Q4', Margin: 22 },
+  ];
+
+  return (
+    <div style={{ padding: '24px', backgroundColor: '#0f172a', color: '#f8fafc', minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      <header style={{ marginBottom: '32px' }}>
+        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 8px 0', background: 'linear-gradient(90deg, #38bdf8, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          Manufacturer Ledger
+        </h1>
+        <p style={{ color: '#94a3b8', margin: 0 }}>Financial insights, cost tracking, and margins (in ₹).</p>
+      </header>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '24px' }}>
+        {/* Production Cost */}
+        <div style={{ gridColumn: 'span 6', backgroundColor: '#1e293b', padding: '24px', borderRadius: '12px', border: '1px solid #334155' }}>
+          <h2 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '16px', color: '#e2e8f0' }}>Production Cost (₹)</h2>
+          <div style={{ height: '300px' }}>
+            <LineChart data={productionCostData} />
+          </div>
+        </div>
+
+        {/* Cost per Batch */}
+        <div style={{ gridColumn: 'span 6', backgroundColor: '#1e293b', padding: '24px', borderRadius: '12px', border: '1px solid #334155' }}>
+          <h2 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '16px', color: '#e2e8f0' }}>Cost per Batch (₹)</h2>
+          <div style={{ height: '300px' }}>
+            <BarChart data={costPerBatchData} />
+          </div>
+        </div>
+
+        {/* Raw Material Cost */}
+        <div style={{ gridColumn: 'span 4', backgroundColor: '#1e293b', padding: '24px', borderRadius: '12px', border: '1px solid #334155' }}>
+          <h2 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '16px', color: '#e2e8f0' }}>Raw Material Cost (₹)</h2>
+          <div style={{ height: '250px' }}>
+            <StatusDonut data={rawMaterialCostData} />
+          </div>
+        </div>
+
+        {/* Supplier Payments */}
+        <div style={{ gridColumn: 'span 4', backgroundColor: '#1e293b', padding: '24px', borderRadius: '12px', border: '1px solid #334155' }}>
+          <h2 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '16px', color: '#e2e8f0' }}>Supplier Payments (₹)</h2>
+          <div style={{ height: '250px' }}>
+            <StatusDonut data={supplierPaymentsData} />
+          </div>
+        </div>
+
+        {/* Cost per Unit & Margin */}
+        <div style={{ gridColumn: 'span 4', backgroundColor: '#1e293b', padding: '24px', borderRadius: '12px', border: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <div>
+            <h2 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '16px', color: '#e2e8f0' }}>Cost per Unit (₹)</h2>
+            <div style={{ height: '100px' }}>
+              <LineChart data={costPerUnitData} />
+            </div>
+          </div>
+          <div>
+            <h2 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '16px', color: '#e2e8f0' }}>Production Margin (%)</h2>
+            <div style={{ height: '100px' }}>
+              <BarChart data={productionMarginData} />
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,223 +1,285 @@
-import React, { useState, useEffect } from 'react';
-import { aiApi } from '../../api/axiosInstance';
-import { DataTable } from '../ui/DataTable';
+import React from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { connectGpsSocket, disconnectGpsSocket } from '../../api/socket';
+
 import StatusDonut from '../charts/StatusDonut';
 import BarChart from '../charts/BarChart';
-import { WaybillDocumentViewer } from '../ui/WaybillDocumentViewer';
+import LineChart from '../charts/LineChart';
+import PipelineFunnel from '../charts/PipelineFunnel';
 
 const truckIcon = L.divIcon({
-  html: '<div style="font-size: 36px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5)); transform: scaleX(-1);">🚛</div>',
+  html: '<div style="font-size: 24px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5)); transform: scaleX(-1);">🚛</div>',
   className: 'truck-marker',
-  iconSize: [40, 40],
-  iconAnchor: [20, 20]
+  iconSize: [30, 30],
+  iconAnchor: [15, 15]
 });
 
-export function RouteOptimizer() {
-  const [routes, setRoutes] = useState([]);
-  const [inputData, setInputData] = useState('Mumbai, Pune, Bangalore, Chennai');
-  const [loading, setLoading] = useState(false);
-  const [activeRouteId, setActiveRouteId] = useState(1);
+const alertIcon = L.divIcon({
+  html: '<div style="font-size: 24px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));">⚠️</div>',
+  className: 'alert-marker',
+  iconSize: [30, 30],
+  iconAnchor: [15, 15]
+});
 
-  const handleOptimize = async () => {
-    setLoading(true);
-    try {
-      const stopsArray = inputData.split(',').map(s => s.trim()).filter(s => s);
-      const stopsPayload = stopsArray.map(s => ({ location: s }));
-      const result = await aiApi.routeOptimizer({
-        warehouse: stopsArray[0] || 'Origin',
-        stops: stopsPayload,
-        constraints: { prioritize: 'time' }
-      });
-      
-      if (result) {
-        setRoutes(prev => [
-          { 
-            id: `R${activeRouteId}`, 
-            stops: result.optimized_route.length, 
-            estDistance: `${result.total_distance_km} km`, 
-            originalTime: `${(result.total_distance_km / 40).toFixed(1)}h`, 
-            optimizedTime: `${result.estimated_time_hours}h`, 
-            savings: '18%' 
-          },
-          ...prev
-        ]);
-        setActiveRouteId(activeRouteId + 1);
-      }
-    } catch (err) {
-      console.error("Failed to optimize route", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+// Mock Data
+const kpiData = [
+  { title: 'Active Transports', value: '1,245', icon: '🚛', trend: '+12%' },
+  { title: 'On-Time Delivery', value: '94.2%', icon: '⏱️', trend: '+1.5%' },
+  { title: 'Avg. Delay Risk', value: '18%', icon: '🛡️', trend: '-5%' },
+  { title: 'Route Savings', value: '$45.2k', icon: '💰', trend: '+8%' }
+];
 
-  const columns = [
-    { key: 'id', header: 'Route ID' },
-    { key: 'stops', header: 'Stops' },
-    { key: 'originalTime', header: 'Orig. Time' },
-    { key: 'optimizedTime', header: 'Optimized' },
-    { key: 'savings', header: 'Time Saved', render: (val) => <span style={{ color: '#059669', fontWeight: 'bold' }}>{val}</span> }
-  ];
+const mockPipeline = [
+  { label: 'Dispatched', value: 1245, color: '#3b82f6' },
+  { label: 'In Transit', value: 890, color: '#f59e0b' },
+  { label: 'Customs/Port', value: 320, color: '#ef4444' },
+  { label: 'Delivered', value: 120, color: '#10b981' }
+];
 
+const mockFleetUtil = [
+  { label: 'Active', value: 75, color: '#10b981' },
+  { label: 'Idle', value: 15, color: '#64748b' },
+  { label: 'Maintenance', value: 10, color: '#f59e0b' }
+];
+
+const mockRouteDeviation = [
+  { label: 'On Route', value: 85, color: '#3b82f6' },
+  { label: 'Minor Deviation', value: 10, color: '#f59e0b' },
+  { label: 'Major Deviation', value: 5, color: '#ef4444' }
+];
+
+const mockEtaData = {
+  labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+  data: [95, 98, 93, 105, 102, 90, 95] 
+};
+
+const mockDelayRiskTrend = {
+  labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
+  data: [25, 22, 18, 15]
+};
+
+const mockDriverPerformance = [
+  { label: 'Top 10%', value: 98 },
+  { label: 'Average', value: 85 },
+  { label: 'Bottom 10%', value: 65 }
+];
+
+const mockSavings = [
+  { label: 'Fuel', value: 12000 },
+  { label: 'Time', value: 8500 },
+  { label: 'Maintenance', value: 4300 }
+];
+
+const mockGpsLocations = [
+  { id: 'TRK-001', lat: 19.0760, lng: 72.8777, status: 'On-Time' },
+  { id: 'TRK-002', lat: 18.5204, lng: 73.8567, status: 'Delayed' },
+  { id: 'TRK-003', lat: 19.2183, lng: 72.9781, status: 'On-Time' }
+];
+
+const mockRiskLocations = [
+  { id: 'RSK-1', lat: 19.1, lng: 72.9, risk: 'High', radius: 15000 },
+  { id: 'RSK-2', lat: 18.6, lng: 73.8, risk: 'Medium', radius: 10000 }
+];
+
+// Ledger Mock Data (INR)
+const ledgerTransportCost = { labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May'], data: [120000, 135000, 110000, 142000, 128000] };
+const ledgerCostPerKm = { labels: ['Trk 1', 'Trk 2', 'Trk 3', 'Trk 4'], data: [24, 26, 22, 28] };
+const ledgerFuelCost = { labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'], data: [15000, 12000, 18000, 14000] };
+const ledgerRouteSavings = [
+  { label: 'Optimized', value: 85000, color: '#10b981' },
+  { label: 'Unoptimized', value: 35000, color: '#ef4444' }
+];
+const ledgerDelayPenalties = { labels: ['Q1', 'Q2', 'Q3', 'Q4'], data: [15000, 8000, 22000, 5000] };
+const ledgerShipmentRevenue = { labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May'], data: [500000, 650000, 580000, 720000, 800000] };
+
+export function TransporterDashboard() {
   return (
-    <div className="card" style={{ borderTop: '4px solid #2563eb' }}>
-      <h2 className="card-title">
-        <span className="kpi-icon" style={{ background: '#dbeafe', color: '#2563eb' }}>🗺️</span>
-        AI Route Optimizer
-      </h2>
-      <p className="muted" style={{ marginBottom: '16px' }}>Calculate optimal delivery sequences minimizing distance and predicting delays using AI.</p>
-      
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-        <input 
-          type="text" 
-          value={inputData}
-          onChange={(e) => setInputData(e.target.value)}
-          placeholder="Enter comma-separated locations (e.g. Mumbai, Pune, Bangalore)" 
-          style={{ flex: 1, padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-          disabled={loading}
-        />
-        <button 
-          className="primary-btn" 
-          style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}
-          onClick={handleOptimize}
-          disabled={loading || !inputData}
-        >
-          {loading ? 'Optimizing...' : 'Run AI Optimizer'}
-        </button>
+    <div style={{ padding: '24px', background: '#0f172a', minHeight: '100vh', color: '#f8fafc', display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '20px', alignContent: 'start' }}>
+      {/* Header */}
+      <div style={{ gridColumn: 'span 12', marginBottom: '8px' }}>
+        <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: '0 0 8px 0', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ background: '#1e293b', padding: '8px', borderRadius: '8px', display: 'flex' }}>🏠</span>
+          Transporter Dashboard
+        </h1>
+        <p style={{ color: '#94a3b8', margin: 0 }}>Overview of transporter performance and key metrics.</p>
+      </div>
+
+      {/* KPI Cards */}
+      {kpiData.map((kpi, i) => (
+        <div key={i} style={{ gridColumn: 'span 3', background: '#1e293b', padding: '20px', borderRadius: '12px', border: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '24px', background: '#0f172a', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}>{kpi.icon}</span>
+            <span style={{ color: kpi.trend.startsWith('+') ? '#10b981' : '#ef4444', fontWeight: 'bold', fontSize: '14px', background: '#0f172a', padding: '4px 8px', borderRadius: '20px' }}>{kpi.trend}</span>
+          </div>
+          <div>
+            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#f8fafc', marginBottom: '4px' }}>{kpi.value}</div>
+            <div style={{ color: '#94a3b8', fontSize: '14px' }}>{kpi.title}</div>
+          </div>
+        </div>
+      ))}
+
+      {/* ETA vs Actual */}
+      <div style={{ gridColumn: 'span 8', background: '#1e293b', borderRadius: '12px', border: '1px solid #334155', padding: '20px', height: '350px', display: 'flex', flexDirection: 'column' }}>
+        <h2 style={{ fontSize: '16px', margin: '0 0 16px 0' }}>ETA vs Actual</h2>
+        <div style={{ flex: 1 }}>
+          <LineChart labels={mockEtaData.labels} data={mockEtaData.data} color="#8b5cf6" />
+        </div>
       </div>
       
-      {routes.length > 0 ? (
-        <DataTable data={routes} columns={columns} />
-      ) : (
-        <div style={{ padding: '24px', textAlign: 'center', background: '#f8fafc', borderRadius: '8px' }}>
-          <p className="muted">Enter locations and run the optimizer to generate a route plan.</p>
+      {/* Fleet Utilization */}
+      <div style={{ gridColumn: 'span 4', background: '#1e293b', borderRadius: '12px', border: '1px solid #334155', padding: '20px', height: '350px', display: 'flex', flexDirection: 'column' }}>
+        <h2 style={{ fontSize: '16px', margin: '0 0 16px 0' }}>Fleet Utilization</h2>
+        <div style={{ flex: 1, position: 'relative' }}>
+          <StatusDonut title="Fleet" data={mockFleetUtil} />
         </div>
-      )}
+      </div>
+
+      {/* Ledger Charts (INR) */}
+      <div style={{ gridColumn: 'span 12', marginTop: '20px' }}>
+        <h2 style={{ fontSize: '20px', margin: '0 0 16px 0', borderBottom: '1px solid #334155', paddingBottom: '8px' }}>Financial Ledger (₹)</h2>
+      </div>
+
+      <div style={{ gridColumn: 'span 4', background: '#1e293b', borderRadius: '12px', border: '1px solid #334155', padding: '20px', height: '300px', display: 'flex', flexDirection: 'column' }}>
+        <h3 style={{ fontSize: '14px', margin: '0 0 12px 0' }}>Transport Cost (₹)</h3>
+        <div style={{ flex: 1 }}><LineChart labels={ledgerTransportCost.labels} data={ledgerTransportCost.data} color="#f59e0b" /></div>
+      </div>
+      <div style={{ gridColumn: 'span 4', background: '#1e293b', borderRadius: '12px', border: '1px solid #334155', padding: '20px', height: '300px', display: 'flex', flexDirection: 'column' }}>
+        <h3 style={{ fontSize: '14px', margin: '0 0 12px 0' }}>Cost per KM (₹)</h3>
+        <div style={{ flex: 1 }}><BarChart labels={ledgerCostPerKm.labels} data={ledgerCostPerKm.data} color="#3b82f6" /></div>
+      </div>
+      <div style={{ gridColumn: 'span 4', background: '#1e293b', borderRadius: '12px', border: '1px solid #334155', padding: '20px', height: '300px', display: 'flex', flexDirection: 'column' }}>
+        <h3 style={{ fontSize: '14px', margin: '0 0 12px 0' }}>Fuel Cost (₹)</h3>
+        <div style={{ flex: 1 }}><LineChart labels={ledgerFuelCost.labels} data={ledgerFuelCost.data} color="#ef4444" /></div>
+      </div>
+      <div style={{ gridColumn: 'span 4', background: '#1e293b', borderRadius: '12px', border: '1px solid #334155', padding: '20px', height: '300px', display: 'flex', flexDirection: 'column' }}>
+        <h3 style={{ fontSize: '14px', margin: '0 0 12px 0' }}>Route Savings (₹)</h3>
+        <div style={{ flex: 1, position: 'relative' }}><StatusDonut title="Savings" data={ledgerRouteSavings} /></div>
+      </div>
+      <div style={{ gridColumn: 'span 4', background: '#1e293b', borderRadius: '12px', border: '1px solid #334155', padding: '20px', height: '300px', display: 'flex', flexDirection: 'column' }}>
+        <h3 style={{ fontSize: '14px', margin: '0 0 12px 0' }}>Delay Penalties (₹)</h3>
+        <div style={{ flex: 1 }}><BarChart labels={ledgerDelayPenalties.labels} data={ledgerDelayPenalties.data} color="#ef4444" /></div>
+      </div>
+      <div style={{ gridColumn: 'span 4', background: '#1e293b', borderRadius: '12px', border: '1px solid #334155', padding: '20px', height: '300px', display: 'flex', flexDirection: 'column' }}>
+        <h3 style={{ fontSize: '14px', margin: '0 0 12px 0' }}>Shipment Revenue (₹)</h3>
+        <div style={{ flex: 1 }}><LineChart labels={ledgerShipmentRevenue.labels} data={ledgerShipmentRevenue.data} color="#10b981" /></div>
+      </div>
     </div>
   );
 }
 
-export function LiveMapOverlay() {
-  const [shipments, setShipments] = useState({});
-  const [selectedWaybillOrder, setSelectedWaybillOrder] = useState(null);
-
-  useEffect(() => {
-    connectGpsSocket({
-      onMessage: (data) => {
-        if (data && data.type === 'gps:update' && data.shipments) {
-          setShipments(data.shipments);
-        }
-      }
-    });
-
-    return () => {
-      disconnectGpsSocket();
-    };
-  }, []);
-
-  const shipmentList = Object.values(shipments).filter(s => s.lat != null && s.lng != null);
-  const defaultCenter = [19.0760, 72.8777]; // Mumbai
-
+export function LiveMap() {
   return (
-    <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', borderTop: '4px solid #2563eb' }}>
-      <h2 className="card-title">
-        <span className="kpi-icon" style={{ background: '#dbeafe', color: '#2563eb' }}>📡</span>
-        Live Port & Traffic Map
-      </h2>
-      <p className="muted" style={{ marginBottom: '16px' }}>Real-time GPS tracking overlay for all active truck dispatch operations.</p>
-      <div style={{ width: '100%', flex: 1, borderRadius: '8px', overflow: 'hidden', position: 'relative', zIndex: 0, minHeight: '400px', border: '1px solid #e2e8f0' }}>
-        <MapContainer center={defaultCenter} zoom={5} style={{ width: '100%', height: '100%' }}>
-          <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution="&copy; OpenStreetMap contributors"
-          />
-          {shipmentList.map(s => {
-            // Generate some fake delay risk points based on lat/lng for congestion demo
-            const riskScore = s.lat > 19 ? 80 : 20; // Just arbitrary logic for demo heatmap
-            const isHighRisk = riskScore > 75;
-            
-            return (
-              <React.Fragment key={s.shipment_id || s.id}>
-                {isHighRisk && (
-                  <Circle 
-                    center={[s.lat, s.lng]} 
-                    radius={5000} 
-                    pathOptions={{ color: 'red', fillColor: 'red', fillOpacity: 0.3 }} 
-                  />
-                )}
-                <Marker position={[s.lat, s.lng]} icon={truckIcon}>
-                  <Popup>
-                    <strong style={{ color: '#1e3a8a' }}>{s.shipment_id || s.id}</strong><br/>
-                    <span style={{ fontSize: '12px', color: '#64748b' }}>Status: {s.status}</span><br/>
-                    <span style={{ fontSize: '12px', color: '#64748b' }}>Vehicle: {s.vehicle_number || 'N/A'}</span>
-                    
-                    {s.order_code && (
-                      <div style={{ marginTop: '10px', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '4px', textAlign: 'center', background: '#f8fafc' }}>
-                        <div style={{ fontSize: '24px' }}>🛡️</div>
-                        <div style={{ fontSize: '10px', fontWeight: 'bold' }}>SEALED DOCUMENT</div>
-                        <button 
-                          onClick={() => setSelectedWaybillOrder(s.order_code)}
-                          style={{ marginTop: '6px', background: 'transparent', border: 'none', color: '#2563eb', cursor: 'pointer', textDecoration: 'underline', fontSize: '11px' }}
-                        >
-                          View Official Waybill
-                        </button>
-                      </div>
-                    )}
-                  </Popup>
+    <div style={{ padding: '24px', background: '#0f172a', minHeight: '100vh', color: '#f8fafc', display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '20px', alignContent: 'start' }}>
+      <div style={{ gridColumn: 'span 12', marginBottom: '8px' }}>
+        <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: '0 0 8px 0', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ background: '#1e293b', padding: '8px', borderRadius: '8px', display: 'flex' }}>📡</span>
+          Live Map
+        </h1>
+        <p style={{ color: '#94a3b8', margin: 0 }}>Live GPS tracking and delay risk map.</p>
+      </div>
+
+      <div style={{ gridColumn: 'span 12', background: '#1e293b', borderRadius: '12px', border: '1px solid #334155', padding: '20px', display: 'flex', flexDirection: 'column' }}>
+        <h2 style={{ fontSize: '18px', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>📡 Live Fleet GPS Tracking</h2>
+        <div style={{ flex: 1, minHeight: '400px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #334155' }}>
+          <MapContainer center={[19.0760, 72.8777]} zoom={7} style={{ width: '100%', height: '100%', zIndex: 0 }}>
+            <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" attribution="&copy; OpenStreetMap & CARTO" />
+            {mockGpsLocations.map(loc => (
+              <Marker key={loc.id} position={[loc.lat, loc.lng]} icon={truckIcon}>
+                <Popup>
+                  <strong style={{ color: '#0f172a' }}>{loc.id}</strong><br/>
+                  <span style={{ color: loc.status === 'On-Time' ? '#10b981' : '#ef4444' }}>{loc.status}</span>
+                </Popup>
+              </Marker>
+            ))}
+          </MapContainer>
+        </div>
+      </div>
+
+      <div style={{ gridColumn: 'span 12', background: '#1e293b', borderRadius: '12px', border: '1px solid #334155', padding: '20px' }}>
+        <h2 style={{ fontSize: '18px', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>⚠️ Regional Delay Risk Map</h2>
+        <div style={{ height: '400px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #334155' }}>
+          <MapContainer center={[18.8, 73.3]} zoom={7} style={{ width: '100%', height: '100%', zIndex: 0 }}>
+            <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+            {mockRiskLocations.map(r => (
+              <React.Fragment key={r.id}>
+                <Circle center={[r.lat, r.lng]} radius={r.radius} pathOptions={{ color: r.risk === 'High' ? '#ef4444' : '#f59e0b', fillColor: r.risk === 'High' ? '#ef4444' : '#f59e0b', fillOpacity: 0.4 }} />
+                <Marker position={[r.lat, r.lng]} icon={alertIcon}>
+                  <Popup><strong style={{ color: '#0f172a' }}>{r.risk} Risk Area</strong></Popup>
                 </Marker>
               </React.Fragment>
-            );
-          })}
-        </MapContainer>
+            ))}
+          </MapContainer>
+        </div>
       </div>
-      
-      {selectedWaybillOrder && (
-        <WaybillDocumentViewer 
-          orderCode={selectedWaybillOrder}
-          onClose={() => setSelectedWaybillOrder(null)}
-        />
-      )}
+    </div>
+  );
+}
+
+export function RouteOptimizer() {
+  return (
+    <div style={{ padding: '24px', background: '#0f172a', minHeight: '100vh', color: '#f8fafc', display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '20px', alignContent: 'start' }}>
+      <div style={{ gridColumn: 'span 12', marginBottom: '8px' }}>
+        <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: '0 0 8px 0', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ background: '#1e293b', padding: '8px', borderRadius: '8px', display: 'flex' }}>🗺️</span>
+          Route Optimizer
+        </h1>
+        <p style={{ color: '#94a3b8', margin: 0 }}>Analytics for route optimization and deviation tracking.</p>
+      </div>
+
+      <div style={{ gridColumn: 'span 8', background: '#1e293b', borderRadius: '12px', border: '1px solid #334155', padding: '20px', height: '350px', display: 'flex', flexDirection: 'column' }}>
+        <h2 style={{ fontSize: '16px', margin: '0 0 16px 0' }}>Route Optimization Savings</h2>
+        <div style={{ flex: 1 }}>
+          <BarChart title="Savings" labels={mockSavings.map(d => d.label)} data={mockSavings.map(d => d.value)} color="#10b981" />
+        </div>
+      </div>
+      <div style={{ gridColumn: 'span 4', background: '#1e293b', borderRadius: '12px', border: '1px solid #334155', padding: '20px', height: '350px', display: 'flex', flexDirection: 'column' }}>
+        <h2 style={{ fontSize: '16px', margin: '0 0 16px 0' }}>Route Deviation</h2>
+        <div style={{ flex: 1, position: 'relative' }}>
+          <StatusDonut title="Deviation" data={mockRouteDeviation} />
+        </div>
+      </div>
     </div>
   );
 }
 
 export function FleetManagement() {
-  const chartData = [
-    { label: 'Active', value: 75, color: '#059669' },
-    { label: 'Maintenance', value: 15, color: '#f59e0b' },
-    { label: 'Idle', value: 10, color: '#64748b' }
-  ];
-
   return (
-    <div className="card" style={{ borderTop: '4px solid #2563eb' }}>
-      <h2 className="card-title">Fleet Utilization</h2>
-      <p className="muted" style={{ marginBottom: '16px' }}>Current status of all registered vehicles.</p>
-      <div style={{ height: '300px' }}>
-        <StatusDonut data={chartData} title="Fleet Status" />
+    <div style={{ padding: '24px', background: '#0f172a', minHeight: '100vh', color: '#f8fafc', display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '20px', alignContent: 'start' }}>
+      <div style={{ gridColumn: 'span 12', marginBottom: '8px' }}>
+        <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: '0 0 8px 0', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ background: '#1e293b', padding: '8px', borderRadius: '8px', display: 'flex' }}>🚛</span>
+          Fleet Management
+        </h1>
+        <p style={{ color: '#94a3b8', margin: 0 }}>Monitor and analyze driver performance and fleet metrics.</p>
+      </div>
+
+      <div style={{ gridColumn: 'span 12', background: '#1e293b', borderRadius: '12px', border: '1px solid #334155', padding: '20px', height: '350px', display: 'flex', flexDirection: 'column' }}>
+        <h2 style={{ fontSize: '16px', margin: '0 0 16px 0' }}>Driver Performance</h2>
+        <div style={{ flex: 1 }}>
+          <BarChart title="Performance" labels={mockDriverPerformance.map(d => d.label)} data={mockDriverPerformance.map(d => d.value)} color="#3b82f6" />
+        </div>
       </div>
     </div>
   );
 }
 
 export function DriverLogs() {
-  const chartData = {
-    labels: ['John D.', 'Sarah W.', 'Mike T.', 'Anna K.', 'Tom H.'],
-    datasets: [{
-      label: 'On-Time Delivery %',
-      data: [98, 95, 88, 99, 92],
-      backgroundColor: '#2563eb'
-    }]
-  };
-
   return (
-    <div className="card">
-      <h2 className="card-title">Driver Performance</h2>
-      <p className="muted" style={{ marginBottom: '16px' }}>On-time delivery performance across the partner network.</p>
-      <div style={{ height: '300px' }}>
-        <BarChart data={chartData} title="On-Time %" />
+    <div style={{ padding: '24px', background: '#0f172a', minHeight: '100vh', color: '#f8fafc', display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '20px', alignContent: 'start' }}>
+      <div style={{ gridColumn: 'span 12', marginBottom: '8px' }}>
+        <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: '0 0 8px 0', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ background: '#1e293b', padding: '8px', borderRadius: '8px', display: 'flex' }}>📋</span>
+          Driver Logs
+        </h1>
+        <p style={{ color: '#94a3b8', margin: 0 }}>View detailed transport pipelines and statuses.</p>
+      </div>
+
+      <div style={{ gridColumn: 'span 12', background: '#1e293b', borderRadius: '12px', border: '1px solid #334155', padding: '20px', display: 'flex', flexDirection: 'column' }}>
+        <h2 style={{ fontSize: '18px', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>📊 Transport Pipeline</h2>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '400px' }}>
+          <PipelineFunnel data={mockPipeline} />
+        </div>
       </div>
     </div>
   );
@@ -225,14 +287,21 @@ export function DriverLogs() {
 
 export function MaintenanceAlerts() {
   return (
-    <div className="card" style={{ borderLeft: '4px solid #dc2626' }}>
-      <h2 className="card-title" style={{ color: '#dc2626' }}>Maintenance Alerts</h2>
-      <p className="muted" style={{ marginBottom: '16px' }}>Vehicles requiring immediate service.</p>
-      <ul style={{ paddingLeft: '20px', color: '#334155' }}>
-        <li style={{ marginBottom: '8px' }}><strong>Truck T-105:</strong> Engine temperature warning. Needs immediate check.</li>
-        <li style={{ marginBottom: '8px' }}><strong>Truck T-220:</strong> Tire pressure low. Scheduled for service.</li>
-        <li><strong>Truck T-089:</strong> Brake pad replacement required within 500 miles.</li>
-      </ul>
+    <div style={{ padding: '24px', background: '#0f172a', minHeight: '100vh', color: '#f8fafc', display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '20px', alignContent: 'start' }}>
+      <div style={{ gridColumn: 'span 12', marginBottom: '8px' }}>
+        <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: '0 0 8px 0', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ background: '#1e293b', padding: '8px', borderRadius: '8px', display: 'flex' }}>🔧</span>
+          Maintenance Alerts
+        </h1>
+        <p style={{ color: '#94a3b8', margin: 0 }}>Track delay risk trends and maintenance warnings.</p>
+      </div>
+
+      <div style={{ gridColumn: 'span 12', background: '#1e293b', borderRadius: '12px', border: '1px solid #334155', padding: '20px', height: '350px', display: 'flex', flexDirection: 'column' }}>
+        <h2 style={{ fontSize: '16px', margin: '0 0 16px 0' }}>Delay Risk Trend</h2>
+        <div style={{ flex: 1 }}>
+          <LineChart labels={mockDelayRiskTrend.labels} data={mockDelayRiskTrend.data} color="#ef4444" />
+        </div>
+      </div>
     </div>
   );
 }

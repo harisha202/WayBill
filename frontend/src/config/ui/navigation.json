@@ -1,84 +1,84 @@
 {
   "ROLE_LINKS": {
     "Admin": [
-      "Control Tower",
-      "Supply Chain Depth",
-      "Supplier Risk",
-      "Activity Log",
-      "Global Compliance",
-      "User Management",
-      "System Settings"
+      "🗼 Control Tower",
+      "🌳 Supply Chain Depth",
+      "⚠️ Supplier Risk",
+      "🔗 Activity Log",
+      "💰 Financial Ledger"
     ],
     "Manufacturer": [
-      "Dashboard",
-      "Production",
-      "AI Forecast",
-      "Raw Material Sourcing",
-      "Quality Assurance",
-      "Factory Settings"
+      "🏠 Dashboard",
+      "⚙️ Production",
+      "🤖 AI Forecast",
+      "🪨 Raw Material Sourcing",
+      "✅ Quality Assurance",
+      "💰 Financial Ledger"
     ],
     "Transporter": [
-      "Dashboard",
-      "Live Map",
-      "Route Optimizer",
-      "Fleet Management",
-      "Driver Logs",
-      "Maintenance Alerts"
+      "🏠 Dashboard",
+      "📡 Live Map",
+      "🗺️ Route Optimizer",
+      "🚛 Fleet Management",
+      "📋 Driver Logs",
+      "🔧 Maintenance Alerts",
+      "💰 Financial Ledger"
     ],
     "Dealer": [
-      "Dashboard",
-      "Inventory",
-      "Order Fulfillment",
-      "Pricing Strategies",
-      "Partner Network"
+      "🏠 Dashboard",
+      "🏭 Inventory",
+      "📦 Order Fulfillment",
+      "🤝 Partner Network",
+      "💰 Financial Ledger"
     ],
     "RetailShop": [
-      "Dashboard",
-      "Inventory",
-      "POS Analytics",
-      "QR Verification",
-      "Auto-Reorder"
+      "🏠 Dashboard",
+      "🏭 Inventory",
+      "🛒 POS Analytics",
+      "📱 QR Verification",
+      "🤖 Auto-Reorder",
+      "💰 Financial Ledger"
     ]
   },
   "PATH_BY_ROLE_LINK": {
     "Admin": {
-      "Control Tower": "/admin",
-      "Supply Chain Depth": "/admin/depth",
-      "Supplier Risk": "/admin/risk",
-      "Activity Log": "/admin/activity",
-      "Global Compliance": "/admin",
-      "User Management": "/admin",
-      "System Settings": "/admin"
+      "🗼 Control Tower": "/admin",
+      "🌳 Supply Chain Depth": "/admin/depth",
+      "⚠️ Supplier Risk": "/admin/risk",
+      "🔗 Activity Log": "/admin/activity",
+      "💰 Financial Ledger": "/admin/ledger"
     },
     "Manufacturer": {
-      "Dashboard": "/manufacturer",
-      "Production": "/manufacturer/production",
-      "AI Forecast": "/manufacturer/forecast",
-      "Raw Material Sourcing": "/manufacturer/sourcing",
-      "Quality Assurance": "/manufacturer/assurance",
-      "Factory Settings": "/manufacturer"
+      "🏠 Dashboard": "/manufacturer",
+      "⚙️ Production": "/manufacturer/production",
+      "🤖 AI Forecast": "/manufacturer/forecast",
+      "🪨 Raw Material Sourcing": "/manufacturer/sourcing",
+      "✅ Quality Assurance": "/manufacturer/assurance",
+      "💰 Financial Ledger": "/manufacturer/ledger"
     },
     "Transporter": {
-      "Dashboard": "/transporter",
-      "Live Map": "/transporter/map",
-      "Route Optimizer": "/transporter/routes",
-      "Fleet Management": "/transporter/fleet",
-      "Driver Logs": "/transporter/logs",
-      "Maintenance Alerts": "/transporter/maintenance"
+      "🏠 Dashboard": "/transporter",
+      "📡 Live Map": "/transporter/map",
+      "🗺️ Route Optimizer": "/transporter/routes",
+      "🚛 Fleet Management": "/transporter/fleet",
+      "📋 Driver Logs": "/transporter/logs",
+      "🔧 Maintenance Alerts": "/transporter/maintenance",
+      "💰 Financial Ledger": "/transporter/ledger"
     },
     "Dealer": {
-      "Dashboard": "/dealer",
-      "Inventory": "/dealer/inventory",
-      "Order Fulfillment": "/dealer/pipeline",
-      "Pricing Strategies": "/dealer",
-      "Partner Network": "/dealer/network"
+      "🏠 Dashboard": "/dealer",
+      "🏭 Inventory": "/dealer/inventory",
+      "📦 Order Fulfillment": "/dealer/pipeline",
+      "🤝 Partner Network": "/dealer/network",
+      "💰 Financial Ledger": "/dealer/ledger"
     },
     "RetailShop": {
-      "Dashboard": "/retail",
-      "Inventory": "/retail/inventory",
-      "POS Analytics": "/retail/pos",
-      "QR Verification": "/retail/qr",
-      "Auto-Reorder": "/retail/reorder"
+      "🏠 Dashboard": "/retail",
+      "🏭 Inventory": "/retail/inventory",
+      "🛒 POS Analytics": "/retail/pos",
+      "📱 QR Verification": "/retail/qr",
+      "🤖 Auto-Reorder": "/retail/reorder",
+      "💰 Financial Ledger": "/retail/ledger"
     }
   },
   "SOCKET_USER_BY_ROLE": {
@@ -88,4 +88,4 @@
     "Dealer": "dealer",
     "RetailShop": "retail_shop"
   }
-}
+}

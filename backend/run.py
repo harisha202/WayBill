@@ -14,7 +14,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import admin, ai, auth, blockchain, dealer, inventory, manufacturer, tracking, suppliers, route_optimizer
+from app.api import admin, ai, auth, blockchain, dealer, inventory, manufacturer, tracking, suppliers, route_optimizer, waybill
 from app.core.config import ConfigurationError, get_settings, validate_settings
 from app.api.tracking import get_tracking_socket_payload
 from app.services.ai_service import ai_status
@@ -66,6 +66,7 @@ def create_app() -> FastAPI:
     app.include_router(inventory.router, prefix="/api")
     app.include_router(suppliers.router, prefix="/api")
     app.include_router(route_optimizer.router, prefix="/api")
+    app.include_router(waybill.router, prefix="/api")
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(_: Request, exc: RequestValidationError) -> JSONResponse:

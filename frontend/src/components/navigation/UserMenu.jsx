@@ -3,19 +3,30 @@ import Badge from '../ui/Badge'
 function UserMenu({ userName, notifications = 0, onLogout, onOpenAlerts }) {
   const count = Number(notifications || 0)
   return (
-    <div className="user-menu">
+    <div className="user-menu" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
       <button
         type="button"
-        className={`pill pill-button ${count ? 'pending' : ''}`}
+        style={{ background: count ? '#dc2626' : '#334155', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
         onClick={onOpenAlerts}
         disabled={!onOpenAlerts}
-        aria-label="Open alerts"
         title="Open alerts"
       >
-        {count} Alerts
+        🔔 {count} Alerts
       </button>
-      <Badge label={userName ?? 'User'} variant="active" />
-      <button type="button" className="subtle-btn" onClick={onLogout}>
+      
+      <button 
+        type="button" 
+        style={{ background: '#2563eb', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
+        onClick={() => alert('Profile settings coming soon')}
+      >
+        👤 {userName ?? 'User'}
+      </button>
+
+      <button 
+        type="button" 
+        style={{ background: 'transparent', color: '#94a3b8', border: '1px solid #475569', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }} 
+        onClick={onLogout}
+      >
         Logout
       </button>
     </div>

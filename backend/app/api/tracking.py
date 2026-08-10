@@ -19,8 +19,12 @@ from app.services.database_service import (
     list_shipments,
     update_order_stage,
     update_shipment_location,
+    record_gps_ping,
 )
 from app.services.notification_service import notification_service
+from app.schemas.tracking import GPSPingRequest
+from app.schemas.base import APIResponse
+import random
 
 router = APIRouter(prefix="/tracking", tags=["tracking"])
 
@@ -395,3 +399,57 @@ def ai_delay_risk(data: DelayRiskRequest) -> dict:
 )
 def tracking_analytics(time_range: str = Query("7d", alias="range")) -> dict:
     return build_tracking_analytics_snapshot(get_shipments_snapshot(), time_range=time_range)
+
+
+@router.post("/ping", dependencies=[Depends(require_roles(UserRole.transporter, UserRole.admin))], response_model=APIResponse)
+def handle_gps_ping(payload: GPSPingRequest) -> APIResponse:
+    try:
+        # Mocking weather and traffic scores as requested if missing
+        weather_score = random.uniform(0.1, 0.9)
+        traffic_score = random.uniform(0.1, 0.9)
+        distance_km = 100.0 # Can be calculated based on previous location
+        
+        delay_risk = predict_delay_risk(distance_km, weather_score, traffic_score)
+        predicted_delay_minutes = int(delay_risk * 60)
+        
+        shipment = record_gps_ping(
+            shipment_id=payload.shipment_id,
+            vehicle_id=payload.vehicle_id,
+            lat=payload.location.lat,
+            lng=payload.location.lng,
+            speed=payload.speed,
+            heading=payload.heading,
+            accuracy=payload.accuracy,
+            delay_risk_score=delay_risk,
+            predicted_delay_minutes=predicted_delay_minutes
+        )
+        if not shipment:
+            return APIResponse(success=False, error="Shipment not found", message="Failed to process GPS ping")
+        
+        return APIResponse(
+            success=True,
+            data={"shipment": shipment, "delay_risk": delay_risk, "predicted_delay_minutes": predicted_delay_minutes},
+            message="GPS ping recorded successfully"
+        )
+    except DatabaseError as exc:
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
+
+
+
+@router.get("/analytics/route-cost")
+def get_route_cost(payload: dict = Depends(require_roles(UserRole.admin, UserRole.transporter))):
+    from app.services.database_service import get_route_cost_savings
+    data = get_route_cost_savings()
+    return APIResponse(success=True, data=data)
+
+@router.get("/analytics/fleet-utilization")
+def get_fleet_utilization(payload: dict = Depends(require_roles(UserRole.admin, UserRole.transporter))):
+    from app.services.database_service import get_fleet_utilization
+    data = get_fleet_utilization()
+    return APIResponse(success=True, data=data)
+
+@router.get("/analytics/delay-risk")
+def get_delay_risk(payload: dict = Depends(require_roles(UserRole.admin, UserRole.transporter))):
+    from app.services.database_service import get_delay_risk_distribution
+    data = get_delay_risk_distribution()
+    return APIResponse(success=True, data=data)
