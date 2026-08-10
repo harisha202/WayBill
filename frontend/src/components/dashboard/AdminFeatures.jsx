@@ -4,6 +4,7 @@ import StatusDonut from '../charts/StatusDonut';
 import LineChart from '../charts/LineChart';
 import PipelineFunnel from '../charts/PipelineFunnel';
 import NetworkGraph from '../charts/NetworkGraph';
+import { SettlementsTable, SettlementLifecycle, SettlementDashboard } from './SettlementDashboard';
 
 const containerStyle = {
   backgroundColor: '#0f172a',
@@ -276,7 +277,15 @@ export function AdminLedger() {
             <BarChart labels={currencyExposureData.labels} data={currencyExposureData.data} color="#8b5cf6" title="Exposure %" />
           </div>
         </div>
+        <div style={{ gridColumn: '1 / -1' }}>
+          <SettlementLifecycle />
+        </div>
+        <div style={{ gridColumn: '1 / -1' }}>
+          <SettlementsTable />
+        </div>
       </div>
     </div>
   );
 }
+
+export { SettlementDashboard };

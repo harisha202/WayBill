@@ -975,16 +975,16 @@ a[href]:active {
   position: relative;
   min-height: 280px;
   border-radius: 14px;
-  border: 1px solid #3f485a;
+  border: 1px solid #cbd5e1;
   overflow: hidden;
-  background: radial-gradient(circle at 20% 20%, #334155, #0f172a 45%, #020617);
+  background: #f8fafc;
 }
 
 .fleet-grid {
   position: absolute;
   inset: 0;
-  background-image: linear-gradient(rgba(148, 163, 184, 0.09) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.09) 1px, transparent 1px);
+  background-image: linear-gradient(rgba(148, 163, 184, 0.3) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.3) 1px, transparent 1px);
   background-size: 26px 26px;
 }
 
@@ -995,8 +995,7 @@ a[href]:active {
   border-radius: 50%;
   border: 2px solid #fff;
   transform: translate(-50%, -50%);
-  background: #22d3ee;
-  box-shadow: 0 0 12px rgba(34, 211, 238, 0.6);
+  background: #0ea5e9;
 }
 
 .fleet-marker.delayed {
@@ -1025,18 +1024,16 @@ a[href]:active {
 }
 
 .route-original path {
-  stroke: #38bdf8;
+  stroke: #0284c7;
   stroke-width: 3;
   fill: none;
-  filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.8));
 }
 
 .route-optimized path {
-  stroke: #34d399;
+  stroke: #16a34a;
   stroke-width: 3;
   fill: none;
   stroke-dasharray: 8 8;
-  filter: drop-shadow(0 0 4px rgba(52, 211, 153, 0.7));
 }
 
 .scanner-panel {

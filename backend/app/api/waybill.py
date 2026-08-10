@@ -21,7 +21,8 @@ from app.services.database_service import (
     update_waybill_custody,
     get_waybill,
     get_all_waybills,
-    verify_waybill
+    verify_waybill,
+    verify_waybill_trust
 )
 
 router = APIRouter(prefix="/waybills", tags=["waybills"])
@@ -124,6 +125,21 @@ def verify_waybill_endpoint(
         success=True,
         data=WaybillVerifyResponse(**verification),
         message="Verification completed"
+    )
+
+@router.get("/{waybill_id}/verify", response_model=APIResponse[dict])
+@limiter.limit(lambda: os.getenv("RATE_LIMIT_WAYBILL_VERIFY", "10/minute"))
+def verify_waybill_trust_endpoint(
+    waybill_id: str,
+    request: Request,
+    payload: dict = Depends(require_roles(UserRole.admin, UserRole.manufacturer, UserRole.dealer, UserRole.transporter, UserRole.retail_shop))
+):
+    verification = verify_waybill_trust(waybill_id)
+    
+    return APIResponse(
+        success=True,
+        data=verification,
+        message="Trust verification completed"
     )
 
 @router.get("/{waybill_id}", response_model=APIResponse[dict])

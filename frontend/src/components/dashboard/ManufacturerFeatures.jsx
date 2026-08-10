@@ -324,3 +324,51 @@ export function ManufacturerLedger() {
     </div>
   );
 }
+
+export function SupplierScorecard() {
+  const scorecardData = [
+    { supplier: 'Supplier A', onTime: '98%', quality: '99%', priceStability: 'High', overall: 96 },
+    { supplier: 'Supplier B', onTime: '85%', quality: '90%', priceStability: 'Medium', overall: 82 },
+    { supplier: 'Supplier C', onTime: '92%', quality: '95%', priceStability: 'High', overall: 89 },
+    { supplier: 'Supplier D', onTime: '78%', quality: '82%', priceStability: 'Low', overall: 65 },
+  ];
+
+  return (
+    <div style={{ padding: '24px', backgroundColor: '#0f172a', color: '#f8fafc', minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      <header style={{ marginBottom: '32px' }}>
+        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 8px 0', background: 'linear-gradient(90deg, #38bdf8, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          Supplier Scorecard
+        </h1>
+        <p style={{ color: '#94a3b8', margin: 0 }}>On-Time Delivery, Quality, and Price Stability metrics.</p>
+      </header>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '24px' }}>
+        {scorecardData.map((data, idx) => (
+          <div key={idx} style={{ gridColumn: 'span 6', backgroundColor: '#1e293b', padding: '24px', borderRadius: '12px', border: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #334155', paddingBottom: '12px' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: '600', margin: 0, color: '#e2e8f0' }}>{data.supplier}</h2>
+              <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: data.overall >= 90 ? '#10b981' : data.overall >= 80 ? '#f59e0b' : '#ef4444' }}>
+                {data.overall} <span style={{ fontSize: '0.875rem', color: '#94a3b8', fontWeight: 'normal' }}>Score</span>
+              </span>
+            </div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+              <div style={{ backgroundColor: '#0f172a', padding: '16px', borderRadius: '8px', textAlign: 'center', border: '1px solid #334155' }}>
+                <div style={{ color: '#94a3b8', fontSize: '0.875rem', margin: '0 0 8px 0' }}>On-Time</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#38bdf8' }}>{data.onTime}</div>
+              </div>
+              <div style={{ backgroundColor: '#0f172a', padding: '16px', borderRadius: '8px', textAlign: 'center', border: '1px solid #334155' }}>
+                <div style={{ color: '#94a3b8', fontSize: '0.875rem', margin: '0 0 8px 0' }}>Quality</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#a855f7' }}>{data.quality}</div>
+              </div>
+              <div style={{ backgroundColor: '#0f172a', padding: '16px', borderRadius: '8px', textAlign: 'center', border: '1px solid #334155' }}>
+                <div style={{ color: '#94a3b8', fontSize: '0.875rem', margin: '0 0 8px 0' }}>Price Stability</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: data.priceStability === 'High' ? '#10b981' : data.priceStability === 'Medium' ? '#f59e0b' : '#ef4444' }}>{data.priceStability}</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

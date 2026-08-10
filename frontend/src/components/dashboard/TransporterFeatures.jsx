@@ -182,8 +182,8 @@ export function LiveMap() {
       <div style={{ gridColumn: 'span 12', background: '#1e293b', borderRadius: '12px', border: '1px solid #334155', padding: '20px', display: 'flex', flexDirection: 'column' }}>
         <h2 style={{ fontSize: '18px', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>📡 Live Fleet GPS Tracking</h2>
         <div style={{ flex: 1, minHeight: '400px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #334155' }}>
-          <MapContainer center={[19.0760, 72.8777]} zoom={7} style={{ width: '100%', height: '100%', zIndex: 0 }}>
-            <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" attribution="&copy; OpenStreetMap & CARTO" />
+          <MapContainer center={[19.0760, 72.8777]} zoom={7} attributionControl={false} style={{ width: '100%', height: '100%', zIndex: 0 }}>
+            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
             {mockGpsLocations.map(loc => (
               <Marker key={loc.id} position={[loc.lat, loc.lng]} icon={truckIcon}>
                 <Popup>
@@ -199,8 +199,8 @@ export function LiveMap() {
       <div style={{ gridColumn: 'span 12', background: '#1e293b', borderRadius: '12px', border: '1px solid #334155', padding: '20px' }}>
         <h2 style={{ fontSize: '18px', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>⚠️ Regional Delay Risk Map</h2>
         <div style={{ height: '400px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #334155' }}>
-          <MapContainer center={[18.8, 73.3]} zoom={7} style={{ width: '100%', height: '100%', zIndex: 0 }}>
-            <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+          <MapContainer center={[18.8, 73.3]} zoom={7} attributionControl={false} style={{ width: '100%', height: '100%', zIndex: 0 }}>
+            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
             {mockRiskLocations.map(r => (
               <React.Fragment key={r.id}>
                 <Circle center={[r.lat, r.lng]} radius={r.radius} pathOptions={{ color: r.risk === 'High' ? '#ef4444' : '#f59e0b', fillColor: r.risk === 'High' ? '#ef4444' : '#f59e0b', fillOpacity: 0.4 }} />
@@ -301,6 +301,55 @@ export function MaintenanceAlerts() {
         <div style={{ flex: 1 }}>
           <LineChart labels={mockDelayRiskTrend.labels} data={mockDelayRiskTrend.data} color="#ef4444" />
         </div>
+      </div>
+    </div>
+  );
+}
+
+export function DriverScorecard() {
+  const driverData = [
+    { driver: 'Raj Kumar', routeCompliance: '98%', fuelEfficiency: '8.5 km/l', incidents: 0, overall: 96 },
+    { driver: 'Amit Singh', routeCompliance: '85%', fuelEfficiency: '7.2 km/l', incidents: 2, overall: 78 },
+    { driver: 'Vikram Das', routeCompliance: '95%', fuelEfficiency: '8.1 km/l', incidents: 0, overall: 92 },
+    { driver: 'Suresh Patel', routeCompliance: '72%', fuelEfficiency: '6.5 km/l', incidents: 3, overall: 60 },
+  ];
+
+  return (
+    <div style={{ padding: '24px', background: '#0f172a', minHeight: '100vh', color: '#f8fafc', display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '20px', alignContent: 'start', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      <div style={{ gridColumn: 'span 12', marginBottom: '8px' }}>
+        <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: '0 0 8px 0', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ background: '#1e293b', padding: '8px', borderRadius: '8px', display: 'flex' }}>🪪</span>
+          Driver Scorecard
+        </h1>
+        <p style={{ color: '#94a3b8', margin: 0 }}>Route Compliance, Fuel Efficiency, and Incident tracking.</p>
+      </div>
+
+      <div style={{ gridColumn: 'span 12', display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '20px' }}>
+        {driverData.map((data, idx) => (
+          <div key={idx} style={{ gridColumn: 'span 6', background: '#1e293b', padding: '24px', borderRadius: '12px', border: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #334155', paddingBottom: '12px' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: '600', margin: 0, color: '#e2e8f0' }}>{data.driver}</h2>
+              <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: data.overall >= 90 ? '#10b981' : data.overall >= 80 ? '#f59e0b' : '#ef4444' }}>
+                {data.overall} <span style={{ fontSize: '0.875rem', color: '#94a3b8', fontWeight: 'normal' }}>Score</span>
+              </span>
+            </div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+              <div style={{ background: '#0f172a', padding: '16px', borderRadius: '8px', textAlign: 'center', border: '1px solid #334155' }}>
+                <div style={{ color: '#94a3b8', fontSize: '0.875rem', margin: '0 0 8px 0' }}>Route Compliance</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#38bdf8' }}>{data.routeCompliance}</div>
+              </div>
+              <div style={{ background: '#0f172a', padding: '16px', borderRadius: '8px', textAlign: 'center', border: '1px solid #334155' }}>
+                <div style={{ color: '#94a3b8', fontSize: '0.875rem', margin: '0 0 8px 0' }}>Fuel Efficiency</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#a855f7' }}>{data.fuelEfficiency}</div>
+              </div>
+              <div style={{ background: '#0f172a', padding: '16px', borderRadius: '8px', textAlign: 'center', border: '1px solid #334155' }}>
+                <div style={{ color: '#94a3b8', fontSize: '0.875rem', margin: '0 0 8px 0' }}>Incidents</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: data.incidents === 0 ? '#10b981' : data.incidents <= 2 ? '#f59e0b' : '#ef4444' }}>{data.incidents}</div>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

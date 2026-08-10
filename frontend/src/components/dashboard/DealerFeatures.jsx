@@ -3,6 +3,7 @@ import BarChart from '../charts/BarChart';
 import StatusDonut from '../charts/StatusDonut';
 import LineChart from '../charts/LineChart';
 import PipelineFunnel from '../charts/PipelineFunnel';
+import { SettlementsTable, SettlementLifecycle, SettlementDashboard } from './SettlementDashboard';
 
 // Mock Data
 const kpiData = [
@@ -259,6 +260,10 @@ export function DealerDashboard() {
           <h3 style={{ fontSize: '1.1rem', marginBottom: '16px', fontWeight: 600 }}>Backorder Value (₹)</h3>
           <div style={{ height: '250px' }}><BarChart data={ledgerBackorderValue} /></div>
         </div>
+
+        {/* Finance & Settlements */}
+        <SettlementLifecycle gridColumn="span 12" />
+        <SettlementsTable gridColumn="span 12" />
       </div>
     </div>
   );
@@ -404,4 +409,6 @@ export function PartnerNetwork() {
     </div>
   );
 }
+
+export { SettlementDashboard };
 

@@ -446,6 +446,68 @@ processed_keys_table = Table(
     Column("created_at", DateTime(timezone=True), nullable=False),
 )
 
+invoices_table = Table(
+    "invoices",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("invoice_number", String(80), nullable=False, unique=True),
+    Column("order_id", String(80), nullable=False),
+    Column("amount", Float, nullable=False),
+    Column("status", String(40), nullable=False),
+    Column("issued_at", DateTime(timezone=True), nullable=False),
+    Column("due_date", DateTime(timezone=True), nullable=True),
+)
+
+settlements_table = Table(
+    "settlements",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("settlement_id", String(80), nullable=False, unique=True),
+    Column("invoice_number", String(80), nullable=False),
+    Column("amount", Float, nullable=False),
+    Column("status", String(40), nullable=False),
+    Column("settled_at", DateTime(timezone=True), nullable=False),
+)
+
+disputes_table = Table(
+    "disputes",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("dispute_id", String(80), nullable=False, unique=True),
+    Column("waybill_id", String(80), nullable=True),
+    Column("order_id", String(80), nullable=True),
+    Column("mismatch_type", String(80), nullable=False),
+    Column("description", String(255), nullable=True),
+    Column("status", String(40), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("resolved_at", DateTime(timezone=True), nullable=True),
+)
+
+documents_table = Table(
+    "documents",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("document_id", String(80), nullable=False, unique=True),
+    Column("entity_type", String(80), nullable=False),
+    Column("entity_id", String(80), nullable=False),
+    Column("document_type", String(80), nullable=False),
+    Column("file_url", String(255), nullable=False),
+    Column("uploaded_at", DateTime(timezone=True), nullable=False),
+)
+
+warehouses_table = Table(
+    "warehouses",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("warehouse_id", String(80), nullable=False, unique=True),
+    Column("name", String(160), nullable=False),
+    Column("location", String(255), nullable=False),
+    Column("bin", String(80), nullable=True),
+    Column("rack", String(80), nullable=True),
+    Column("capacity", Float, nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -2158,6 +2220,77 @@ def verify_waybill(waybill_id: str, seal_hash: str) -> dict:
             return {"valid": False, "reason": "Custody chain integrity broken", "waybill": waybill}
             
     return {"valid": True, "waybill": waybill}
+
+def verify_waybill_trust(waybill_id: str) -> dict:
+    from app.services.blockchain_service import generate_product_hash
+    with _engine().connect() as conn:
+        waybill_row = conn.execute(select(waybill_documents_table).where(waybill_documents_table.c.waybill_id == waybill_id)).first()
+        if not waybill_row:
+            return {"is_valid": False, "mismatches": ["Waybill not found"]}
+            
+        waybill = _row_to_dict(waybill_row)
+        seal_hash = waybill.get("seal_hash")
+        mismatches = []
+        
+        if not seal_hash:
+            mismatches.append("Waybill has no seal_hash")
+            
+        # 1. Calculate custody hash chain
+        events_rows = conn.execute(
+            select(custody_events_table)
+            .where(custody_events_table.c.waybill_id == waybill_id)
+            .order_by(custody_events_table.c.id)
+        ).fetchall()
+        
+        custody_chain = [_row_to_dict(r) for r in events_rows]
+        if not custody_chain:
+            mismatches.append("No custody events found")
+        else:
+            expected_prev = None
+            for event in custody_chain:
+                if event.get("previous_event_hash") != expected_prev:
+                    mismatches.append(f"Custody chain broken at event {event.get('id')}: previous_event_hash mismatch")
+                # Recalculating hash requires exact isoformat, doing link verification instead
+                expected_prev = event.get("event_hash")
+                
+            if seal_hash and expected_prev != seal_hash:
+                mismatches.append("Seal hash mismatch: waybill seal_hash != latest event hash")
+                
+        # 2. Calculate ledger hash chain
+        batch_id = waybill.get("batch_id")
+        if batch_id:
+            ledger_rows = conn.execute(
+                select(ledger_records_table)
+                .where(ledger_records_table.c.batch_id == batch_id)
+                .order_by(ledger_records_table.c.id)
+            ).fetchall()
+            for r in ledger_rows:
+                r_dict = _row_to_dict(r)
+                # Recalculate ledger hash
+                expected_hash = generate_product_hash(
+                    product_id=r_dict.get("product_id"),
+                    batch_id=r_dict.get("batch_id"),
+                    payload=r_dict.get("payload", {})
+                )
+                if expected_hash != r_dict.get("ledger_hash"):
+                    mismatches.append(f"Ledger record {r_dict.get('id')} tampered: hash mismatch")
+
+        # Verify global financial ledger chain links for related entries
+        fin_rows = conn.execute(
+            select(financial_ledger_table).order_by(financial_ledger_table.c.id)
+        ).fetchall()
+        fin_chain = [_row_to_dict(r) for r in fin_rows]
+        
+        for i in range(1, len(fin_chain)):
+            if fin_chain[i].get("previous_ledger_hash") != fin_chain[i-1].get("ledger_hash"):
+                if fin_chain[i].get("entity_id") == waybill_id or fin_chain[i].get("seal_hash") == seal_hash:
+                    mismatches.append(f"Financial ledger chain broken at entry {fin_chain[i].get('id')}")
+                    
+        return {
+            "is_valid": len(mismatches) == 0,
+            "mismatches": mismatches
+        }
+
 
 def get_waybill_by_order(order_id: str) -> dict[str, Any] | None:
     with _engine().begin() as conn:

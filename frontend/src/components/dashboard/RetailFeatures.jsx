@@ -200,7 +200,6 @@ export const RetailDashboard = () => (
       <div style={{ flexGrow: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <p style={{ color: '#9fa0b5', fontSize: '1.1rem' }}>Revenue & Margin Analysis</p>
       </div>
-      </div>
     </div>
 
     {/* Financial Ledger (INR) */}

@@ -5,7 +5,11 @@
       "🌳 Supply Chain Depth",
       "⚠️ Supplier Risk",
       "🔗 Activity Log",
-      "💰 Financial Ledger"
+      "💰 Financial Ledger",
+      "🔔 Alert Center",
+      "⚖️ Dispute Center",
+      "✅ Seal Verification",
+      "📦 Batch Traceability"
     ],
     "Manufacturer": [
       "🏠 Dashboard",
@@ -13,7 +17,10 @@
       "🤖 AI Forecast",
       "🪨 Raw Material Sourcing",
       "✅ Quality Assurance",
-      "💰 Financial Ledger"
+      "💰 Financial Ledger",
+      "🔔 Alert Center",
+      "⚖️ Dispute Center",
+      "📦 Batch Traceability"
     ],
     "Transporter": [
       "🏠 Dashboard",
@@ -22,14 +29,19 @@
       "🚛 Fleet Management",
       "📋 Driver Logs",
       "🔧 Maintenance Alerts",
-      "💰 Financial Ledger"
+      "💰 Financial Ledger",
+      "🔔 Alert Center",
+      "⚖️ Dispute Center"
     ],
     "Dealer": [
       "🏠 Dashboard",
       "🏭 Inventory",
       "📦 Order Fulfillment",
       "🤝 Partner Network",
-      "💰 Financial Ledger"
+      "💰 Financial Ledger",
+      "🔔 Alert Center",
+      "⚖️ Dispute Center",
+      "📦 Batch Traceability"
     ],
     "RetailShop": [
       "🏠 Dashboard",
@@ -37,7 +49,11 @@
       "🛒 POS Analytics",
       "📱 QR Verification",
       "🤖 Auto-Reorder",
-      "💰 Financial Ledger"
+      "💰 Financial Ledger",
+      "🔔 Alert Center",
+      "⚖️ Dispute Center",
+      "✅ Seal Verification",
+      "📦 Batch Traceability"
     ]
   },
   "PATH_BY_ROLE_LINK": {
@@ -46,7 +62,11 @@
       "🌳 Supply Chain Depth": "/admin/depth",
       "⚠️ Supplier Risk": "/admin/risk",
       "🔗 Activity Log": "/admin/activity",
-      "💰 Financial Ledger": "/admin/ledger"
+      "💰 Financial Ledger": "/admin/ledger",
+      "🔔 Alert Center": "/admin/alerts",
+      "⚖️ Dispute Center": "/admin/disputes",
+      "✅ Seal Verification": "/admin/verify",
+      "📦 Batch Traceability": "/admin/batch"
     },
     "Manufacturer": {
       "🏠 Dashboard": "/manufacturer",
@@ -54,7 +74,10 @@
       "🤖 AI Forecast": "/manufacturer/forecast",
       "🪨 Raw Material Sourcing": "/manufacturer/sourcing",
       "✅ Quality Assurance": "/manufacturer/assurance",
-      "💰 Financial Ledger": "/manufacturer/ledger"
+      "💰 Financial Ledger": "/manufacturer/ledger",
+      "🔔 Alert Center": "/manufacturer/alerts",
+      "⚖️ Dispute Center": "/manufacturer/disputes",
+      "📦 Batch Traceability": "/manufacturer/batch"
     },
     "Transporter": {
       "🏠 Dashboard": "/transporter",
@@ -63,14 +86,19 @@
       "🚛 Fleet Management": "/transporter/fleet",
       "📋 Driver Logs": "/transporter/logs",
       "🔧 Maintenance Alerts": "/transporter/maintenance",
-      "💰 Financial Ledger": "/transporter/ledger"
+      "💰 Financial Ledger": "/transporter/ledger",
+      "🔔 Alert Center": "/transporter/alerts",
+      "⚖️ Dispute Center": "/transporter/disputes"
     },
     "Dealer": {
       "🏠 Dashboard": "/dealer",
       "🏭 Inventory": "/dealer/inventory",
       "📦 Order Fulfillment": "/dealer/pipeline",
       "🤝 Partner Network": "/dealer/network",
-      "💰 Financial Ledger": "/dealer/ledger"
+      "💰 Financial Ledger": "/dealer/ledger",
+      "🔔 Alert Center": "/dealer/alerts",
+      "⚖️ Dispute Center": "/dealer/disputes",
+      "📦 Batch Traceability": "/dealer/batch"
     },
     "RetailShop": {
       "🏠 Dashboard": "/retail",
@@ -78,7 +106,11 @@
       "🛒 POS Analytics": "/retail/pos",
       "📱 QR Verification": "/retail/qr",
       "🤖 Auto-Reorder": "/retail/reorder",
-      "💰 Financial Ledger": "/retail/ledger"
+      "💰 Financial Ledger": "/retail/ledger",
+      "🔔 Alert Center": "/retail/alerts",
+      "⚖️ Dispute Center": "/retail/disputes",
+      "✅ Seal Verification": "/retail/verify",
+      "📦 Batch Traceability": "/retail/batch"
     }
   },
   "SOCKET_USER_BY_ROLE": {
@@ -88,4 +120,5 @@
     "Dealer": "dealer",
     "RetailShop": "retail_shop"
   }
-}
+}
+
