@@ -20,12 +20,14 @@ from app.services.database_service import (
     create_ledger_record,
     create_or_update_shipment,
     create_product as db_create_product,
+    create_waybill,
     get_order,
     get_product_by_sku,
     get_sales_history,
     list_batches as db_list_batches,
     list_products as db_list_products,
     update_order_stage,
+    update_waybill_custody,
 )
 from app.services.notification_service import notification_service
 
@@ -152,6 +154,19 @@ def create_batch(data: BatchCreateRequest) -> dict:
             tx_hash=tx_hash,
         )
 
+        # Create Waybill Document
+        waybill_id = f"WB-{uuid4().hex[:8].upper()}"
+        create_waybill(
+            waybill_id=waybill_id,
+            batch_id=batch_id,
+            sku=data.product_sku,
+            quantity=data.quantity,
+            order_id=data.order_code,
+            custodian="Manufacturer Facility",
+            seal_hash=tx_hash,
+            qr_code=f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={waybill_id}"
+        )
+
         if data.order_code:
             order = update_order_stage(
                 data.order_code,
@@ -253,6 +268,20 @@ def assign_transporter(order_code: str, data: AssignTransporterRequest) -> dict:
             vehicle_number=data.vehicle_number,
             assignment_status="Assigned",
         )
+        
+        # Update Waybill Custody to Transporter
+        # Here we assume the order has a batch which has a corresponding waybill. We'll find it by order_code.
+        from app.services.database_service import _engine
+        from sqlalchemy import select, Table, MetaData
+        
+        with _engine().begin() as conn:
+            metadata = MetaData()
+            waybill_table = Table("waybill_documents", metadata, autoload_with=conn)
+            stmt = select(waybill_table).where(waybill_table.c.order_id == order_code)
+            row = conn.execute(stmt).mappings().first()
+            if row:
+                update_waybill_custody(row["waybill_id"], f"Transporter {data.transporter_id} ({data.vehicle_number})", "Transporter", "in_transit")
+
         updated = update_order_stage(
             order_code,
             stage="transporter_assigned",

@@ -187,3 +187,37 @@ def product_qr(product_sku: str, request: Request) -> dict:
         "qrData": qr_data,
         "qrImageUrl": qr_image_url,
     }
+
+@router.get("/waybill/{waybill_id}", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer, UserRole.dealer, UserRole.transporter, UserRole.retail_shop))])
+def get_waybill_document(waybill_id: str) -> dict:
+    from app.services.database_service import get_waybill
+    doc = get_waybill(waybill_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Waybill not found")
+    return doc
+
+@router.get("/waybill/order/{order_id}", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer, UserRole.dealer, UserRole.transporter, UserRole.retail_shop))])
+def get_waybill_by_order(order_id: str) -> dict:
+    from app.services.database_service import _engine
+    from sqlalchemy import select, Table, MetaData
+    
+    with _engine().begin() as conn:
+        metadata = MetaData()
+        waybill_table = Table("waybill_documents", metadata, autoload_with=conn)
+        stmt = select(waybill_table).where(waybill_table.c.order_id == order_id)
+        row = conn.execute(stmt).mappings().first()
+        if not row:
+            raise HTTPException(status_code=404, detail="Waybill not found for order")
+        return dict(row)
+
+@router.get("/waybills", dependencies=[Depends(require_roles(UserRole.admin))])
+def list_waybills() -> dict:
+    from app.services.database_service import _engine
+    from sqlalchemy import select, Table, MetaData, desc
+    
+    with _engine().begin() as conn:
+        metadata = MetaData()
+        waybill_table = Table("waybill_documents", metadata, autoload_with=conn)
+        stmt = select(waybill_table).order_by(desc(waybill_table.c.created_at)).limit(50)
+        rows = conn.execute(stmt).mappings().all()
+        return {"items": [dict(r) for r in rows]}

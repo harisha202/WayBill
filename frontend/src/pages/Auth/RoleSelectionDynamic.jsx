@@ -4,7 +4,7 @@ import { createWidgetRegistry } from '../../dynamic-ui/registry'
 import { registerBuiltInWidgets } from '../../dynamic-ui/widgets'
 import ROLE_SELECTION_CONFIG from '../../config/ui/roleSelection.json'
 
-import './roleselection.css'
+
 
 function RoleLogoWidget({ roleId }) {
   const normalized = String(roleId || '').trim().toLowerCase()

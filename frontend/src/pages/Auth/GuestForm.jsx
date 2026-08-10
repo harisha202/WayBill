@@ -1,27 +1,20 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { createGuestWithDetails } from '../../auth/guestAccess'
 import { Logo } from '../../components/ui/Logo'
-import './guestform.css'
 
 function GuestForm({ role, onSubmit, onBack }) {
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    company: '',
-    phone: '',
-  })
+  const [formData, setFormData] = useState({ name: '', email: '', company: '', phone: '' })
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
-  const handleChange = (field) => (event) => {
-    setFormData((prev) => ({ ...prev, [field]: event.target.value }))
-  }
+  const handleChange = (field) => (event) => setFormData((prev) => ({ ...prev, [field]: event.target.value }))
 
-  const submitGuest = async (payload) => {
+  const handleSubmit = async (event) => {
+    event.preventDefault()
     setError('')
     setIsLoading(true)
     try {
-      await onSubmit?.(payload)
+      await onSubmit?.(createGuestWithDetails(formData, role))
     } catch (submitError) {
       setError(submitError?.message ?? 'Guest access failed')
     } finally {
@@ -29,97 +22,54 @@ function GuestForm({ role, onSubmit, onBack }) {
     }
   }
 
-  const handleSubmit = async (event) => {
-    event.preventDefault()
-    const guestData = createGuestWithDetails(formData, role)
-    await submitGuest(guestData)
-  }
+  const getRoleLabel = () => ({ manufacturer: 'Manufacturer', transporter: 'Transporter', dealer: 'Dealer', retailshop: 'Retail Shop', admin: 'Admin' })[role?.toLowerCase()] || role
 
   return (
-    <main className="auth-scene auth-guest-theme">
-      <form onSubmit={handleSubmit} className="auth-panel guest-form auth-guest-panel">
-        <div className="auth-header">
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
-            <Logo style={{ width: 60, height: 60 }} />
+    <main className="standard-auth-container bg-theme-guest">
+      <div className="standard-auth-card">
+        
+        <div className="standard-auth-header">
+          <Logo style={{ width: 72, height: 72, margin: '0 auto 1rem auto', display: 'block' }} />
+          <h2 className="standard-auth-title">Guest Access</h2>
+          <p className="standard-auth-subtitle">Explore the {getRoleLabel()} dashboard</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="standard-auth-form" autoComplete="off">
+          <div className="standard-auth-form-group">
+            <label className="standard-auth-label">Full Name</label>
+            <input type="text" className="standard-auth-input" placeholder="John Doe" required value={formData.name} onChange={handleChange('name')} />
           </div>
-          <h2 className="auth-panel-title">Guest Access</h2>
-          <p className="auth-panel-subtitle">Explore the {role} dashboard with read-only access.</p>
-        </div>
 
-        <div className="auth-field-group">
-          <label htmlFor="guest-name" className="auth-field-label">
-            Full Name
-          </label>
-          <input
-            id="guest-name"
-            type="text"
-            placeholder="John Doe"
-            value={formData.name}
-            onChange={handleChange('name')}
-            className="auth-field-input"
-          />
-        </div>
+          <div className="standard-auth-form-group">
+            <label className="standard-auth-label">Email Address</label>
+            <input type="email" className="standard-auth-input" placeholder="john@example.com" required value={formData.email} onChange={handleChange('email')} />
+          </div>
 
-        <div className="auth-field-group">
-          <label htmlFor="guest-email" className="auth-field-label">
-            Email Address
-          </label>
-          <input
-            id="guest-email"
-            type="email"
-            placeholder="john@example.com"
-            value={formData.email}
-            onChange={handleChange('email')}
-            className="auth-field-input"
-          />
-        </div>
+          <div className="standard-auth-form-group">
+            <label className="standard-auth-label">Company Name</label>
+            <input type="text" className="standard-auth-input" placeholder="Acme Corporation" required value={formData.company} onChange={handleChange('company')} />
+          </div>
 
-        <div className="auth-field-group">
-          <label htmlFor="guest-company" className="auth-field-label">
-            Company Name
-          </label>
-          <input
-            id="guest-company"
-            type="text"
-            placeholder="Acme Corporation"
-            value={formData.company}
-            onChange={handleChange('company')}
-            className="auth-field-input"
-          />
-        </div>
+          <div className="standard-auth-form-group">
+            <label className="standard-auth-label">Phone Number</label>
+            <input type="tel" className="standard-auth-input" placeholder="+1 (555) 000-0000" value={formData.phone} onChange={handleChange('phone')} />
+          </div>
 
-        <div className="auth-field-group">
-          <label htmlFor="guest-phone" className="auth-field-label">
-            Phone Number
-          </label>
-          <input
-            id="guest-phone"
-            type="tel"
-            placeholder="+1 (555) 000-0000"
-            value={formData.phone}
-            onChange={handleChange('phone')}
-            className="auth-field-input"
-          />
-        </div>
+          {!!error && <div style={{ color: '#ef4444', fontSize: '0.85rem', textAlign: 'center' }}>{error}</div>}
 
-        {!!error && <div className="auth-error-box">{error}</div>}
-
-        <div className="auth-actions">
-          <button type="submit" disabled={isLoading} className="auth-btn-primary">
-            {isLoading ? 'Accessing...' : 'Continue as Guest'}
-          </button>
-          <button type="button" onClick={onBack} disabled={isLoading} className="auth-btn-ghost">
-            Back to Roles
-          </button>
-        </div>
-
-        <div className="info-banner">
-          <span>Info:</span>
-          <span>Guest mode provides read-only access to explore features.</span>
-        </div>
-      </form>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <button type="submit" disabled={isLoading} className="standard-auth-btn-primary">
+              {isLoading ? 'Processing...' : 'Continue as Guest'}
+            </button>
+            <button type="button" onClick={onBack} disabled={isLoading} className="standard-auth-btn-outline">
+              Back to Roles
+            </button>
+          </div>
+        </form>
+      </div>
     </main>
   )
 }
 
 export default GuestForm
+

@@ -36,8 +36,8 @@
       "Dashboard",
       "Inventory",
       "POS Analytics",
-      "Customer Demographics",
-      "Promotions"
+      "QR Verification",
+      "Auto-Reorder"
     ]
   },
   "PATH_BY_ROLE_LINK": {
@@ -54,31 +54,31 @@
       "Dashboard": "/manufacturer",
       "Production": "/manufacturer/production",
       "AI Forecast": "/manufacturer/forecast",
-      "Raw Material Sourcing": "/manufacturer",
-      "Quality Assurance": "/manufacturer",
+      "Raw Material Sourcing": "/manufacturer/sourcing",
+      "Quality Assurance": "/manufacturer/assurance",
       "Factory Settings": "/manufacturer"
     },
     "Transporter": {
       "Dashboard": "/transporter",
       "Live Map": "/transporter/map",
       "Route Optimizer": "/transporter/routes",
-      "Fleet Management": "/transporter",
-      "Driver Logs": "/transporter",
-      "Maintenance Alerts": "/transporter"
+      "Fleet Management": "/transporter/fleet",
+      "Driver Logs": "/transporter/logs",
+      "Maintenance Alerts": "/transporter/maintenance"
     },
     "Dealer": {
       "Dashboard": "/dealer",
       "Inventory": "/dealer/inventory",
-      "Order Fulfillment": "/dealer",
+      "Order Fulfillment": "/dealer/pipeline",
       "Pricing Strategies": "/dealer",
-      "Partner Network": "/dealer"
+      "Partner Network": "/dealer/network"
     },
     "RetailShop": {
       "Dashboard": "/retail",
       "Inventory": "/retail/inventory",
-      "POS Analytics": "/retail",
-      "Customer Demographics": "/retail",
-      "Promotions": "/retail"
+      "POS Analytics": "/retail/pos",
+      "QR Verification": "/retail/qr",
+      "Auto-Reorder": "/retail/reorder"
     }
   },
   "SOCKET_USER_BY_ROLE": {

@@ -250,6 +250,19 @@ def receive_order(order_code: str) -> dict:
             stage="delivered",
             payload={"orderCode": order_code, "deliveredTo": "dealer"},
         )
+        
+        # Update Waybill Custody to Dealer
+        from app.services.database_service import _engine, update_waybill_custody
+        from sqlalchemy import select, Table, MetaData
+        
+        with _engine().begin() as conn:
+            metadata = MetaData()
+            waybill_table = Table("waybill_documents", metadata, autoload_with=conn)
+            stmt = select(waybill_table).where(waybill_table.c.order_id == order_code)
+            row = conn.execute(stmt).mappings().first()
+            if row:
+                update_waybill_custody(row["waybill_id"], "Dealer Warehouse", "Dealer", "delivered")
+
     except DatabaseError as exc:
         raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
 
@@ -279,6 +292,19 @@ def retail_receive(order_code: str) -> dict:
             stage="retail_received",
             payload={"orderCode": order_code, "receivedBy": "retail_shop"},
         )
+        
+        # Update Waybill Custody to Retail
+        from app.services.database_service import _engine, update_waybill_custody
+        from sqlalchemy import select, Table, MetaData
+        
+        with _engine().begin() as conn:
+            metadata = MetaData()
+            waybill_table = Table("waybill_documents", metadata, autoload_with=conn)
+            stmt = select(waybill_table).where(waybill_table.c.order_id == order_code)
+            row = conn.execute(stmt).mappings().first()
+            if row:
+                update_waybill_custody(row["waybill_id"], "Retail Storefront", "Retailer", "verified")
+
     except DatabaseError as exc:
         raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
     return {"order": updated, "txHash": tx_hash}

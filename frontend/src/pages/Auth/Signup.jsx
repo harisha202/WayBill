@@ -1,7 +1,6 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { authApi } from '../../api/axiosInstance'
 import { Logo } from '../../components/ui/Logo'
-import './signup.css'
 
 function Signup({ role, onSubmit, onBack, onLoginClick }) {
   const [name, setName] = useState('')
@@ -11,34 +10,20 @@ function Signup({ role, onSubmit, onBack, onLoginClick }) {
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
-  // OTP verification states
   const [showOtpModal, setShowOtpModal] = useState(false)
   const [otp, setOtp] = useState(['', '', '', '', '', ''])
   const [otpError, setOtpError] = useState('')
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false)
-  const [resendTimer, setResendTimer] = useState(0)
-  const [tempFormData, setTempFormData] = useState(null)
 
-  // Password visibility toggles
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   const validatePassword = (pwd) => {
-    if (pwd.length < 8) {
-      return 'Password must be at least 8 characters long'
-    }
-    if (!/[A-Z]/.test(pwd)) {
-      return 'Password must contain at least one uppercase letter'
-    }
-    if (!/[a-z]/.test(pwd)) {
-      return 'Password must contain at least one lowercase letter'
-    }
-    if (!/[0-9]/.test(pwd)) {
-      return 'Password must contain at least one number'
-    }
-    if (!/[!@#$%^&*]/.test(pwd)) {
-      return 'Password must contain at least one special character (!@#$%^&*)'
-    }
+    if (pwd.length < 8) return 'Password must be at least 8 characters long'
+    if (!/[A-Z]/.test(pwd)) return 'Password must contain at least one uppercase letter'
+    if (!/[a-z]/.test(pwd)) return 'Password must contain at least one lowercase letter'
+    if (!/[0-9]/.test(pwd)) return 'Password must contain at least one number'
+    if (!/[!@#$%^&*]/.test(pwd)) return 'Password must contain at least one special character (!@#$%^&*)'
     return null
   }
 
@@ -46,373 +31,143 @@ function Signup({ role, onSubmit, onBack, onLoginClick }) {
     event.preventDefault()
     setError('')
 
-    // Validation
-    if (!name.trim()) {
-      setError('Please enter your full name')
-      return
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) {
-      setError('Please enter a valid email address')
-      return
-    }
-
-    const passwordError = validatePassword(password)
-    if (passwordError) {
-      setError(passwordError)
-      return
-    }
-
-    if (password !== confirmPassword) {
-      setError('Passwords do not match')
-      return
-    }
+    if (!name.trim()) return setError('Please enter your full name')
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setError('Please enter a valid email address')
+    
+    const pwdErr = validatePassword(password)
+    if (pwdErr) return setError(pwdErr)
+    if (password !== confirmPassword) return setError('Passwords do not match')
 
     setIsLoading(true)
-
     try {
       await authApi.post('/auth/send-otp', { email, name })
-
-      // Store form data temporarily
-      setTempFormData({ name, email, password, role })
-
-      // Show OTP modal
       setShowOtpModal(true)
-      startResendTimer()
-    } catch (submitError) {
-      setError(submitError?.message ?? 'Failed to send verification code')
+    } catch (err) {
+      setError(err?.response?.data?.detail || err?.message || 'Failed to send OTP')
     } finally {
       setIsLoading(false)
     }
   }
 
-  const startResendTimer = () => {
-    setResendTimer(60)
-    const interval = setInterval(() => {
-      setResendTimer((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval)
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-  }
-
-  const handleOtpChange = (index, value) => {
-    // Only allow numbers
-    if (!/^\d*$/.test(value)) return
-
-    const newOtp = [...otp]
-    newOtp[index] = value.slice(-1) // Take only last character
-
-    setOtp(newOtp)
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault()
     setOtpError('')
-
-    // Auto-focus next input
-    if (value && index < 5) {
-      document.getElementById(`otp-${index + 1}`)?.focus()
-    }
-  }
-
-  const handleOtpKeyDown = (index, e) => {
-    if (e.key === 'Backspace' && !otp[index] && index > 0) {
-      document.getElementById(`otp-${index - 1}`)?.focus()
-    }
-  }
-
-  const handleVerifyOtp = async () => {
-    const otpValue = otp.join('')
-
-    if (otpValue.length !== 6) {
-      setOtpError('Please enter complete 6-digit OTP')
-      return
-    }
-
+    const otpString = otp.join('')
+    if (otpString.length !== 6) return setOtpError('Please enter a valid 6-digit OTP')
     setIsVerifyingOtp(true)
-    setOtpError('')
-
     try {
-      await authApi.post('/auth/verify-otp', { email: tempFormData.email, otp: otpValue })
-
-      // If OTP is valid, create account
-      await onSubmit?.(tempFormData)
-
-      setShowOtpModal(false)
-    } catch (verifyError) {
-      setOtpError(verifyError?.message ?? 'OTP verification failed. Please try again.')
+      await authApi.post('/auth/verify-otp', { email, otp: otpString })
+      await onSubmit?.({ name, email, password, role })
+    } catch (err) {
+      setOtpError(err?.response?.data?.detail || err?.message || 'Invalid OTP')
     } finally {
       setIsVerifyingOtp(false)
     }
   }
 
-  const handleResendOtp = async () => {
-    if (resendTimer > 0) return
-
-    try {
-      await authApi.post('/auth/send-otp', {
-        email: tempFormData.email,
-        name: tempFormData.name,
-      })
-
-      setOtp(['', '', '', '', '', ''])
-      setOtpError('')
-      startResendTimer()
-    } catch (resendError) {
-      setOtpError(resendError?.message ?? 'Failed to resend OTP')
+  const handleOtpChange = (index, value) => {
+    if (value.length > 1) value = value[value.length - 1]
+    if (!/^\d*$/.test(value)) return
+    const newOtp = [...otp]
+    newOtp[index] = value
+    setOtp(newOtp)
+    if (value && index < 5) {
+      const nextInput = document.getElementById(otp- + (index + 1))
+      if (nextInput) nextInput.focus()
     }
   }
 
-  const handleCloseOtpModal = () => {
-    setShowOtpModal(false)
-    setOtp(['', '', '', '', '', ''])
-    setOtpError('')
-    setTempFormData(null)
-  }
+  const getRoleLabel = () => ({ manufacturer: 'Manufacturer', transporter: 'Transporter', dealer: 'Dealer', retailshop: 'Retail Shop', admin: 'Admin' })[role?.toLowerCase()] || role
 
-  const getPasswordStrength = () => {
-    if (!password) return null
-
-    let strength = 0
-    if (password.length >= 8) strength++
-    if (/[A-Z]/.test(password)) strength++
-    if (/[a-z]/.test(password)) strength++
-    if (/[0-9]/.test(password)) strength++
-    if (/[!@#$%^&*]/.test(password)) strength++
-
-    if (strength <= 2) return { label: 'Weak', color: '#ef4444' }
-    if (strength <= 3) return { label: 'Medium', color: '#f59e0b' }
-    if (strength <= 4) return { label: 'Good', color: '#3b82f6' }
-    return { label: 'Strong', color: '#22c55e' }
-  }
-
-  const passwordStrength = getPasswordStrength()
-
-  return (
-    <main className="auth-scene auth-signup-theme">
-      <form onSubmit={handleSubmit} className="auth-panel auth-signup-panel">
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
-          <Logo style={{ width: 60, height: 60 }} />
-        </div>
-        <h1 className="auth-panel-title">
-          Signup
-          <span className="signup-role-label">({role})</span>
-        </h1>
-        <p className="auth-panel-subtitle">Create your account to continue.</p>
-
-        <div className="auth-field-group">
-          <label htmlFor="signup-name" className="auth-field-label">
-            Full Name
-          </label>
-          <input
-            id="signup-name"
-            type="text"
-            required
-            placeholder="Enter your full name"
-            className="auth-field-input"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-          />
-        </div>
-
-        <div className="auth-field-group">
-          <label htmlFor="signup-email" className="auth-field-label">
-            Email
-          </label>
-          <input
-            id="signup-email"
-            type="email"
-            required
-            placeholder="your.email@example.com"
-            className="auth-field-input"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-          />
-        </div>
-
-        <div className="auth-field-group">
-          <label htmlFor="signup-password" className="auth-field-label">
-            Create Password
-          </label>
-          <div className="auth-password-wrapper">
-            <input
-              id="signup-password"
-              type={showPassword ? 'text' : 'password'}
-              required
-              placeholder="At least 8 characters"
-              className="auth-field-input"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-            <button
-              type="button"
-              className="auth-password-toggle"
-              onClick={() => setShowPassword(!showPassword)}
-            >
-              {showPassword ? 'Show Less' : 'Show'}
-            </button>
+  if (showOtpModal) {
+    return (
+      <main className="standard-auth-container bg-theme-otp">
+        <div className="standard-auth-card">
+          <div className="standard-auth-header">
+            <Logo style={{ width: 72, height: 72, margin: '0 auto 1rem auto', display: 'block' }} />
+            <h2 className="standard-auth-title">Verify OTP</h2>
+            <p className="standard-auth-subtitle">We sent a 6-digit code to {email}</p>
           </div>
-
-          {password && passwordStrength && (
-            <div className="password-strength-container">
-              <div className="password-strength-bar">
-                <div
-                  className="password-strength-fill"
-                  style={{
-                    width: `${passwordStrength.label === 'Weak' ? 25 : passwordStrength.label === 'Medium' ? 50 : passwordStrength.label === 'Good' ? 75 : 100}%`,
-                    backgroundColor: passwordStrength.color,
-                  }}
-                ></div>
-              </div>
-              <span className="password-strength-label" style={{ color: passwordStrength.color }}>
-                {passwordStrength.label}
-              </span>
-            </div>
-          )}
-
-          <p className="auth-field-hint">
-            Must contain: 8+ characters, uppercase, lowercase, number, special character
-          </p>
-        </div>
-
-        <div className="auth-field-group">
-          <label htmlFor="signup-confirm-password" className="auth-field-label">
-            Confirm Password
-          </label>
-          <div className="auth-password-wrapper">
-            <input
-              id="signup-confirm-password"
-              type={showConfirmPassword ? 'text' : 'password'}
-              required
-              placeholder="Re-enter your password"
-              className="auth-field-input"
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-            />
-            <button
-              type="button"
-              className="auth-password-toggle"
-              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-            >
-              {showConfirmPassword ? 'Show Less' : 'Show'}
-            </button>
-          </div>
-
-          {confirmPassword && (
-            <p className={`password-match-indicator ${password === confirmPassword ? 'match' : 'no-match'}`}>
-              {password === confirmPassword ? 'Passwords match' : 'Passwords do not match'}
-            </p>
-          )}
-        </div>
-
-        {!!error && <div className="auth-error-box">{error}</div>}
-
-        <div className="auth-actions">
-          <button type="submit" disabled={isLoading} className="auth-btn-primary">
-            {isLoading ? 'Sending verification code...' : 'Continue'}
-          </button>
-          <button
-            type="button"
-            onClick={onLoginClick || onBack}
-            disabled={isLoading}
-            className="auth-btn-ghost auth-btn-login"
-          >
-            Log in
-          </button>
-          <button type="button" onClick={onBack} disabled={isLoading} className="auth-btn-ghost">
-            Back
-          </button>
-        </div>
-
-        <p className="auth-switch-row">
-          Already have an account?{' '}
-          <button
-            type="button"
-            className="auth-switch-link"
-            onClick={onLoginClick || onBack}
-            disabled={isLoading}
-          >
-            Log in
-          </button>
-        </p>
-      </form>
-
-      {showOtpModal && (
-        <div className="otp-modal-overlay" onClick={handleCloseOtpModal}>
-          <div className="otp-modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="otp-modal-close" onClick={handleCloseOtpModal}>x</button>
-
-            <div className="otp-modal-header">
-              <div className="otp-icon">OTP</div>
-              <h3 className="otp-modal-title">Verify Your Email</h3>
-              <p className="otp-modal-subtitle">
-                We have sent a 6-digit code to
-                <br />
-                <strong>{email}</strong>
-              </p>
-            </div>
-
-            <div className="otp-input-container">
-              {otp.map((digit, index) => (
-                <input
-                  key={index}
-                  id={`otp-${index}`}
-                  type="text"
-                  maxLength="1"
-                  className="otp-input"
-                  value={digit}
-                  onChange={(e) => handleOtpChange(index, e.target.value)}
-                  onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                  autoFocus={index === 0}
+          
+          <form onSubmit={handleVerifyOtp} className="standard-auth-form">
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', marginBottom: '1.5rem' }}>
+              {otp.map((digit, idx) => (
+                <input key={idx} id={otp- + idx} type="text" maxLength={1} value={digit} onChange={(e) => handleOtpChange(idx, e.target.value)}
+                  style={{ width: '40px', height: '50px', textAlign: 'center', fontSize: '1.25rem', fontWeight: 600, border: '1px solid #334155', borderRadius: '6px', outline: 'none', background: '#0f172a', color: '#f8fafc' }}
+                  onFocus={(e) => e.target.select()}
                 />
               ))}
             </div>
-
-            {otpError && <div className="auth-error-box">{otpError}</div>}
-
-            <button
-              type="button"
-              className="auth-btn-primary"
-              onClick={handleVerifyOtp}
-              disabled={isVerifyingOtp || otp.join('').length !== 6}
-            >
-              {isVerifyingOtp ? 'Verifying...' : 'Verify and Create Account'}
+            {!!otpError && <div style={{ color: '#ef4444', fontSize: '0.85rem', textAlign: 'center' }}>{otpError}</div>}
+            
+            <button type="submit" disabled={isVerifyingOtp} className="standard-auth-btn-primary">
+              {isVerifyingOtp ? 'Verifying...' : 'Complete Signup'}
             </button>
-
-            <div className="otp-resend-container">
-              {resendTimer > 0 ? (
-                <p className="otp-resend-timer">Resend code in {resendTimer}s</p>
-              ) : (
-                <button type="button" className="otp-resend-button" onClick={handleResendOtp}>
-                  Resend Code
-                </button>
-              )}
-            </div>
-
-            <p className="otp-help-text">
-              Did not receive the code? Check spam or click resend.
-            </p>
-
-            <p className="otp-switch-row">
-              Already have an account?{' '}
-              <button
-                type="button"
-                className="otp-switch-link"
-                onClick={() => {
-                  handleCloseOtpModal()
-                  ;(onLoginClick || onBack)?.()
-                }}
-                disabled={isVerifyingOtp}
-              >
-                Log in
-              </button>
-            </p>
-          </div>
+            <button type="button" onClick={() => setShowOtpModal(false)} className="standard-auth-btn-outline" style={{ marginTop: '0.5rem', border: 'none' }}>
+              Back to Sign Up
+            </button>
+          </form>
         </div>
-      )}
+      </main>
+    )
+  }
+
+  return (
+    <main className="standard-auth-container bg-theme-signup">
+      <div className="standard-auth-card">
+        
+        <div className="standard-auth-header">
+          <Logo style={{ width: 72, height: 72, margin: '0 auto 1rem auto', display: 'block' }} />
+          <h2 className="standard-auth-title">Create Account</h2>
+          <p className="standard-auth-subtitle">Sign up as {getRoleLabel()}</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="standard-auth-form" autoComplete="off">
+          <div className="standard-auth-form-group">
+            <label className="standard-auth-label">Full Name</label>
+            <input type="text" className="standard-auth-input" required placeholder="John Doe" value={name} onChange={e => setName(e.target.value)} />
+          </div>
+
+          <div className="standard-auth-form-group">
+            <label className="standard-auth-label">Email</label>
+            <input type="email" className="standard-auth-input" required placeholder="your.email@example.com" value={email} onChange={e => setEmail(e.target.value)} />
+          </div>
+
+          <div className="standard-auth-form-group">
+            <label className="standard-auth-label">Create Password</label>
+            <div style={{ position: 'relative' }}>
+              <input type={showPassword ? 'text' : 'password'} className="standard-auth-input" required placeholder="At least 8 characters" value={password} onChange={e => setPassword(e.target.value)} />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>{showPassword ? 'Hide' : 'Show'}</button>
+            </div>
+            <p style={{ fontSize: '0.65rem', color: '#64748b', margin: '0.25rem 0 0 0' }}>Must contain: 8+ characters, uppercase, lowercase, number, special character</p>
+          </div>
+
+          <div className="standard-auth-form-group">
+            <label className="standard-auth-label">Confirm Password</label>
+            <div style={{ position: 'relative' }}>
+              <input type={showConfirmPassword ? 'text' : 'password'} className="standard-auth-input" required placeholder="Re-enter your password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />
+              <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>{showConfirmPassword ? 'Hide' : 'Show'}</button>
+            </div>
+          </div>
+
+          {!!error && <div style={{ color: '#ef4444', fontSize: '0.85rem', textAlign: 'center' }}>{error}</div>}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <button type="submit" disabled={isLoading} className="standard-auth-btn-primary">
+              {isLoading ? 'Processing...' : 'Sign Up'}
+            </button>
+            <button type="button" onClick={onLoginClick} disabled={isLoading} className="standard-auth-btn-outline" style={{ border: 'none' }}>
+              Log in
+            </button>
+            <button type="button" onClick={onBack} disabled={isLoading} className="standard-auth-btn-outline" style={{ border: 'none', marginTop: '-0.25rem' }}>
+              Back to Roles
+            </button>
+          </div>
+        </form>
+      </div>
     </main>
   )
 }
 
 export default Signup
+

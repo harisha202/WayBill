@@ -1,15 +1,66 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { inventoryApi, aiApi } from '../../api/axiosInstance';
 import { DataTable } from '../ui/DataTable';
 
 export function InventoryManagement() {
-  const [inventory, setInventory] = useState([
-    { sku: 'WB-001', name: 'Premium Widget', stock: 450, reorderPoint: 500, status: 'Low Stock' },
-    { sku: 'WB-002', name: 'Standard Widget', stock: 1200, reorderPoint: 400, status: 'Healthy' },
-    { sku: 'WB-003', name: 'Basic Component', stock: 50, reorderPoint: 200, status: 'Critical' },
-  ]);
+  const [inventory, setInventory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [jitMode, setJitMode] = useState(false);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const invRes = await inventoryApi.getInventory(0, 100);
+        const items = invRes?.items || [];
+        
+        // Pass to AI for dynamic alerts
+        let aiResult = {};
+        try {
+          aiResult = await aiApi.inventoryAlerts({ inventory_items: items });
+        } catch (e) {
+          console.error("AI alerts failed, using simple logic", e);
+        }
+
+        const enriched = items.map(item => {
+          let status = 'Healthy';
+          const skuAlerts = aiResult.alerts || [];
+          const matchedAlert = skuAlerts.find(a => a.sku === item.sku);
+          
+          let currentReorderPoint = item.reorder_point || 0;
+          if (jitMode) {
+            // JIT Mode: run lean (lower reorder points)
+            currentReorderPoint = Math.floor(currentReorderPoint * 0.5);
+          } else {
+            // Safety Stock Mode: standard buffer
+            currentReorderPoint = Math.floor(currentReorderPoint * 1.2);
+          }
+          
+          if (matchedAlert) {
+            status = matchedAlert.severity === 'critical' ? 'Critical' : 'Low Stock';
+          } else if (item.quantity <= currentReorderPoint) {
+            status = 'Critical';
+          }
+          return {
+            sku: item.sku,
+            name: item.name,
+            stock: item.quantity,
+            reorderPoint: currentReorderPoint || 'N/A',
+            status: status
+          };
+        });
+        
+        setInventory(enriched);
+      } catch (err) {
+        console.error("Failed to load inventory", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, [jitMode]);
 
   const handleExport = () => {
-    // Generate simple CSV
     const headers = ['SKU,Name,Stock,Reorder Point,Status'];
     const rows = inventory.map(i => `${i.sku},${i.name},${i.stock},${i.reorderPoint},${i.status}`);
     const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows].join("\n");
@@ -37,12 +88,37 @@ export function InventoryManagement() {
   ];
 
   return (
-    <div className="card">
+    <div className="card" style={{ borderTop: '4px solid #10b981' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-        <h2 className="card-title" style={{ margin: 0 }}>Inventory & Reorder Levels</h2>
-        <button className="primary-btn" onClick={handleExport}>Export to CSV</button>
+        <h2 className="card-title" style={{ margin: 0 }}>
+          <span className="kpi-icon" style={{ background: '#d1fae5', color: '#059669' }}>📦</span>
+          AI-Enhanced Inventory & Reorder Levels
+        </h2>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', background: '#f1f5f9', padding: '6px 12px', borderRadius: '20px' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: !jitMode ? 'bold' : 'normal', color: !jitMode ? '#0f172a' : '#64748b' }}>Safety Stock</span>
+            <div style={{ 
+              position: 'relative', width: '40px', height: '20px', background: jitMode ? '#7c3aed' : '#cbd5e1', 
+              borderRadius: '10px', transition: '0.3s' 
+            }}>
+              <div style={{ 
+                position: 'absolute', top: '2px', left: jitMode ? '22px' : '2px', width: '16px', height: '16px', 
+                background: 'white', borderRadius: '50%', transition: '0.3s' 
+              }}></div>
+            </div>
+            <span style={{ fontSize: '0.85rem', fontWeight: jitMode ? 'bold' : 'normal', color: jitMode ? '#7c3aed' : '#64748b' }}>JIT Mode</span>
+            <input type="checkbox" style={{ display: 'none' }} checked={jitMode} onChange={(e) => setJitMode(e.target.checked)} />
+          </label>
+          <button className="primary-btn" onClick={handleExport}>Export to CSV</button>
+        </div>
       </div>
-      <DataTable data={inventory} columns={columns} />
+      <p className="muted" style={{ marginBottom: '16px' }}>Real-time inventory levels integrated with AI to predict stockouts and recommend dynamic reorder points. Toggle JIT to run a leaner supply chain.</p>
+      
+      {loading ? (
+        <p className="muted">Loading inventory and AI alerts...</p>
+      ) : (
+        <DataTable data={inventory} columns={columns} />
+      )}
     </div>
   );
 }

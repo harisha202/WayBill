@@ -1650,3 +1650,83 @@ def get_supplier_tree() -> list[dict]:
                 tree.append(n)
                 
         return tree
+
+# -----------------------------------------------------------------------------
+# Waybill Document Methods
+# -----------------------------------------------------------------------------
+
+def create_waybill(waybill_id: str, batch_id: str, sku: str, quantity: int, order_id: str, custodian: str, seal_hash: str, qr_code: str, status: str = "pending") -> dict[str, Any]:
+    with _engine().begin() as conn:
+        now = datetime.now(timezone.utc)
+        stmt = insert(waybill_documents_table).values(
+            waybill_id=waybill_id,
+            batch_id=batch_id,
+            sku=sku,
+            quantity=quantity,
+            order_id=order_id,
+            custody_chain=[{
+                "role": "Manufacturer",
+                "custodian": custodian,
+                "timestamp": now.isoformat(),
+                "hash": seal_hash[:12]
+            }],
+            current_custodian=custodian,
+            seal_hash=seal_hash,
+            qr_code=qr_code,
+            status=status,
+            created_at=now,
+            updated_at=now
+        )
+        conn.execute(stmt)
+        return get_waybill(waybill_id)
+
+def update_waybill_custody(waybill_id: str, new_custodian: str, role: str, status: str) -> dict[str, Any] | None:
+    with _engine().begin() as conn:
+        stmt = select(waybill_documents_table).where(waybill_documents_table.c.waybill_id == waybill_id)
+        row = conn.execute(stmt).mappings().first()
+        if not row:
+            return None
+        
+        chain = list(row["custody_chain"])
+        now = datetime.now(timezone.utc)
+        import hashlib
+        new_hash = hashlib.sha256(f"{waybill_id}{new_custodian}{now.isoformat()}".encode()).hexdigest()
+        
+        chain.append({
+            "role": role,
+            "custodian": new_custodian,
+            "timestamp": now.isoformat(),
+            "hash": new_hash[:12]
+        })
+        
+        upd_stmt = (
+            update(waybill_documents_table)
+            .where(waybill_documents_table.c.waybill_id == waybill_id)
+            .values(
+                current_custodian=new_custodian,
+                custody_chain=chain,
+                status=status,
+                seal_hash=new_hash,
+                updated_at=now
+            )
+        )
+        conn.execute(upd_stmt)
+        return get_waybill(waybill_id)
+
+def get_waybill(waybill_id: str) -> dict[str, Any] | None:
+    with _engine().begin() as conn:
+        stmt = select(waybill_documents_table).where(waybill_documents_table.c.waybill_id == waybill_id)
+        row = conn.execute(stmt).mappings().first()
+        return dict(row) if row else None
+        
+def get_all_waybills() -> list[dict]:
+    with _engine().begin() as conn:
+        rows = conn.execute(select(waybill_documents_table)).mappings().fetchall()
+        return [dict(r) for r in rows]
+
+def get_waybill_by_order(order_id: str) -> dict[str, Any] | None:
+    with _engine().begin() as conn:
+        stmt = select(waybill_documents_table).where(waybill_documents_table.c.order_id == order_id)
+        row = conn.execute(stmt).mappings().first()
+        return dict(row) if row else None
+

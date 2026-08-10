@@ -1,5 +1,7 @@
+import { useState, useEffect } from 'react'
 import BarChart from '../charts/BarChart'
 import PieChart from '../charts/PieChart'
+import { aiApi } from '../../api/axiosInstance'
 
 const MONTH_LABELS = ['January', 'February', 'March', 'April', 'May', 'June', 'July']
 const MONTH_COLORS = ['#3b82f6', '#f59e0b', '#facc15', '#14b8a6', '#8b5cf6', '#94a3b8', '#ec4899']
@@ -45,6 +47,28 @@ function buildMonthlySeries(role, stats = []) {
 }
 
 function DashboardReportSection({ role, stats = [] }) {
+  const [insights, setInsights] = useState(null)
+  const [anomalies, setAnomalies] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchAiData = async () => {
+      try {
+        const [insightsRes, anomaliesRes] = await Promise.all([
+          aiApi.dashboardInsights({ role, stats }),
+          aiApi.shipmentAnomalies({ role })
+        ]);
+        setInsights(insightsRes.insights);
+        setAnomalies(anomaliesRes.anomalies);
+      } catch (e) {
+        console.error("AI fetch failed", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAiData();
+  }, [role, stats]);
+
   const series = buildMonthlySeries(role, stats)
   const donutData = series.map((item, index) => ({
     label: item.label,
@@ -53,16 +77,47 @@ function DashboardReportSection({ role, stats = [] }) {
   }))
 
   return (
-    <section className="dashboard-report-block">
-      <div className="dashboard-report-grid">
-        <PieChart title="Monthly Sales Report" data={donutData} height={260} />
-        <section className="dashboard-report-card">
-          <h4 className="dashboard-report-title">Monthly Sales Report</h4>
-          <BarChart data={series} color="#93c5fd" height={260} />
-          <p className="dashboard-report-note">Sales data for current cycle</p>
-        </section>
-      </div>
-    </section>
+    <>
+      {loading ? (
+        <div style={{ padding: '20px', textAlign: 'center' }} className="muted">Generating AI Insights...</div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
+          <div className="card" style={{ borderLeft: '4px solid #10b981', margin: 0 }}>
+            <h3 style={{ margin: '0 0 12px 0', color: '#10b981', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>🧠</span> AI Executive Summary
+            </h3>
+            <p style={{ color: '#334155', lineHeight: '1.6' }}>
+              {insights || "The system is operating optimally. No major bottlenecks detected."}
+            </p>
+          </div>
+          <div className="card" style={{ borderLeft: '4px solid #dc2626', margin: 0 }}>
+            <h3 style={{ margin: '0 0 12px 0', color: '#dc2626', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>⚠️</span> Active Anomalies
+            </h3>
+            {anomalies && anomalies.length > 0 ? (
+              <ul style={{ margin: 0, paddingLeft: '20px', color: '#334155', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {anomalies.map((anom, idx) => (
+                  <li key={idx}><strong>{anom.type}:</strong> {anom.description}</li>
+                ))}
+              </ul>
+            ) : (
+              <p style={{ color: '#334155' }}>No anomalies detected in the current supply chain network.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      <section className="dashboard-report-block">
+        <div className="dashboard-report-grid">
+          <PieChart title="Monthly Sales Report" data={donutData} height={260} />
+          <section className="dashboard-report-card">
+            <h4 className="dashboard-report-title">Monthly Sales Report</h4>
+            <BarChart data={series} color="#93c5fd" height={260} />
+            <p className="dashboard-report-note">Sales data for current cycle</p>
+          </section>
+        </div>
+      </section>
+    </>
   )
 }
 

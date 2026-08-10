@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { authApi } from '../../api/axiosInstance'
-import './Feedbackform.css'
 
-/* ── Constants ─────────────────────────────────────────────────── */
+
+/* â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const STEPS = ['Your Info', 'Details', 'Thoughts']
 
 const ROLES = ['Admin', 'Manufacturer', 'Transporter', 'Dealer', 'Retail Shop']
@@ -19,9 +19,9 @@ const CATEGORIES = [
 ]
 
 const PRIORITY_OPTIONS = [
-  { label: '🟢 Low',  value: 'Low'    },
-  { label: '🟡 Med',  value: 'Medium' },
-  { label: '🔴 High', value: 'High'   },
+  { label: 'ðŸŸ¢ Low',  value: 'Low'    },
+  { label: 'ðŸŸ¡ Med',  value: 'Medium' },
+  { label: 'ðŸ”´ High', value: 'High'   },
 ]
 
 const ROLE_TO_API = {
@@ -34,7 +34,7 @@ const ROLE_TO_API = {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-/* ── Component ─────────────────────────────────────────────────── */
+/* â”€â”€ Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 export default function FeedbackForm({ initialData = null, onSubmitted }) {
   const badgeLogoSrc = '/favicon.svg'
   const [step, setStep]       = useState(1)
@@ -77,7 +77,7 @@ export default function FeedbackForm({ initialData = null, onSubmitted }) {
 
   const progressPct = done ? 100 : step === 1 ? 0 : step === 2 ? 50 : 100
 
-  /* ── Validation ──────────────────────────────────────────────── */
+  /* â”€â”€ Validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   function validateStep1() {
     setErr1('')
     if (!name.trim())           { setErr1('Please enter your full name.');                     return false }
@@ -101,7 +101,7 @@ export default function FeedbackForm({ initialData = null, onSubmitted }) {
     return true
   }
 
-  /* ── Navigation ──────────────────────────────────────────────── */
+  /* â”€â”€ Navigation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   function goNext(from) {
     const ok = from === 1 ? validateStep1() : from === 2 ? validateStep2() : true
     if (ok) setStep(from + 1)
@@ -109,7 +109,7 @@ export default function FeedbackForm({ initialData = null, onSubmitted }) {
 
   function goBack(from) { setStep(from - 1) }
 
-  /* ── File handling ───────────────────────────────────────────── */
+  /* â”€â”€ File handling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   function handleFile(e) {
     const f = e.target.files?.[0]
     if (!f) return
@@ -126,7 +126,7 @@ export default function FeedbackForm({ initialData = null, onSubmitted }) {
     setFile(f)
   }
 
-  /* ── Submit ──────────────────────────────────────────────────── */
+  /* â”€â”€ Submit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   async function submitForm() {
     if (!validateStep3()) return
     setLoading(true)
@@ -159,7 +159,7 @@ export default function FeedbackForm({ initialData = null, onSubmitted }) {
     }
   }
 
-  /* ── Reset ───────────────────────────────────────────────────── */
+  /* â”€â”€ Reset â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   function resetForm() {
     setStep(1); setDone(false); setLoading(false)
     setName(''); setEmail(''); setEmailConf(''); setRole(''); setErr1('')
@@ -172,18 +172,18 @@ export default function FeedbackForm({ initialData = null, onSubmitted }) {
     })
   }
 
-  /* ── Char counter class ──────────────────────────────────────── */
+  /* â”€â”€ Char counter class â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const cClass = (rem, warn = 60, over = 20) =>
     `fb-char-counter${rem <= over ? ' over' : rem <= warn ? ' warn' : ''}`
 
-  /* ── Render ──────────────────────────────────────────────────── */
+  /* â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   return (
-    <div className="fb-scene">
+    <div className="fb-scene bg-theme-feedback">
 
 
       <div className="fb-wrap">
 
-        {/* ── Header ── */}
+        {/* â”€â”€ Header â”€â”€ */}
         <div className="fb-header">
           <div className="fb-badge">
             <span className="fb-badge-dot" />
@@ -197,7 +197,7 @@ export default function FeedbackForm({ initialData = null, onSubmitted }) {
               loading="eager"
               title="WayBill"
             />
-            WayBill · Feedback Portal
+            WayBill Â· Feedback Portal
           </div>
           <h1 className="fb-title">
             Share Your <span className="fb-title-accent">Experience</span>
@@ -208,7 +208,7 @@ export default function FeedbackForm({ initialData = null, onSubmitted }) {
 
         </div>
 
-        {/* ── Progress bar ── */}
+        {/* â”€â”€ Progress bar â”€â”€ */}
         <div className="fb-progress">
           <div className="fb-steps-track">
             <div className="fb-track-bg" />
@@ -219,7 +219,7 @@ export default function FeedbackForm({ initialData = null, onSubmitted }) {
               const isAct  = !done && n === step
               return (
                 <div key={n} className={`fb-step-dot${isDone ? ' done' : isAct ? ' active' : ''}`}>
-                  {isDone ? '✓' : n}
+                  {isDone ? 'âœ“' : n}
                 </div>
               )
             })}
@@ -233,14 +233,14 @@ export default function FeedbackForm({ initialData = null, onSubmitted }) {
           </div>
         </div>
 
-        {/* ── Card ── */}
+        {/* â”€â”€ Card â”€â”€ */}
         <div className="fb-card">
 
 
-          {/* ══ SUCCESS ══ */}
+          {/* â•â• SUCCESS â•â• */}
           {done && (
             <div className="fb-success">
-              <div className="fb-success-icon">✦</div>
+              <div className="fb-success-icon">âœ¦</div>
               <div className="fb-success-title">Feedback Received</div>
               <p className="fb-success-msg">
                 {feedbackResponse.message ||
@@ -254,14 +254,14 @@ export default function FeedbackForm({ initialData = null, onSubmitted }) {
                     'Check SMTP credentials or enable MOCK_EMAIL_DELIVERY.'}
                 </p>
               )}
-              <span className="fb-success-tag">✓ Submitted Successfully</span>
+              <span className="fb-success-tag">âœ“ Submitted Successfully</span>
               <button type="button" className="fb-btn-reset" onClick={resetForm} style={{ marginTop: 8 }}>
-                ↩ Submit Another Response
+                â†© Submit Another Response
               </button>
             </div>
           )}
 
-          {/* ══ STEP 1 · Your Info ══ */}
+          {/* â•â• STEP 1 Â· Your Info â•â• */}
           {!done && step === 1 && (
             <>
               <div className="fb-section-label">Your Info</div>
@@ -320,17 +320,17 @@ export default function FeedbackForm({ initialData = null, onSubmitted }) {
                 />
               </div>
 
-              {err1 && <div className="fb-error-msg"><span>⚠</span> {err1}</div>}
+              {err1 && <div className="fb-error-msg"><span>âš </span> {err1}</div>}
 
               <div className="fb-nav-row">
                 <button type="button" className="fb-btn-next" onClick={() => goNext(1)}>
-                  Continue →
+                  Continue â†’
                 </button>
               </div>
             </>
           )}
 
-          {/* ══ STEP 2 · Feedback Details ══ */}
+          {/* â•â• STEP 2 Â· Feedback Details â•â• */}
           {!done && step === 2 && (
             <>
               <div className="fb-section-label">Feedback Details</div>
@@ -383,7 +383,7 @@ export default function FeedbackForm({ initialData = null, onSubmitted }) {
                       onClick={() => setRating(n)}
                       aria-label={`${n} star`}
                     >
-                      ★
+                      â˜…
                     </button>
                   ))}
                 </div>
@@ -391,7 +391,7 @@ export default function FeedbackForm({ initialData = null, onSubmitted }) {
 
               <div className="fb-field">
                 <label className="fb-label">
-                  Screenshot <span className="fb-label-opt">(optional · max 5MB)</span>
+                  Screenshot <span className="fb-label-opt">(optional Â· max 5MB)</span>
                 </label>
                 {!file ? (
                   <div
@@ -401,15 +401,15 @@ export default function FeedbackForm({ initialData = null, onSubmitted }) {
                     onDrop={handleDrop}
                   >
                     <input type="file" accept="image/*,.pdf" onChange={handleFile} />
-                    <div className="fb-upload-icon">📎</div>
+                    <div className="fb-upload-icon">ðŸ“Ž</div>
                     <div className="fb-upload-txt">
                       Drag & drop or <span>browse</span> to upload<br />
-                      <small>PNG · JPG · PDF · max 5MB</small>
+                      <small>PNG Â· JPG Â· PDF Â· max 5MB</small>
                     </div>
                   </div>
                 ) : (
                   <div className="fb-file-preview">
-                    <span>📄</span>
+                    <span>ðŸ“„</span>
                     <span className="fb-file-name">{file.name}</span>
                     <button
                       type="button"
@@ -417,26 +417,26 @@ export default function FeedbackForm({ initialData = null, onSubmitted }) {
                       onClick={() => setFile(null)}
                       title="Remove file"
                     >
-                      ✕
+                      âœ•
                     </button>
                   </div>
                 )}
               </div>
 
-              {err2 && <div className="fb-error-msg"><span>⚠</span> {err2}</div>}
+              {err2 && <div className="fb-error-msg"><span>âš </span> {err2}</div>}
 
               <div className="fb-nav-row">
                 <button type="button" className="fb-btn-back" onClick={() => goBack(2)}>
-                  ← Back
+                  â† Back
                 </button>
                 <button type="button" className="fb-btn-next" onClick={() => goNext(2)}>
-                  Continue →
+                  Continue â†’
                 </button>
               </div>
             </>
           )}
 
-          {/* ══ STEP 3 · Your Thoughts ══ */}
+          {/* â•â• STEP 3 Â· Your Thoughts â•â• */}
           {!done && step === 3 && (
             <>
               <div className="fb-section-label">Your Thoughts</div>
@@ -478,11 +478,11 @@ export default function FeedbackForm({ initialData = null, onSubmitted }) {
                 </div>
               </div>
 
-              {err3 && <div className="fb-error-msg"><span>⚠</span> {err3}</div>}
+              {err3 && <div className="fb-error-msg"><span>âš </span> {err3}</div>}
 
               <div className="fb-nav-row">
                 <button type="button" className="fb-btn-back" onClick={() => goBack(3)}>
-                  ← Back
+                  â† Back
                 </button>
                 <button
                   type="button"
@@ -490,13 +490,13 @@ export default function FeedbackForm({ initialData = null, onSubmitted }) {
                   onClick={submitForm}
                   disabled={loading}
                 >
-                  {loading ? 'Submitting…' : 'Submit Feedback →'}
+                  {loading ? 'Submittingâ€¦' : 'Submit Feedback â†’'}
                 </button>
               </div>
 
               <hr className="fb-divider" />
               <button type="button" className="fb-btn-reset" onClick={resetForm}>
-                ✕ Clear &amp; Reset Form
+                âœ• Clear &amp; Reset Form
               </button>
             </>
           )}
@@ -506,3 +506,4 @@ export default function FeedbackForm({ initialData = null, onSubmitted }) {
     </div>
   )
 }
+

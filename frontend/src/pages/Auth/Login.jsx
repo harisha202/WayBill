@@ -1,40 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { Logo } from '../../components/ui/Logo'
-import './auth.css'
 
 function Login({ role, onSubmit, onBack, onSignupClick, onGuestClick }) {
-  const [email,     setEmail]    = useState('')
-  const [password,  setPassword] = useState('')
-  const [showPass,  setShowPass] = useState(false)
-  const [error,     setError]    = useState('')
-  const [isLoading, setIsLoading]= useState(false)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPass, setShowPass] = useState(false)
+  const [error, setError] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
   const emailInputRef = useRef(null)
   const passwordInputRef = useRef(null)
-
-  useEffect(() => {
-    setEmail('')
-    setPassword('')
-    setError('')
-
-    const clearAutofill = () => {
-      if (document.activeElement !== emailInputRef.current && emailInputRef.current) {
-        emailInputRef.current.value = ''
-      }
-      if (document.activeElement !== passwordInputRef.current && passwordInputRef.current) {
-        passwordInputRef.current.value = ''
-      }
-      setEmail('')
-      setPassword('')
-    }
-
-    const frameId = window.requestAnimationFrame(clearAutofill)
-    const timerId = window.setTimeout(clearAutofill, 120)
-
-    return () => {
-      window.cancelAnimationFrame(frameId)
-      window.clearTimeout(timerId)
-    }
-  }, [role])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -49,153 +23,56 @@ function Login({ role, onSubmit, onBack, onSignupClick, onGuestClick }) {
     }
   }
 
-  const getRoleLabel = () => ({
-    manufacturer: 'Manufacturer',
-    transporter:  'Transporter',
-    dealer:       'Dealer',
-    retail:       'Retail Shop',
-    retailshop:   'Retail Shop',
-    admin:        'Admin',
-    Admin:        'Admin',
-    Manufacturer: 'Manufacturer',
-    Transporter:  'Transporter',
-    Dealer:       'Dealer',
-    RetailShop:   'Retail Shop',
-  })[role] || role
+  const getRoleLabel = () => ({ manufacturer: 'Manufacturer', transporter: 'Transporter', dealer: 'Dealer', retailshop: 'Retail Shop', admin: 'Admin' })[role?.toLowerCase()] || role
 
   return (
-    <main className="auth-scene auth-login-theme">
-      <form onSubmit={handleSubmit} className="auth-panel" autoComplete="off">
-
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
-          <Logo style={{ width: 60, height: 60 }} />
+    <main className="standard-auth-container bg-theme-signin">
+      <div className="standard-auth-card">
+        
+        <div className="standard-auth-header">
+          <Logo style={{ width: 72, height: 72, margin: '0 auto 1rem auto', display: 'block' }} />
+          <h2 className="standard-auth-title">Welcome Back</h2>
+          <p className="standard-auth-subtitle">Sign in to your {getRoleLabel()} account</p>
         </div>
 
-        {/* ── Role Badge ── */}
-        <div style={{ textAlign: 'center', marginBottom: 8 }}>
-          <div style={{
-            display: 'inline-block',
-            padding: '4px 14px',
-            background: 'rgba(34,211,238,0.08)',
-            border: '1px solid rgba(34,211,238,0.25)',
-            borderRadius: 9999,
-            fontSize: 12,
-            fontWeight: 600,
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            color: '#22d3ee',
-            marginBottom: 16,
-          }}>
-            {getRoleLabel()}
+        <form onSubmit={handleSubmit} className="standard-auth-form" autoComplete="off">
+          
+          <div className="standard-auth-form-group">
+            <label className="standard-auth-label">Email Address</label>
+            <input ref={emailInputRef} type="email" className="standard-auth-input" placeholder="you@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
-        </div>
 
-        {/* ── Title ── */}
-        <h2 className="auth-panel-title">Welcome Back</h2>
-        <p className="auth-panel-subtitle">
-          Sign in to your {getRoleLabel()} account
-        </p>
+          <div className="standard-auth-form-group">
+            <label className="standard-auth-label">Password</label>
+            <div style={{ position: 'relative' }}>
+              <input ref={passwordInputRef} type={showPass ? 'text' : 'password'} className="standard-auth-input" placeholder="Enter your password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+              <button type="button" onClick={() => setShowPass(!showPass)} style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>
+                {showPass ? 'Hide' : 'Show'}
+              </button>
+            </div>
+          </div>
 
-        {/* ── Email ── */}
-        <div className="auth-field-group">
-          <label htmlFor="login-email" className="auth-field-label">
-            Email Address
-          </label>
-          <input
-            ref={emailInputRef}
-            id="login-email"
-            type="email"
-            name="login_identifier"
-            required
-            placeholder="you@example.com"
-            className="auth-field-input"
-            autoComplete="off"
-            data-lpignore="true"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </div>
+          {!!error && <div style={{ color: '#ef4444', fontSize: '0.85rem', textAlign: 'center' }}>{error}</div>}
 
-        {/* ── Password ── */}
-        <div className="auth-field-group">
-          <label htmlFor="login-password" className="auth-field-label">
-            Password
-          </label>
-          <div className="auth-password-wrapper">
-            <input
-              ref={passwordInputRef}
-              id="login-password"
-              type={showPass ? 'text' : 'password'}
-              name="login_secret"
-              required
-              placeholder="Enter your password"
-              className="auth-field-input"
-              autoComplete="new-password"
-              data-lpignore="true"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            <button
-              type="button"
-              className="auth-password-toggle"
-              onClick={() => setShowPass(!showPass)}
-            >
-              {showPass ? 'HIDE' : 'SHOW'}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem' }}>
+            <button type="submit" disabled={isLoading} className="standard-auth-btn-primary">
+              {isLoading ? 'Logging in...' : 'Login'}
+            </button>
+            
+            <button type="button" onClick={onGuestClick} disabled={isLoading} className="standard-auth-btn-outline">
+              Continue as Guest
+            </button>
+
+            <button type="button" onClick={onBack} disabled={isLoading} className="standard-auth-btn-outline" style={{ border: 'none' }}>
+              Back
             </button>
           </div>
-        </div>
-
-        {/* ── Error ── */}
-        {!!error && <div className="auth-error-box">{error}</div>}
-
-        {/* ── Actions ── */}
-        <div className="auth-actions">
-
-          {/* LOGIN only */}
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="auth-btn-primary"
-          >
-            {isLoading ? 'Signing in...' : 'Login'}
-          </button>
-
-          {/* GUEST */}
-          <button
-            type="button"
-            onClick={onGuestClick}
-            disabled={isLoading}
-            className="auth-btn-guest"
-          >
-            Continue as Guest
-          </button>
-
-          {/* BACK */}
-          <button
-            type="button"
-            onClick={onBack}
-            disabled={isLoading}
-            className="auth-btn-ghost"
-          >
-            Back
-          </button>
-
-        </div>
-
-        {/* ── Switch to signup ── */}
-        <div style={{ marginTop: '1.5rem', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
-          <span style={{ color: '#64748b', fontSize: '0.95rem' }}>Don't have an account?</span>
-          <button
-            type="button"
-            className="auth-btn-primary"
-            style={{ width: '100%', backgroundColor: '#10b981', borderColor: '#10b981' }}
-            onClick={onSignupClick}
-          >
-            Sign up free
-          </button>
-        </div>
-
-      </form>
+          
+          <div style={{ marginTop: '1.5rem', textAlign: 'center', fontSize: '0.85rem', color: '#94a3b8' }}>
+            Don't have an account? <span onClick={onSignupClick} style={{ color: '#3b82f6', fontWeight: 600, cursor: 'pointer' }}>Sign up free</span>
+          </div>
+        </form>
+      </div>
     </main>
   )
 }

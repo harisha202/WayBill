@@ -427,4 +427,21 @@ export const blockchainApi = {
   qr: (productSku) => http.get(`/blockchain/qr/${encodeURIComponent(productSku)}`),
   journeySummary: (productSku) => http.get(`/blockchain/journey-summary/${encodeURIComponent(productSku)}`),
   verify: (payload) => http.post('/blockchain/verify', payload),
+  getWaybillById: (waybillId) => http.get(`/blockchain/waybill/${encodeURIComponent(waybillId)}`),
+  getWaybillByOrder: (orderId) => http.get(`/blockchain/waybill/order/${encodeURIComponent(orderId)}`),
+  getWaybills: () => http.get('/blockchain/waybills'),
+}
+
+export const aiApi = {
+  chatStream: '/ai/chat/stream',
+  supplierRisk: (payload) => http.post('/ai/supplier-risk', payload),
+  routeOptimizer: (payload) => http.post('/ai/route-optimizer', payload),
+  shipmentAnomalies: (payload) => http.post('/ai/shipment-anomalies', payload),
+  dashboardInsights: (payload) => http.post('/ai/dashboard-insights', payload),
+  inventoryAlerts: (payload) => http.post('/ai/inventory-alerts', payload),
+}
+
+export const suppliersApi = {
+  getTierTree: () => http.get('/suppliers/tier-tree'),
+  getRisk: (supplierName, payload) => http.post(`/suppliers/${encodeURIComponent(supplierName)}/risk`, payload)
 }
