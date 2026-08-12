@@ -453,3 +453,32 @@ def get_delay_risk(payload: dict = Depends(require_roles(UserRole.admin, UserRol
     from app.services.database_service import get_delay_risk_distribution
     data = get_delay_risk_distribution()
     return APIResponse(success=True, data=data)
+
+# NEW ROUTES FOR TRANSPORTER VERTICAL SLICE
+from fastapi import WebSocket, WebSocketDisconnect
+from app.models.tracking import GPSEvent
+from app.services.tracking_service import process_gps_ping
+from app.api.websocket import manager
+
+@router.post("/gps")
+async def ingest_gps(event: GPSEvent):
+    try:
+        state_update = process_gps_ping(event)
+        await manager.broadcast({
+            "event": "shipment.location.updated",
+            "data": state_update
+        })
+        return {"status": "success", "message": "GPS event processed"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.websocket("/live")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            if data == "PING":
+                await websocket.send_text("PONG")
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)

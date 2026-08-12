@@ -232,3 +232,28 @@ def get_order_pipeline(payload: dict = Depends(require_roles(UserRole.admin))):
     from app.schemas.base import APIResponse
     return APIResponse(success=True, data=data)
 
+@router.get("/analytics/cost-breakdown", dependencies=[Depends(require_roles(UserRole.admin))])
+def get_cost_breakdown():
+    # Mocked data according to decision guide
+    data = [
+        {"name": "Transport", "value": 50000},
+        {"name": "Storage", "value": 20000},
+        {"name": "Handling", "value": 10000},
+        {"name": "Production", "value": 90000},
+        {"name": "Penalty", "value": 5000}
+    ]
+    from app.schemas.base import APIResponse
+    return APIResponse(success=True, data=data)
+
+@router.get("/analytics/profit-trend", dependencies=[Depends(require_roles(UserRole.admin))])
+def get_profit_trend(group_by: str = Query("Month")):
+    # Mocked data according to decision guide
+    data = [
+        {"period": "Q1", "revenue": 100000, "total_cost": 80000, "profit": 20000},
+        {"period": "Q2", "revenue": 120000, "total_cost": 90000, "profit": 30000},
+        {"period": "Q3", "revenue": 150000, "total_cost": 100000, "profit": 50000},
+        {"period": "Q4", "revenue": 130000, "total_cost": 110000, "profit": 20000},
+    ]
+    from app.schemas.base import APIResponse
+    return APIResponse(success=True, data=data)
+

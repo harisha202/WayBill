@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
-import BarChart from '../charts/BarChart'
-import PieChart from '../charts/PieChart'
+
 import { aiApi } from '../../api/axiosInstance'
 
 const MONTH_LABELS = ['January', 'February', 'March', 'April', 'May', 'June', 'July']
@@ -107,16 +106,7 @@ function DashboardReportSection({ role, stats = [] }) {
         </div>
       )}
 
-      <section className="dashboard-report-block">
-        <div className="dashboard-report-grid">
-          <PieChart title="Monthly Sales Report" data={donutData} height={260} />
-          <section className="dashboard-report-card">
-            <h4 className="dashboard-report-title">Monthly Sales Report</h4>
-            <BarChart data={series} color="#93c5fd" height={260} />
-            <p className="dashboard-report-note">Sales data for current cycle</p>
-          </section>
-        </div>
-      </section>
+
     </>
   )
 }

@@ -6,6 +6,7 @@ import { ManufacturerDashboard, Production, AIForecast, RawMaterialSourcing, Qua
 import { TransporterDashboard, LiveMap, RouteOptimizer, FleetManagement, DriverLogs, MaintenanceAlerts } from '../components/dashboard/TransporterFeatures';
 import { DealerDashboard, Inventory, OrderFulfillment, PartnerNetwork } from '../components/dashboard/DealerFeatures';
 import { RetailDashboard, RetailInventory, POSAnalytics, QRVerification, AutoReorder } from '../components/dashboard/RetailFeatures';
+import { TraceabilityDashboard } from '../components/dashboard/TraceabilityFeatures';
 
 const DefaultDashboardView = ({ role }) => (
     <div className="card">
@@ -17,14 +18,14 @@ const DefaultDashboardView = ({ role }) => (
 export default function WaybillRouter({ user, role, isGuest, onLogout, onNavigate, currentPath }) {
     let content = <DefaultDashboardView role={role} />;
 
-    if (role === 'Admin') {
+    if (role === 'admin' || role === 'Admin') {
         if (currentPath.includes('depth')) content = <SupplyChainDepth />;
         else if (currentPath.includes('risk')) content = <SupplierRisk />;
         else if (currentPath.includes('activity')) content = <ActivityLog />;
         else if (currentPath.includes('ledger')) content = <AdminLedger />;
         else if (currentPath.includes('tower') || currentPath === '/admin') content = <ControlTower />;
     }
-    else if (role === 'Manufacturer') {
+    else if (role === 'manufacturer' || role === 'Manufacturer') {
         if (currentPath.includes('production')) content = <Production />;
         else if (currentPath.includes('forecast')) content = <AIForecast />;
         else if (currentPath.includes('sourcing')) content = <RawMaterialSourcing />;
@@ -32,7 +33,7 @@ export default function WaybillRouter({ user, role, isGuest, onLogout, onNavigat
         else if (currentPath.includes('ledger')) content = <ManufacturerLedger />;
         else if (currentPath === '/manufacturer') content = <ManufacturerDashboard />;
     }
-    else if (role === 'Transporter') {
+    else if (role === 'transporter' || role === 'Transporter') {
         if (currentPath.includes('routes')) content = <RouteOptimizer />;
         else if (currentPath.includes('map')) content = <LiveMap />;
         else if (currentPath.includes('fleet')) content = <FleetManagement />;
@@ -40,18 +41,21 @@ export default function WaybillRouter({ user, role, isGuest, onLogout, onNavigat
         else if (currentPath.includes('maintenance')) content = <MaintenanceAlerts />;
         else if (currentPath.includes('ledger') || currentPath === '/transporter') content = <TransporterDashboard />;
     }
-    else if (role === 'Dealer') {
+    else if (role === 'dealer' || role === 'Dealer') {
         if (currentPath.includes('inventory')) content = <Inventory />;
         else if (currentPath.includes('pipeline')) content = <OrderFulfillment />;
         else if (currentPath.includes('network')) content = <PartnerNetwork />;
         else if (currentPath.includes('ledger') || currentPath === '/dealer') content = <DealerDashboard />;
     }
-    else if (role === 'RetailShop') {
+    else if (role === 'retail_shop' || role === 'RetailShop') {
         if (currentPath.includes('inventory')) content = <RetailInventory />;
         else if (currentPath.includes('pos')) content = <POSAnalytics />;
         else if (currentPath.includes('reorder')) content = <AutoReorder />;
         else if (currentPath.includes('qr')) content = <QRVerification />;
         else if (currentPath.includes('ledger') || currentPath === '/retail') content = <RetailDashboard />;
+    }
+    else if (role === 'Traceability') {
+        content = <TraceabilityDashboard />;
     }
 
     return (

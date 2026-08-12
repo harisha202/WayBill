@@ -439,3 +439,26 @@ def analytics() -> dict:
             "lastUpdated": datetime.now(timezone.utc).isoformat(),
         },
     }
+
+@router.get("/analytics/production-vs-demand", dependencies=[Depends(require_roles(UserRole.manufacturer))])
+def get_production_vs_demand():
+    from app.schemas.base import APIResponse
+    return APIResponse(success=True, data={"demand": 10000, "production": 7000, "shortfall": 3000})
+
+@router.get("/analytics/qa-stats", dependencies=[Depends(require_roles(UserRole.manufacturer))])
+def get_qa_stats():
+    from app.schemas.base import APIResponse
+    return APIResponse(success=True, data={"pass_percent": 95.5, "defect_percent": 4.5})
+
+@router.get("/analytics/production-cost", dependencies=[Depends(require_roles(UserRole.manufacturer))])
+def get_production_cost():
+    from app.schemas.base import APIResponse
+    return APIResponse(success=True, data={"raw_material": 50, "labour": 30, "energy": 10, "packaging": 5, "other": 5, "cost_per_unit": 100})
+
+@router.get("/analytics/supplier-risk", dependencies=[Depends(require_roles(UserRole.manufacturer))])
+def get_supplier_risk():
+    from app.schemas.base import APIResponse
+    return APIResponse(success=True, data=[
+        {"supplier": "Supplier A", "risk_score": 85, "factors": {"delivery": 30, "quality": 25, "lead_time": 20, "discrepancy": 15, "dependency": 10}},
+        {"supplier": "Supplier B", "risk_score": 40, "factors": {"delivery": 10, "quality": 10, "lead_time": 10, "discrepancy": 5, "dependency": 5}}
+    ])

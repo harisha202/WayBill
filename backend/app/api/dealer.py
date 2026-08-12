@@ -422,3 +422,18 @@ def get_margin(payload: dict = Depends(require_roles(UserRole.admin, UserRole.de
     from app.services.database_service import get_profit_margins
     data = get_profit_margins()
     return APIResponse(success=True, data=data)
+
+@router.get("/analytics/discrepancy-trend", dependencies=[Depends(require_roles(UserRole.dealer))])
+def get_discrepancy_trend():
+    from app.schemas.base import APIResponse
+    return APIResponse(success=True, data={"ordered": 1000, "received": 950, "discrepancy": 50})
+
+@router.get("/analytics/backorder-trend", dependencies=[Depends(require_roles(UserRole.dealer))])
+def get_backorder_trend():
+    from app.schemas.base import APIResponse
+    return APIResponse(success=True, data={"ordered": 5000, "fulfilled": 4200, "backorder": 800})
+
+@router.get("/analytics/fulfillment-rate", dependencies=[Depends(require_roles(UserRole.dealer))])
+def get_fulfillment_rate():
+    from app.schemas.base import APIResponse
+    return APIResponse(success=True, data={"rate_percent": 80})

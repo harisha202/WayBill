@@ -252,3 +252,23 @@ def get_inventory_vs_reorder(payload: dict = Depends(require_roles(UserRole.admi
     data = get_inventory_vs_reorder()
     return APIResponse(success=True, data=data)
 
+
+@router.get("/analytics/inventory-health", dependencies=[Depends(require_roles(UserRole.retail_shop))])
+def get_inventory_health():
+    from app.schemas.base import APIResponse
+    return APIResponse(success=True, data={"status": "LOW STOCK", "available": 45, "reorder_point": 50, "safety_stock": 20})
+
+@router.get("/analytics/pos-sales-trend", dependencies=[Depends(require_roles(UserRole.retail_shop))])
+def get_pos_sales():
+    from app.schemas.base import APIResponse
+    return APIResponse(success=True, data={"daily": 120, "weekly": 800, "monthly": 3200})
+
+@router.get("/analytics/demand-forecast", dependencies=[Depends(require_roles(UserRole.retail_shop))])
+def get_demand_forecast():
+    from app.schemas.base import APIResponse
+    return APIResponse(success=True, data={"forecast_7d": 900, "mape": 8.5})
+
+@router.get("/analytics/auto-reorder", dependencies=[Depends(require_roles(UserRole.retail_shop))])
+def get_auto_reorder():
+    from app.schemas.base import APIResponse
+    return APIResponse(success=True, data={"sku": "ABC-100", "recommended_qty": 500, "confidence": 91, "reason": "Demand increased 18%, inventory below reorder point."})

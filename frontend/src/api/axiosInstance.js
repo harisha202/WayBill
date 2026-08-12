@@ -450,3 +450,4 @@ export const suppliersApi = {
   getTierTree: () => http.get('/suppliers/tier-tree'),
   getRisk: (supplierName, payload) => http.post(`/suppliers/${encodeURIComponent(supplierName)}/risk`, payload)
 }
+export default http;
