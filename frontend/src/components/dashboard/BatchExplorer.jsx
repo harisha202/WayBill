@@ -44,16 +44,16 @@ const BatchExplorer = () => {
 
   return (
     <div style={{
-      background: '#0b1121',
+      background: 'var(--bg)',
       padding: '24px',
       borderRadius: '16px',
-      color: '#f8fafc',
+      color: 'var(--text)',
       fontFamily: 'system-ui, sans-serif'
     }}>
       <div style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div>
           <h2 style={{ fontSize: '1.5rem', fontWeight: '700', margin: '0 0 4px 0' }}>Batch Explorer</h2>
-          <p style={{ color: '#94a3b8', margin: '0', fontSize: '0.95rem' }}>Immutable traceability from origin to destination.</p>
+          <p style={{ color: 'var(--muted)', margin: '0', fontSize: '0.95rem' }}>Immutable traceability from origin to destination.</p>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
           <input 
@@ -61,11 +61,11 @@ const BatchExplorer = () => {
             value={batchId}
             onChange={(e) => setBatchId(e.target.value)}
             style={{
-              background: '#1e293b',
+              background: 'var(--surface)',
               border: '1px solid #334155',
               padding: '8px 16px',
               borderRadius: '8px',
-              color: '#f8fafc',
+              color: 'var(--text)',
               fontSize: '0.9rem',
               outline: 'none',
               width: '200px'
@@ -73,7 +73,7 @@ const BatchExplorer = () => {
           />
           <button style={{
             background: '#0F6E56',
-            color: '#fff',
+            color: 'white',
             border: 'none',
             padding: '8px 16px',
             borderRadius: '8px',
@@ -84,7 +84,7 @@ const BatchExplorer = () => {
       </div>
 
       <div style={{
-        background: '#0f172a',
+        background: 'var(--bg)',
         border: '1px solid #1e293b',
         borderRadius: '12px',
         padding: '32px',
@@ -97,7 +97,7 @@ const BatchExplorer = () => {
           top: '40px',
           bottom: '40px',
           width: '2px',
-          background: '#334155',
+          background: 'var(--border)',
           zIndex: 0
         }} />
 
@@ -113,12 +113,12 @@ const BatchExplorer = () => {
                 width: '32px',
                 height: '32px',
                 borderRadius: '50%',
-                background: node.status === 'Verified' ? '#0F6E56' : node.status === 'In Transit' ? '#3b82f6' : '#1e293b',
+                background: node.status === 'Verified' ? '#0F6E56' : node.status === 'In Transit' ? '#3b82f6' : 'var(--surface)',
                 border: `4px solid #0f172a`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#fff',
+                color: 'var(--text)',
                 fontSize: '0.8rem',
                 boxShadow: '0 0 0 1px #334155'
               }}>
@@ -126,7 +126,7 @@ const BatchExplorer = () => {
               </div>
 
               <div style={{
-                background: '#1e293b',
+                background: 'var(--surface)',
                 border: '1px solid #334155',
                 borderRadius: '12px',
                 padding: '20px',
@@ -136,24 +136,24 @@ const BatchExplorer = () => {
               }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                    <h3 style={{ margin: '0', fontSize: '1.1rem', color: '#e2e8f0' }}>{node.stage}</h3>
+                    <h3 style={{ margin: '0', fontSize: '1.1rem', color: 'var(--dashboard-heading)' }}>{node.stage}</h3>
                     <span style={{
                       fontSize: '0.7rem',
                       padding: '2px 8px',
                       borderRadius: '999px',
                       background: node.status === 'Verified' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(148, 163, 184, 0.1)',
-                      color: node.status === 'Verified' ? '#34d399' : '#94a3b8',
+                      color: node.status === 'Verified' ? '#34d399' : 'var(--muted)',
                       border: `1px solid ${node.status === 'Verified' ? '#10b981' : '#475569'}`
                     }}>{node.status}</span>
                   </div>
                   
-                  <div style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '12px' }}>
-                    <strong style={{ color: '#cbd5e1' }}>{node.entity}</strong> • {node.location}
+                  <div style={{ color: 'var(--muted)', fontSize: '0.9rem', marginBottom: '12px' }}>
+                    <strong style={{ color: 'var(--muted)' }}>{node.entity}</strong> • {node.location}
                   </div>
 
                   <div style={{ display: 'grid', gap: '4px' }}>
                     {node.details.map((detail, dIdx) => (
-                      <div key={dIdx} style={{ fontSize: '0.85rem', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div key={dIdx} style={{ fontSize: '0.85rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span style={{ color: '#0F6E56' }}>▪</span> {detail}
                       </div>
                     ))}
@@ -163,7 +163,7 @@ const BatchExplorer = () => {
                 <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                   <div>
                     <div style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '2px' }}>Timestamp</div>
-                    <div style={{ fontSize: '0.9rem', color: '#e2e8f0', fontWeight: '500' }}>{node.date}</div>
+                    <div style={{ fontSize: '0.9rem', color: 'var(--dashboard-heading)', fontWeight: '500' }}>{node.date}</div>
                   </div>
                   <div>
                     <div style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '2px' }}>TxHash</div>

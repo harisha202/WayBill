@@ -19,17 +19,17 @@ const SealVerificationCenter = () => {
 
   return (
     <div style={{
-      background: '#0b1121',
+      background: 'var(--bg)',
       padding: '24px',
       borderRadius: '16px',
-      color: '#f8fafc',
+      color: 'var(--text)',
       fontFamily: 'system-ui, sans-serif'
     }}>
       <h2 style={{ fontSize: '1.5rem', fontWeight: '700', marginBottom: '4px' }}>Seal Verification Center</h2>
-      <p style={{ color: '#94a3b8', marginBottom: '24px', fontSize: '0.95rem' }}>Enter Waybill ID to verify cryptographic seal and custody chain.</p>
+      <p style={{ color: 'var(--muted)', marginBottom: '24px', fontSize: '0.95rem' }}>Enter Waybill ID to verify cryptographic seal and custody chain.</p>
 
       <div style={{
-        background: '#0f172a',
+        background: 'var(--bg)',
         padding: '24px',
         borderRadius: '12px',
         border: '1px solid #1e293b',
@@ -43,11 +43,11 @@ const SealVerificationCenter = () => {
             value={waybillId}
             onChange={(e) => setWaybillId(e.target.value)}
             style={{
-              background: '#1e293b',
+              background: 'var(--surface)',
               border: '1px solid #334155',
               padding: '12px 16px',
               borderRadius: '8px',
-              color: '#f8fafc',
+              color: 'var(--text)',
               fontSize: '1rem',
               outline: 'none',
               width: '100%'
@@ -57,8 +57,8 @@ const SealVerificationCenter = () => {
             type="submit"
             disabled={status === 'loading'}
             style={{
-              background: status === 'loading' ? '#334155' : '#0F6E56',
-              color: '#fff',
+              background: status === 'loading' ? 'var(--border)' : '#0F6E56',
+              color: 'var(--text)',
               border: 'none',
               padding: '12px 24px',
               borderRadius: '8px',
@@ -102,7 +102,7 @@ const SealVerificationCenter = () => {
             }}>
               {isTampered ? 'TAMPER DETECTED' : 'VERIFIED'}
             </h1>
-            <p style={{ color: '#cbd5e1', fontSize: '1.1rem', margin: '0' }}>
+            <p style={{ color: 'var(--muted)', fontSize: '1.1rem', margin: '0' }}>
               {isTampered 
                 ? 'Security breach identified. Quarantine shipment immediately.' 
                 : 'All cryptographic checks passed. Shipment integrity confirmed.'}
@@ -110,12 +110,12 @@ const SealVerificationCenter = () => {
           </div>
 
           <div style={{
-            background: '#0f172a',
+            background: 'var(--bg)',
             borderRadius: '12px',
             border: '1px solid #1e293b',
             overflow: 'hidden'
           }}>
-            <div style={{ padding: '16px 24px', borderBottom: '1px solid #1e293b', background: '#1e293b' }}>
+            <div style={{ padding: '16px 24px', borderBottom: '1px solid #1e293b', background: 'var(--surface)' }}>
               <h3 style={{ margin: '0', fontSize: '1.1rem', fontWeight: '600' }}>Diagnostic Ledger</h3>
             </div>
             <div style={{ padding: '0' }}>
@@ -148,7 +148,7 @@ const SealVerificationCenter = () => {
                   alignItems: 'center',
                   padding: '16px 24px',
                   borderBottom: idx === 3 ? 'none' : '1px solid #1e293b',
-                  background: idx % 2 === 0 ? 'transparent' : 'rgba(30, 41, 59, 0.3)'
+                  background: idx % 2 === 0 ? 'transparent' : 'var(--surface-2)'
                 }}>
                   <div style={{
                     width: '32px',
@@ -164,8 +164,8 @@ const SealVerificationCenter = () => {
                     {check.pass ? '✓' : '✗'}
                   </div>
                   <div>
-                    <h4 style={{ margin: '0 0 4px 0', fontSize: '1rem', fontWeight: '600', color: '#e2e8f0' }}>{check.label}</h4>
-                    <p style={{ margin: '0', fontSize: '0.85rem', color: '#94a3b8' }}>{check.desc}</p>
+                    <h4 style={{ margin: '0 0 4px 0', fontSize: '1rem', fontWeight: '600', color: 'var(--dashboard-heading)' }}>{check.label}</h4>
+                    <p style={{ margin: '0', fontSize: '0.85rem', color: 'var(--muted)' }}>{check.desc}</p>
                   </div>
                   <div style={{
                     padding: '6px 12px',

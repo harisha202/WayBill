@@ -93,7 +93,7 @@ function Signup({ role, onSubmit, onBack, onLoginClick }) {
             <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', marginBottom: '1.5rem' }}>
               {otp.map((digit, idx) => (
                 <input key={idx} id={otp- + idx} type="text" maxLength={1} value={digit} onChange={(e) => handleOtpChange(idx, e.target.value)}
-                  style={{ width: '40px', height: '50px', textAlign: 'center', fontSize: '1.25rem', fontWeight: 600, border: '1px solid #334155', borderRadius: '6px', outline: 'none', background: '#0f172a', color: '#f8fafc' }}
+                  style={{ width: '40px', height: '50px', textAlign: 'center', fontSize: '1.25rem', fontWeight: 600, border: '1px solid #334155', borderRadius: '6px', outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
                   onFocus={(e) => e.target.select()}
                 />
               ))}
@@ -137,7 +137,7 @@ function Signup({ role, onSubmit, onBack, onLoginClick }) {
             <label className="standard-auth-label">Create Password</label>
             <div style={{ position: 'relative' }}>
               <input type={showPassword ? 'text' : 'password'} className="standard-auth-input" required placeholder="At least 8 characters" value={password} onChange={e => setPassword(e.target.value)} />
-              <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>{showPassword ? 'Hide' : 'Show'}</button>
+              <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>{showPassword ? 'Hide' : 'Show'}</button>
             </div>
             <p style={{ fontSize: '0.65rem', color: '#64748b', margin: '0.25rem 0 0 0' }}>Must contain: 8+ characters, uppercase, lowercase, number, special character</p>
           </div>
@@ -146,7 +146,7 @@ function Signup({ role, onSubmit, onBack, onLoginClick }) {
             <label className="standard-auth-label">Confirm Password</label>
             <div style={{ position: 'relative' }}>
               <input type={showConfirmPassword ? 'text' : 'password'} className="standard-auth-input" required placeholder="Re-enter your password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />
-              <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>{showConfirmPassword ? 'Hide' : 'Show'}</button>
+              <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>{showConfirmPassword ? 'Hide' : 'Show'}</button>
             </div>
           </div>
 

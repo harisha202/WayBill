@@ -20,12 +20,12 @@ const getStatusStyle = (status) => {
 
 export function SettlementsTable({ gridColumn = 'span 12' }) {
   return (
-    <div style={{ gridColumn, backgroundColor: '#1e293b', padding: '24px', borderRadius: '16px', border: '1px solid #334155' }}>
-      <h2 style={{ fontSize: '1.25rem', marginBottom: '16px', fontWeight: 600, color: '#f8fafc' }}>Recent Settlements</h2>
+    <div style={{ gridColumn, backgroundColor: 'var(--surface)', padding: '24px', borderRadius: '16px', border: '1px solid #334155' }}>
+      <h2 style={{ fontSize: '1.25rem', marginBottom: '16px', fontWeight: 600, color: 'var(--text)' }}>Recent Settlements</h2>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
-            <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
+            <tr style={{ borderBottom: '1px solid #334155', color: 'var(--muted)' }}>
               <th style={{ padding: '12px' }}>Settlement ID</th>
               <th style={{ padding: '12px' }}>Order ID</th>
               <th style={{ padding: '12px' }}>Amount (₹)</th>
@@ -38,10 +38,10 @@ export function SettlementsTable({ gridColumn = 'span 12' }) {
               const statusStyle = getStatusStyle(settlement.status);
               return (
                 <tr key={settlement.id} style={{ borderBottom: '1px solid #334155' }}>
-                  <td style={{ padding: '12px', color: '#f8fafc' }}>{settlement.id}</td>
-                  <td style={{ padding: '12px', color: '#94a3b8' }}>{settlement.orderId}</td>
-                  <td style={{ padding: '12px', color: '#f8fafc', fontWeight: 500 }}>{settlement.amount}</td>
-                  <td style={{ padding: '12px', color: '#94a3b8' }}>{settlement.date}</td>
+                  <td style={{ padding: '12px', color: 'var(--text)' }}>{settlement.id}</td>
+                  <td style={{ padding: '12px', color: 'var(--muted)' }}>{settlement.orderId}</td>
+                  <td style={{ padding: '12px', color: 'var(--text)', fontWeight: 500 }}>{settlement.amount}</td>
+                  <td style={{ padding: '12px', color: 'var(--muted)' }}>{settlement.date}</td>
                   <td style={{ padding: '12px' }}>
                     <span style={{
                       padding: '6px 12px',
@@ -66,9 +66,9 @@ export function SettlementsTable({ gridColumn = 'span 12' }) {
 
 export function SettlementLifecycle({ gridColumn = 'span 12' }) {
   return (
-    <div style={{ gridColumn, backgroundColor: '#1e293b', padding: '24px', borderRadius: '16px', border: '1px solid #334155' }}>
-      <h2 style={{ fontSize: '1.25rem', marginBottom: '16px', fontWeight: 600, color: '#f8fafc' }}>Settlement Lifecycle</h2>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 40px', backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid #334155' }}>
+    <div style={{ gridColumn, backgroundColor: 'var(--surface)', padding: '24px', borderRadius: '16px', border: '1px solid #334155' }}>
+      <h2 style={{ fontSize: '1.25rem', marginBottom: '16px', fontWeight: 600, color: 'var(--text)' }}>Settlement Lifecycle</h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 40px', backgroundColor: 'var(--bg)', borderRadius: '12px', border: '1px solid #334155' }}>
         {['Order Placed', 'Invoice Generated', 'Payment Received', 'Settlement Complete'].map((step, index) => (
           <React.Fragment key={index}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', zIndex: 1 }}>
@@ -81,10 +81,10 @@ export function SettlementLifecycle({ gridColumn = 'span 12' }) {
               }}>
                 {index + 1}
               </div>
-              <span style={{ color: '#e2e8f0', fontSize: '0.875rem', fontWeight: 500, textAlign: 'center' }}>{step}</span>
+              <span style={{ color: 'var(--dashboard-heading)', fontSize: '0.875rem', fontWeight: 500, textAlign: 'center' }}>{step}</span>
             </div>
             {index < 3 && (
-              <div style={{ flex: 1, height: '2px', backgroundColor: index < 2 ? '#10b981' : '#334155', margin: '0 -20px', position: 'relative', top: '-12px', zIndex: 0 }} />
+              <div style={{ flex: 1, height: '2px', backgroundColor: index < 2 ? '#10b981' : 'var(--border)', margin: '0 -20px', position: 'relative', top: '-12px', zIndex: 0 }} />
             )}
           </React.Fragment>
         ))}
@@ -97,14 +97,14 @@ export function SettlementDashboard() {
   return (
     <div style={{
       padding: '24px',
-      backgroundColor: '#0f172a',
-      color: '#f8fafc',
+      backgroundColor: 'var(--bg)',
+      color: 'var(--text)',
       minHeight: '100vh',
       fontFamily: 'Inter, system-ui, sans-serif'
     }}>
       <header style={{ marginBottom: '32px' }}>
-        <h1 style={{ fontSize: '2rem', margin: 0, fontWeight: 700, color: '#f8fafc' }}>Finance & Settlements</h1>
-        <p style={{ color: '#94a3b8', margin: '8px 0 0' }}>Track Invoices and Settlements lifecycle.</p>
+        <h1 style={{ fontSize: '2rem', margin: 0, fontWeight: 700, color: 'var(--text)' }}>Finance & Settlements</h1>
+        <p style={{ color: 'var(--muted)', margin: '8px 0 0' }}>Track Invoices and Settlements lifecycle.</p>
       </header>
 
       <div style={{

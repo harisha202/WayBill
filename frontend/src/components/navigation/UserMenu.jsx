@@ -6,7 +6,7 @@ function UserMenu({ userName, notifications = 0, onLogout, onOpenAlerts }) {
     <div className="user-menu" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
       <button
         type="button"
-        style={{ background: count ? '#dc2626' : '#334155', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
+        style={{ background: count ? '#dc2626' : 'var(--border)', color: 'var(--text)', border: 'none', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
         onClick={onOpenAlerts}
         disabled={!onOpenAlerts}
         title="Open alerts"
@@ -24,7 +24,7 @@ function UserMenu({ userName, notifications = 0, onLogout, onOpenAlerts }) {
 
       <button 
         type="button" 
-        style={{ background: 'transparent', color: '#94a3b8', border: '1px solid #475569', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }} 
+        style={{ background: 'transparent', color: 'var(--muted)', border: '1px solid #475569', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }} 
         onClick={onLogout}
       >
         Logout

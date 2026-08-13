@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { aiApi } from '../../api/axiosInstance'
 
 const MONTH_LABELS = ['January', 'February', 'March', 'April', 'May', 'June', 'July']
-const MONTH_COLORS = ['#3b82f6', '#f59e0b', '#facc15', '#14b8a6', '#8b5cf6', '#94a3b8', '#ec4899']
+const MONTH_COLORS = ['#3b82f6', '#f59e0b', '#facc15', '#14b8a6', '#8b5cf6', 'var(--muted)', '#ec4899']
 const BASE_CURVE = [0.74, 0.92, 0.84, 0.68, 1.12, 0.88, 1.18]
 
 function toNumber(value) {
@@ -85,7 +85,7 @@ function DashboardReportSection({ role, stats = [] }) {
             <h3 style={{ margin: '0 0 12px 0', color: '#10b981', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span>🧠</span> AI Executive Summary
             </h3>
-            <p style={{ color: '#334155', lineHeight: '1.6' }}>
+            <p style={{ color: 'var(--border)', lineHeight: '1.6' }}>
               {insights || "The system is operating optimally. No major bottlenecks detected."}
             </p>
           </div>
@@ -94,13 +94,13 @@ function DashboardReportSection({ role, stats = [] }) {
               <span>⚠️</span> Active Anomalies
             </h3>
             {anomalies && anomalies.length > 0 ? (
-              <ul style={{ margin: 0, paddingLeft: '20px', color: '#334155', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <ul style={{ margin: 0, paddingLeft: '20px', color: 'var(--border)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {anomalies.map((anom, idx) => (
                   <li key={idx}><strong>{anom.type}:</strong> {anom.description}</li>
                 ))}
               </ul>
             ) : (
-              <p style={{ color: '#334155' }}>No anomalies detected in the current supply chain network.</p>
+              <p style={{ color: 'var(--border)' }}>No anomalies detected in the current supply chain network.</p>
             )}
           </div>
         </div>

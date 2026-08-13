@@ -9,7 +9,7 @@ function Sidebar({ role, activeLink = 'Dashboard', onNavigate }) {
   return (
     <aside className={`nav-sidebar ${collapsed ? 'collapsed' : ''}`} style={{ 
       transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)', 
-      width: collapsed ? '80px' : '260px',
+      width: collapsed ? '80px' : '380px',
       overflow: 'hidden',
       display: 'flex',
       flexDirection: 'column',
@@ -50,9 +50,9 @@ function Sidebar({ role, activeLink = 'Dashboard', onNavigate }) {
               className="nav-link"
               onClick={() => onNavigate?.(link)}
               style={{
-                background: isActive ? 'linear-gradient(90deg, rgba(255,255,255,0.1) 0%, transparent 100%)' : 'transparent',
-                borderLeft: isActive ? '4px solid #fff' : '4px solid transparent',
-                color: isActive ? '#fff' : '#cbd5e1',
+                background: isActive ? 'linear-gradient(90deg, rgba(15,23,42,0.05) 0%, transparent 100%)' : 'transparent',
+                borderLeft: isActive ? '4px solid #0f172a' : '4px solid transparent',
+                color: isActive ? '#0f172a' : '#475569',
                 padding: collapsed ? '12px 0' : '12px 16px',
                 textAlign: collapsed ? 'center' : 'left',
                 justifyContent: collapsed ? 'center' : 'flex-start',
@@ -78,8 +78,8 @@ function Sidebar({ role, activeLink = 'Dashboard', onNavigate }) {
       {/* Pinned role indicator */}
       <div style={{ 
         padding: collapsed ? '16px 8px' : '20px', 
-        borderTop: '1px solid rgba(255,255,255,0.1)',
-        background: 'rgba(0,0,0,0.2)',
+        borderTop: '1px solid rgba(15,23,42,0.08)',
+        background: 'rgba(15,23,42,0.02)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: collapsed ? 'center' : 'flex-start',
@@ -102,8 +102,8 @@ function Sidebar({ role, activeLink = 'Dashboard', onNavigate }) {
         </div>
         {!collapsed && (
           <div style={{ overflow: 'hidden' }}>
-            <p style={{ margin: 0, fontSize: '0.9rem', color: '#fff', fontWeight: 600, whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{role ?? 'Portal'}</p>
-            <p style={{ margin: 0, fontSize: '0.75rem', color: '#94a3b8', whiteSpace: 'nowrap' }}>Active Session</p>
+            <p style={{ margin: 0, fontSize: '0.9rem', color: '#0f172a', fontWeight: 600, whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{role ?? 'Portal'}</p>
+            <p style={{ margin: 0, fontSize: '0.75rem', color: '#475569', whiteSpace: 'nowrap' }}>Active Session</p>
           </div>
         )}
       </div>

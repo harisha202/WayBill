@@ -5,8 +5,8 @@ import { useApi } from '../../api/hooks/useApi';
 import { StateBoundary } from '../common/StateBoundary';
 
 const containerStyle = {
-  backgroundColor: '#0f172a',
-  color: '#f8fafc',
+  backgroundColor: 'var(--bg)',
+  color: 'var(--text)',
   padding: '2rem',
   minHeight: '100vh',
   fontFamily: 'Inter, system-ui, sans-serif'
@@ -20,7 +20,7 @@ const gridStyle = {
 };
 
 const cardStyle = {
-  backgroundColor: '#1e293b',
+  backgroundColor: 'var(--surface)',
   borderRadius: '12px',
   padding: '1.5rem',
   border: '1px solid #334155',
@@ -33,14 +33,14 @@ const titleStyle = {
   marginBottom: '1rem',
   display: 'flex',
   alignItems: 'center',
-  color: '#e2e8f0'
+  color: 'var(--dashboard-heading)'
 };
 
 const iconStyle = {
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  background: '#0f172a',
+  background: 'var(--bg)',
   width: '32px',
   height: '32px',
   borderRadius: '8px',

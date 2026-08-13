@@ -91,14 +91,14 @@ export function InventoryManagement() {
     <div className="card" style={{ borderTop: '4px solid #10b981' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
         <h2 className="card-title" style={{ margin: 0 }}>
-          <span className="kpi-icon" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", background: "#1e293b", width: "28px", height: "28px", borderRadius: "6px", marginRight: "12px", fontSize: "14px", border: "1px solid #334155" }}>📦</span>
+          <span className="kpi-icon" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--surface)", width: "28px", height: "28px", borderRadius: "6px", marginRight: "12px", fontSize: "14px", border: "1px solid #334155" }}>📦</span>
           Real-Time Master Inventory
         </h2>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', background: '#f1f5f9', padding: '6px 12px', borderRadius: '20px' }}>
-            <span style={{ fontSize: '0.85rem', fontWeight: !jitMode ? 'bold' : 'normal', color: !jitMode ? '#0f172a' : '#64748b' }}>Safety Stock</span>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', background: 'var(--text)', padding: '6px 12px', borderRadius: '20px' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: !jitMode ? 'bold' : 'normal', color: !jitMode ? 'var(--bg)' : '#64748b' }}>Safety Stock</span>
             <div style={{ 
-              position: 'relative', width: '40px', height: '20px', background: jitMode ? '#7c3aed' : '#cbd5e1', 
+              position: 'relative', width: '40px', height: '20px', background: jitMode ? '#7c3aed' : 'var(--muted)', 
               borderRadius: '10px', transition: '0.3s' 
             }}>
               <div style={{ 

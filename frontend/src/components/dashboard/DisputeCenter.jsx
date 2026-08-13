@@ -21,15 +21,15 @@ const DisputeCenter = () => {
 
   return (
     <div style={{
-      background: '#0b1121',
+      background: 'var(--bg)',
       padding: '24px',
       borderRadius: '16px',
-      color: '#f8fafc',
+      color: 'var(--text)',
       fontFamily: 'system-ui, sans-serif'
     }}>
       <div style={{ marginBottom: '24px' }}>
         <h2 style={{ fontSize: '1.5rem', fontWeight: '700', margin: '0 0 4px 0' }}>Dispute Resolution Center</h2>
-        <p style={{ color: '#94a3b8', margin: '0', fontSize: '0.95rem' }}>Log Quantity, Quality, or Price discrepancies and upload cryptographic evidence.</p>
+        <p style={{ color: 'var(--muted)', margin: '0', fontSize: '0.95rem' }}>Log Quantity, Quality, or Price discrepancies and upload cryptographic evidence.</p>
       </div>
 
       <div style={{
@@ -40,7 +40,7 @@ const DisputeCenter = () => {
       }}>
         {/* Main Form */}
         <div style={{
-          background: '#0f172a',
+          background: 'var(--bg)',
           borderRadius: '12px',
           border: '1px solid #1e293b',
           padding: '24px',
@@ -49,7 +49,7 @@ const DisputeCenter = () => {
           <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '20px' }}>
             
             <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: '#cbd5e1' }}>Dispute Category</label>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: 'var(--muted)' }}>Dispute Category</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                 {['quantity', 'quality', 'price'].map(type => (
                   <button
@@ -57,9 +57,9 @@ const DisputeCenter = () => {
                     type="button"
                     onClick={() => setDisputeType(type)}
                     style={{
-                      background: disputeType === type ? '#1e40af' : '#1e293b',
-                      color: disputeType === type ? '#fff' : '#94a3b8',
-                      border: `1px solid ${disputeType === type ? '#3b82f6' : '#334155'}`,
+                      background: disputeType === type ? '#1e40af' : 'var(--surface)',
+                      color: disputeType === type ? '#fff' : 'var(--muted)',
+                      border: `1px solid ${disputeType === type ? '#3b82f6' : 'var(--border)'}`,
                       padding: '12px',
                       borderRadius: '8px',
                       textTransform: 'capitalize',
@@ -75,7 +75,7 @@ const DisputeCenter = () => {
             </div>
 
             <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: '#cbd5e1' }}>Discrepancy Details</label>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: 'var(--muted)' }}>Discrepancy Details</label>
               <textarea 
                 rows={4}
                 value={description}
@@ -83,11 +83,11 @@ const DisputeCenter = () => {
                 placeholder="Describe the discrepancy..."
                 style={{
                   width: '100%',
-                  background: '#1e293b',
+                  background: 'var(--surface)',
                   border: '1px solid #334155',
                   padding: '12px 16px',
                   borderRadius: '8px',
-                  color: '#f8fafc',
+                  color: 'var(--text)',
                   fontSize: '0.95rem',
                   outline: 'none',
                   resize: 'vertical'
@@ -96,19 +96,19 @@ const DisputeCenter = () => {
             </div>
 
             <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: '#cbd5e1' }}>Upload Evidence (Photos, Sensor Logs)</label>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: 'var(--muted)' }}>Upload Evidence (Photos, Sensor Logs)</label>
               <div style={{
                 border: '2px dashed #334155',
                 borderRadius: '8px',
                 padding: '32px',
                 textAlign: 'center',
-                background: 'rgba(30, 41, 59, 0.3)',
+                background: 'var(--surface-2)',
                 cursor: 'pointer'
               }}
               onClick={() => document.getElementById('evidence-upload').click()}
               >
                 <div style={{ fontSize: '2rem', marginBottom: '8px' }}>📁</div>
-                <div style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Click to upload or drag and drop</div>
+                <div style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>Click to upload or drag and drop</div>
                 <div style={{ color: '#64748b', fontSize: '0.8rem', marginTop: '4px' }}>PNG, JPG, PDF up to 10MB</div>
                 <input 
                   type="file" 
@@ -125,12 +125,12 @@ const DisputeCenter = () => {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      background: '#1e293b',
+                      background: 'var(--surface)',
                       padding: '8px 12px',
                       borderRadius: '6px',
                       border: '1px solid #334155'
                     }}>
-                      <span style={{ fontSize: '0.85rem', color: '#e2e8f0' }}>{file}</span>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--dashboard-heading)' }}>{file}</span>
                       <button type="button" onClick={() => setEvidence(evidence.filter((_, i) => i !== idx))} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}>✕</button>
                     </div>
                   ))}
@@ -142,8 +142,8 @@ const DisputeCenter = () => {
               type="submit"
               disabled={!description.trim()}
               style={{
-                background: description.trim() ? '#dc2626' : '#334155',
-                color: '#fff',
+                background: description.trim() ? '#dc2626' : 'var(--border)',
+                color: 'var(--text)',
                 border: 'none',
                 padding: '14px',
                 borderRadius: '8px',
@@ -160,14 +160,14 @@ const DisputeCenter = () => {
 
         {/* Active Disputes Sidebar */}
         <div style={{ display: 'grid', gap: '16px' }}>
-          <h3 style={{ fontSize: '1.1rem', margin: '0', color: '#e2e8f0' }}>Active Trackers</h3>
+          <h3 style={{ fontSize: '1.1rem', margin: '0', color: 'var(--dashboard-heading)' }}>Active Trackers</h3>
           
           {[
             { id: 'DSP-8821', type: 'Quantity', status: 'Under Review', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)' },
             { id: 'DSP-8804', type: 'Quality', status: 'Resolved', color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)' }
           ].map(d => (
             <div key={d.id} style={{
-              background: '#0f172a',
+              background: 'var(--bg)',
               border: '1px solid #1e293b',
               borderRadius: '12px',
               padding: '16px'
@@ -185,7 +185,7 @@ const DisputeCenter = () => {
                   {d.status}
                 </span>
               </div>
-              <div style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Type: <span style={{ color: '#e2e8f0', textTransform: 'capitalize' }}>{d.type}</span></div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Type: <span style={{ color: 'var(--dashboard-heading)', textTransform: 'capitalize' }}>{d.type}</span></div>
             </div>
           ))}
         </div>

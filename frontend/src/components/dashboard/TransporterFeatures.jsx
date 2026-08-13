@@ -20,8 +20,8 @@ L.Icon.Default.mergeOptions({
 });
 
 const containerStyle = {
-  backgroundColor: '#0f172a',
-  color: '#f8fafc',
+  backgroundColor: 'var(--bg)',
+  color: 'var(--text)',
   padding: '2rem',
   minHeight: '100vh',
   fontFamily: 'Inter, system-ui, sans-serif'
@@ -35,7 +35,7 @@ const gridStyle = {
 };
 
 const cardStyle = {
-  backgroundColor: '#1e293b',
+  backgroundColor: 'var(--surface)',
   borderRadius: '12px',
   padding: '1.5rem',
   border: '1px solid #334155',
@@ -48,14 +48,14 @@ const titleStyle = {
   marginBottom: '1rem',
   display: 'flex',
   alignItems: 'center',
-  color: '#e2e8f0'
+  color: 'var(--dashboard-heading)'
 };
 
 const iconStyle = {
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  background: '#0f172a',
+  background: 'var(--bg)',
   width: '32px',
   height: '32px',
   borderRadius: '8px',
@@ -93,7 +93,7 @@ export function LiveMap() {
       <header style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
            <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 0.5rem 0' }}>Live Map & Tracking</h1>
-           <p style={{ color: '#94a3b8', margin: 0 }}>WebSocket Status: <span style={{color: status === 'CONNECTED' ? '#10b981' : '#ef4444'}}>{status}</span></p>
+           <p style={{ color: 'var(--muted)', margin: 0 }}>WebSocket Status: <span style={{color: status === 'CONNECTED' ? '#10b981' : '#ef4444'}}>{status}</span></p>
         </div>
       </header>
 
@@ -125,23 +125,23 @@ export function LiveMap() {
                   </h2>
                   <div style={{marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem'}}>
                      <div>
-                        <div style={{color: '#94a3b8', fontSize: '0.875rem'}}>VEHICLE</div>
+                        <div style={{color: 'var(--muted)', fontSize: '0.875rem'}}>VEHICLE</div>
                         <div style={{fontSize: '1.125rem', fontWeight: 'bold'}}>{selectedVehicle.vehicle_id}</div>
                      </div>
                      <div style={{display: 'flex', justifyContent: 'space-between'}}>
                         <div>
-                           <div style={{color: '#94a3b8', fontSize: '0.875rem'}}>ETA</div>
+                           <div style={{color: 'var(--muted)', fontSize: '0.875rem'}}>ETA</div>
                            <div style={{fontSize: '1.125rem', fontWeight: 'bold'}}>{selectedVehicle.eta_minutes} min</div>
                         </div>
                         <div>
-                           <div style={{color: '#94a3b8', fontSize: '0.875rem'}}>DELAY</div>
+                           <div style={{color: 'var(--muted)', fontSize: '0.875rem'}}>DELAY</div>
                            <div style={{fontSize: '1.125rem', fontWeight: 'bold', color: selectedVehicle.predicted_delay_minutes > 0 ? '#ef4444' : '#10b981'}}>
                               +{selectedVehicle.predicted_delay_minutes} min
                            </div>
                         </div>
                      </div>
                      <div>
-                        <div style={{color: '#94a3b8', fontSize: '0.875rem'}}>RISK STATUS</div>
+                        <div style={{color: 'var(--muted)', fontSize: '0.875rem'}}>RISK STATUS</div>
                         <div style={{
                             padding: '0.5rem', 
                             background: selectedVehicle.risk_level === 'CRITICAL' ? '#ef4444' : selectedVehicle.risk_level === 'HIGH' ? '#f59e0b' : '#10b981',
@@ -153,7 +153,7 @@ export function LiveMap() {
                            {selectedVehicle.delay_risk_score}% — {selectedVehicle.risk_level}
                         </div>
                      </div>
-                     <div style={{color: '#f8fafc', fontSize: '0.875rem', background: '#334155', padding: '1rem', borderRadius: '4px'}}>
+                     <div style={{color: 'var(--text)', fontSize: '0.875rem', background: 'var(--border)', padding: '1rem', borderRadius: '4px'}}>
                         <strong>Route Deviation:</strong> {selectedVehicle.route_deviation_km} km <br/>
                         <strong>Reason:</strong> {selectedVehicle.reason}
                      </div>
@@ -182,7 +182,7 @@ export function RouteOptimizer() {
       <header style={{ marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 0.5rem 0' }}>Route Optimizer</h1>
       </header>
-      <p style={{ color: '#94a3b8' }}>Route optimization metrics pending API connection.</p>
+      <p style={{ color: 'var(--muted)' }}>Route optimization metrics pending API connection.</p>
     </div>
   );
 }

@@ -84,16 +84,17 @@ export const AskWaybillPanel = () => {
                     display: 'flex', flexDirection: 'column', zIndex: 9998,
                     border: '1px solid #e2e8f0', overflow: 'hidden'
                 }}>
-                    <div style={{padding: '16px', background: '#1e3a8a', color: 'white', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between'}}>
+                    <div style={{padding: '16px', background: '#ffffff', color: '#0f172a', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0'}}>
                         <span>Ask WayBill AI</span>
-                        <button onClick={() => setOpen(false)} style={{background: 'transparent', border: 'none', color: 'white', cursor: 'pointer'}}>✖</button>
+                        <button onClick={() => setOpen(false)} style={{background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer'}}>✖</button>
                     </div>
                     <div style={{flex: 1, padding: '16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', background: '#f8fafc'}}>
                         {messages.map((m, i) => (
                             <div key={i} style={{
                                 alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-                                background: m.role === 'user' ? '#3b82f6' : '#e2e8f0',
+                                background: m.role === 'user' ? '#3b82f6' : '#ffffff',
                                 color: m.role === 'user' ? 'white' : '#0f172a',
+                                border: m.role === 'user' ? 'none' : '1px solid #e2e8f0',
                                 padding: '10px 14px',
                                 borderRadius: '8px',
                                 maxWidth: '85%',

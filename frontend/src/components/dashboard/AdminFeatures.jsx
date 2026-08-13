@@ -5,8 +5,8 @@ import { useApi } from '../../api/hooks/useApi';
 import { StateBoundary } from '../common/StateBoundary';
 
 const containerStyle = {
-  backgroundColor: '#0f172a',
-  color: '#f8fafc',
+  backgroundColor: 'var(--bg)',
+  color: 'var(--text)',
   padding: '2rem',
   minHeight: '100vh',
   fontFamily: 'Inter, system-ui, sans-serif'
@@ -27,7 +27,7 @@ const kpiGridStyle = {
 };
 
 const cardStyle = {
-  backgroundColor: '#1e293b',
+  backgroundColor: 'var(--surface)',
   borderRadius: '12px',
   padding: '1.5rem',
   border: '1px solid #334155',
@@ -40,14 +40,14 @@ const titleStyle = {
   marginBottom: '1rem',
   display: 'flex',
   alignItems: 'center',
-  color: '#e2e8f0'
+  color: 'var(--dashboard-heading)'
 };
 
 const iconStyle = {
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  background: '#0f172a',
+  background: 'var(--bg)',
   width: '32px',
   height: '32px',
   borderRadius: '8px',
@@ -72,7 +72,7 @@ export function ControlTower() {
     <div style={containerStyle}>
       <header style={{ marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 0.5rem 0' }}>Control Tower</h1>
-        <p style={{ color: '#94a3b8', margin: 0 }}>KPIs & Core Metrics Overview</p>
+        <p style={{ color: 'var(--muted)', margin: 0 }}>KPIs & Core Metrics Overview</p>
       </header>
 
       {/* KPI Cards */}
@@ -87,7 +87,7 @@ export function ControlTower() {
             <div key={i} style={{ ...cardStyle, display: 'flex', alignItems: 'center' }}>
               <div style={{ fontSize: '2.5rem', marginRight: '1rem', color: kpi.color }}>{kpi.icon}</div>
               <div>
-                <div style={{ color: '#94a3b8', fontSize: '0.875rem', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '500' }}>{kpi.label}</div>
+                <div style={{ color: 'var(--muted)', fontSize: '0.875rem', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '500' }}>{kpi.label}</div>
                 <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{kpi.value}</div>
               </div>
             </div>
@@ -105,7 +105,7 @@ export function SupplyChainDepth() {
     <div style={containerStyle}>
       <header style={{ marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 0.5rem 0' }}>Supply Chain Depth</h1>
-        <p style={{ color: '#94a3b8', margin: 0 }}>Network Topology and Infrastructure</p>
+        <p style={{ color: 'var(--muted)', margin: 0 }}>Network Topology and Infrastructure</p>
       </header>
 
     </div>
@@ -119,7 +119,7 @@ export function SupplierRisk() {
     <div style={containerStyle}>
       <header style={{ marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 0.5rem 0' }}>Supplier Risk</h1>
-        <p style={{ color: '#94a3b8', margin: 0 }}>Global Risk Assessment and Trends</p>
+        <p style={{ color: 'var(--muted)', margin: 0 }}>Global Risk Assessment and Trends</p>
       </header>
 
     </div>
@@ -133,7 +133,7 @@ export function ActivityLog() {
     <div style={containerStyle}>
       <header style={{ marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 0.5rem 0' }}>Activity Log</h1>
-        <p style={{ color: '#94a3b8', margin: 0 }}>System Anomalies and Event Tracking</p>
+        <p style={{ color: 'var(--muted)', margin: 0 }}>System Anomalies and Event Tracking</p>
       </header>
 
     </div>
@@ -148,7 +148,7 @@ export function AdminLedger() {
     <div style={containerStyle}>
       <header style={{ marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 0.5rem 0' }}>Admin Ledger</h1>
-        <p style={{ color: '#94a3b8', margin: 0 }}>Financial Overview & Accounting (in ?)</p>
+        <p style={{ color: 'var(--muted)', margin: 0 }}>Financial Overview & Accounting (in ?)</p>
       </header>
       
       <div style={gridStyle}>

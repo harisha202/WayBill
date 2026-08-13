@@ -1,4 +1,4 @@
-﻿import { Logo } from '../../components/ui/Logo'
+import { Logo } from '../../components/ui/Logo'
 import ROLE_SELECTION_CONFIG from '../../config/ui/roleSelection.json'
 
 function RoleLogo({ roleId }) {
@@ -39,6 +39,7 @@ function RoleSelection({ selectedRole, onSelectRole, onSelect, onBack, includeAd
             key={role.id}
             onClick={() => handleSelect?.(role.id)}
             className="standard-role-card"
+            data-role={role.id.toLowerCase()}
           >
             <div className="icon-container" style={{ marginBottom: '1rem' }}>
               <RoleLogo roleId={role.id} />

@@ -46,7 +46,7 @@ function Login({ role, onSubmit, onBack, onSignupClick, onGuestClick }) {
             <label className="standard-auth-label">Password</label>
             <div style={{ position: 'relative' }}>
               <input ref={passwordInputRef} type={showPass ? 'text' : 'password'} className="standard-auth-input" placeholder="Enter your password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-              <button type="button" onClick={() => setShowPass(!showPass)} style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>
+              <button type="button" onClick={() => setShowPass(!showPass)} style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>
                 {showPass ? 'Hide' : 'Show'}
               </button>
             </div>
@@ -68,7 +68,7 @@ function Login({ role, onSubmit, onBack, onSignupClick, onGuestClick }) {
             </button>
           </div>
           
-          <div style={{ marginTop: '1.5rem', textAlign: 'center', fontSize: '0.85rem', color: '#94a3b8' }}>
+          <div style={{ marginTop: '1.5rem', textAlign: 'center', fontSize: '0.85rem', color: 'var(--muted)' }}>
             Don't have an account? <span onClick={onSignupClick} style={{ color: '#3b82f6', fontWeight: 600, cursor: 'pointer' }}>Sign up free</span>
           </div>
         </form>

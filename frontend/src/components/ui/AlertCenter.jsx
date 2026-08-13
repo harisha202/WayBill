@@ -16,33 +16,33 @@ const mockAlerts = [
 
 export default function AlertCenter() {
   return (
-    <div style={{ padding: '24px', backgroundColor: '#0f172a', color: '#f8fafc', minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div style={{ padding: '24px', backgroundColor: 'var(--bg)', color: 'var(--text)', minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       <header style={{ marginBottom: '32px' }}>
         <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 8px 0', background: 'linear-gradient(90deg, #38bdf8, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
           Alert Center
         </h1>
-        <p style={{ color: '#94a3b8', margin: 0 }}>Global notifications and active system alerts.</p>
+        <p style={{ color: 'var(--muted)', margin: 0 }}>Global notifications and active system alerts.</p>
       </header>
 
       <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: '1fr' }}>
         {mockAlerts.map(alert => {
           const typeInfo = alertTypes[alert.type];
           return (
-            <div key={alert.id} style={{ display: 'flex', alignItems: 'flex-start', padding: '20px', backgroundColor: '#1e293b', borderRadius: '12px', border: `1px solid #334155`, borderLeft: `4px solid ${typeInfo.color}`, boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
+            <div key={alert.id} style={{ display: 'flex', alignItems: 'flex-start', padding: '20px', backgroundColor: 'var(--surface)', borderRadius: '12px', border: `1px solid #334155`, borderLeft: `4px solid ${typeInfo.color}`, boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
               <div style={{ fontSize: '24px', marginRight: '16px' }}>
                 {typeInfo.icon}
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <h3 style={{ fontSize: '1.125rem', fontWeight: '600', margin: 0, color: '#e2e8f0' }}>{alert.title}</h3>
+                  <h3 style={{ fontSize: '1.125rem', fontWeight: '600', margin: 0, color: 'var(--dashboard-heading)' }}>{alert.title}</h3>
                   <span style={{ fontSize: '0.875rem', color: '#64748b' }}>{alert.time}</span>
                 </div>
-                <p style={{ margin: 0, color: '#94a3b8', fontSize: '1rem', lineHeight: '1.5' }}>
+                <p style={{ margin: 0, color: 'var(--muted)', fontSize: '1rem', lineHeight: '1.5' }}>
                   {alert.message}
                 </p>
               </div>
               <div style={{ marginLeft: '16px' }}>
-                <span style={{ backgroundColor: '#0f172a', color: typeInfo.color, padding: '4px 12px', borderRadius: '16px', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', border: `1px solid ${typeInfo.color}` }}>
+                <span style={{ backgroundColor: 'var(--bg)', color: typeInfo.color, padding: '4px 12px', borderRadius: '16px', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', border: `1px solid ${typeInfo.color}` }}>
                   {typeInfo.label}
                 </span>
               </div>

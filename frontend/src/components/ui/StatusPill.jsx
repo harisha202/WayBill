@@ -7,7 +7,7 @@ export const StatusPill = ({ status }) => {
             padding: '4px 10px', 
             borderRadius: '999px', 
             background: color, 
-            color: 'white',
+            color: 'var(--text)',
             fontWeight: '600',
             fontSize: '11px',
             textTransform: 'uppercase'

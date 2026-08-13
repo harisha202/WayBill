@@ -188,7 +188,7 @@ export function WaybillDocumentViewer({ orderCode, waybillId, onClose, onConfirm
           <div style={styles.qrContainer}>
             {waybill.waybill_id ? (
               <div style={styles.qrWrapper}>
-                <QRCodeSVG value={`https://waybill.network/verify?id=${waybill.waybill_id}`} size={70} fgColor="#e2e8f0" bgColor="transparent" />
+                <QRCodeSVG value={`https://waybill.network/verify?id=${waybill.waybill_id}`} size={70} fgColor="var(--dashboard-heading)" bgColor="transparent" />
               </div>
             ) : (
               <div style={styles.qrPlaceholder}>No QR</div>
@@ -227,11 +227,11 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     padding: '20px',
-    color: '#e2e8f0',
+    color: 'var(--dashboard-heading)',
     fontFamily: 'system-ui, sans-serif'
   },
   modal: {
-    background: '#0f172a',
+    background: 'var(--bg)',
     border: '1px solid #1e293b',
     borderRadius: '16px',
     width: '100%',
@@ -255,7 +255,7 @@ const styles = {
     right: '20px',
     background: 'transparent',
     border: 'none',
-    color: '#94a3b8',
+    color: 'var(--muted)',
     fontSize: '28px',
     cursor: 'pointer',
     lineHeight: 1,
@@ -275,7 +275,7 @@ const styles = {
     margin: '0 0 12px 0',
     fontSize: '1.75rem',
     fontWeight: '700',
-    color: '#f8fafc',
+    color: 'var(--text)',
     letterSpacing: '-0.02em',
   },
   metaRow: {
@@ -283,7 +283,7 @@ const styles = {
     alignItems: 'center',
     gap: '12px',
     fontSize: '0.9rem',
-    color: '#94a3b8',
+    color: 'var(--muted)',
     flexWrap: 'wrap',
   },
   metaTag: {
@@ -292,7 +292,7 @@ const styles = {
     borderRadius: '6px',
     border: '1px solid #334155',
     fontWeight: '500',
-    color: '#e2e8f0'
+    color: 'var(--dashboard-heading)'
   },
   dot: {
     color: '#475569',
@@ -333,7 +333,7 @@ const styles = {
     gap: '30px',
   },
   sectionBlock: {
-    background: '#1e293b',
+    background: 'var(--surface)',
     borderRadius: '12px',
     padding: '24px',
     border: '1px solid #334155',
@@ -342,7 +342,7 @@ const styles = {
     margin: '0 0 20px 0',
     fontSize: '1.15rem',
     fontWeight: '600',
-    color: '#f1f5f9',
+    color: 'var(--text)',
     borderBottom: '1px solid #334155',
     paddingBottom: '12px',
   },
@@ -365,12 +365,12 @@ const styles = {
     fontSize: '0.75rem',
     textTransform: 'uppercase',
     letterSpacing: '0.08em',
-    color: '#94a3b8',
+    color: 'var(--muted)',
     fontWeight: '600',
   },
   value: {
     fontSize: '1.05rem',
-    color: '#f8fafc',
+    color: 'var(--text)',
     fontWeight: '500',
   },
   highlightValue: {
@@ -411,16 +411,16 @@ const styles = {
   },
   stepRole: {
     fontSize: '0.9rem',
-    color: '#f1f5f9',
+    color: 'var(--text)',
     fontWeight: '600',
   },
   stepTime: {
     fontSize: '0.75rem',
-    color: '#94a3b8',
+    color: 'var(--muted)',
   },
   stepCustodian: {
     fontSize: '0.95rem',
-    color: '#cbd5e1',
+    color: 'var(--muted)',
   },
   stepHash: {
     fontSize: '0.75rem',
@@ -433,7 +433,7 @@ const styles = {
     border: '1px solid rgba(16, 185, 129, 0.2)',
   },
   ledgerBox: {
-    background: '#0f172a',
+    background: 'var(--bg)',
     borderRadius: '8px',
     padding: '16px',
     display: 'flex',
@@ -446,7 +446,7 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     fontSize: '0.95rem',
-    color: '#cbd5e1',
+    color: 'var(--muted)',
   },
   ledgerTotal: {
     marginTop: '8px',
@@ -454,14 +454,14 @@ const styles = {
     borderTop: '1px dashed #334155',
   },
   ledgerLabel: {
-    color: '#94a3b8',
+    color: 'var(--muted)',
   },
   ledgerValue: {
     fontFamily: 'monospace',
     fontWeight: '500',
   },
   ledgerLabelTotal: {
-    color: '#f8fafc',
+    color: 'var(--text)',
     fontWeight: '700',
     fontSize: '1.05rem',
   },
@@ -484,7 +484,7 @@ const styles = {
     fontSize: '0.8rem',
   },
   metaLabel: {
-    color: '#94a3b8',
+    color: 'var(--muted)',
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: '0.05em',
@@ -519,7 +519,7 @@ const styles = {
     gap: '8px',
   },
   qrWrapper: {
-    background: '#1e293b',
+    background: 'var(--surface)',
     padding: '8px',
     borderRadius: '8px',
     border: '1px solid #334155',
@@ -527,7 +527,7 @@ const styles = {
   qrPlaceholder: {
     width: '70px',
     height: '70px',
-    background: '#1e293b',
+    background: 'var(--surface)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -538,7 +538,7 @@ const styles = {
   },
   qrLabel: {
     fontSize: '0.75rem',
-    color: '#94a3b8',
+    color: 'var(--muted)',
     fontWeight: '500',
     letterSpacing: '0.05em',
     textTransform: 'uppercase',
@@ -553,7 +553,7 @@ const styles = {
     margin: 0,
     fontSize: '1rem',
     fontWeight: '600',
-    color: '#e2e8f0',
+    color: 'var(--dashboard-heading)',
   },
   authSubText: {
     margin: 0,
@@ -564,7 +564,7 @@ const styles = {
     marginTop: '16px',
     padding: '10px 24px',
     background: 'linear-gradient(135deg, #0f766e, #0e9f8d)',
-    color: 'white',
+    color: 'var(--text)',
     border: 'none',
     borderRadius: '8px',
     fontWeight: '600',
@@ -582,13 +582,13 @@ const styles = {
     marginBottom: '16px',
   },
   text: {
-    color: '#94a3b8',
+    color: 'var(--muted)',
     fontSize: '1.1rem',
   },
   heading: {
     margin: '0 0 8px 0',
     fontSize: '1.5rem',
-    color: '#f8fafc',
+    color: 'var(--text)',
   },
   mutedText: {
     color: '#64748b',

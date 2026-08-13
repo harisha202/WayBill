@@ -3,7 +3,7 @@ import random
 import logging
 from datetime import datetime
 from app.services.database_service import create_or_update_shipment, update_shipment_location
-from app.services.tracking_service import process_gps_ping
+from app.services.tracking_service import TrackingService
 from app.api.websocket import manager
 from app.models.tracking import GPSEvent
 
@@ -50,7 +50,15 @@ async def simulate_gps_ping():
         )
         
         try:
-            state_update = process_gps_ping(event)
+            state_update = TrackingService.ingest_gps_ping(
+                shipment_id=event.shipment_id,
+                lat=event.latitude,
+                lng=event.longitude,
+                speed=event.speed,
+                heading=event.heading,
+                actor_id="system_sim",
+                actor_role="system"
+            )
             await manager.broadcast({
                 "event": "shipment.location.updated",
                 "data": state_update

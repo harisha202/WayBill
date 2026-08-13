@@ -1,82 +1,123 @@
+from __future__ import annotations
+from datetime import datetime, timezone
 import math
-from datetime import datetime
+from sqlalchemy import insert, select, update
 from typing import Dict, Any, List
-from app.models.tracking import GPSEvent, GPSHistory
 
-# Mock databases for demonstration purposes (in production, use DB service)
-gps_history_db: List[GPSHistory] = []
-audit_log_db: List[Dict[str, Any]] = []
+from app.services.database_service import _engine, shipments_table, trucks_table, drivers_table, waybill_documents_table
+from app.services.audit_service import audit_service
 
-def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    # Haversine formula
-    R = 6371.0 # Earth radius in km
-    dlat = math.radians(lat2 - lat1)
-    dlon = math.radians(lon2 - lon1)
-    a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    return R * c
+class TrackingService:
+    @staticmethod
+    def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+        # Haversine formula
+        R = 6371.0 # Earth radius in km
+        dlat = math.radians(lat2 - lat1)
+        dlon = math.radians(lon2 - lon1)
+        a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        return R * c
 
-def process_gps_ping(event: GPSEvent) -> Dict[str, Any]:
-    # 1. Validate (Pydantic model already validates types)
-    # 2. Persist
-    history = GPSHistory(**event.dict())
-    gps_history_db.append(history)
-    
-    # 3. Calculate Distance from planned route (Mocking planned route for now)
-    planned_lat, planned_lng = 12.9710, 77.5940
-    route_deviation_km = calculate_distance(event.latitude, event.longitude, planned_lat, planned_lng)
-    
-    # 4. Calculate ETA (Mocking destination)
-    dest_lat, dest_lng = 13.0827, 80.2707 # Chennai
-    distance_to_dest = calculate_distance(event.latitude, event.longitude, dest_lat, dest_lng)
-    speed_kmh = event.speed if event.speed > 0 else 40.0
-    eta_hours = distance_to_dest / speed_kmh
-    eta_minutes = int(eta_hours * 60)
-    
-    # 5. Calculate Delay Risk
-    predicted_delay_minutes = 0
-    if route_deviation_km > 10:
-        predicted_delay_minutes += 30
-    if speed_kmh < 20:
-        predicted_delay_minutes += 45
+    @staticmethod
+    def ingest_gps_ping(
+        shipment_id: str, 
+        lat: float, 
+        lng: float, 
+        speed: float, 
+        heading: float,
+        actor_id: str,
+        actor_role: str
+    ) -> Dict[str, Any]:
+        timestamp = datetime.now(timezone.utc)
         
-    delay_risk_score = 0
-    if predicted_delay_minutes > 60 or route_deviation_km > 20:
-        delay_risk_score = 85
-        risk_level = "CRITICAL"
-        reason = f"Vehicle is {route_deviation_km:.1f} km off route and delayed."
-    elif predicted_delay_minutes > 20:
-        delay_risk_score = 55
-        risk_level = "HIGH"
-        reason = f"Vehicle is delayed by {predicted_delay_minutes} minutes."
-    else:
-        delay_risk_score = 15
-        risk_level = "LOW"
-        reason = "On track"
+        with _engine().begin() as conn:
+            shipment = conn.execute(
+                select(shipments_table).where(shipments_table.c.shipment_id == shipment_id)
+            ).first()
+            
+            if not shipment:
+                raise ValueError("Shipment not found")
+                
+            # Simulated Risk Calculation (e.g., speed > 90 = high risk, deviation = medium risk)
+            risk_score = 0.0
+            if speed > 90:
+                risk_score += 25.0
+            
+            # Simple route deviation calculation if we had a planned route
+            route_deviation = "LOW"
+            if risk_score > 20:
+                route_deviation = "HIGH"
+                
+            conn.execute(
+                update(shipments_table)
+                .where(shipments_table.c.shipment_id == shipment_id)
+                .values(
+                    lat=lat,
+                    lng=lng,
+                    delay_risk_score=risk_score,
+                    route_deviation=route_deviation,
+                    last_gps_at=timestamp,
+                    risk_updated_at=timestamp
+                )
+            )
+
+        # Audit log for significant deviation or risk
+        if risk_score > 50:
+            audit_service.log_action(
+                user=actor_id,
+                role=actor_role,
+                action="HIGH_RISK_DETECTED",
+                entity="SHIPMENT",
+                entity_id=shipment_id,
+                new_value={"risk_score": risk_score, "route_deviation": route_deviation}
+            )
+            
+        return {
+            "shipment_id": shipment_id,
+            "lat": lat,
+            "lng": lng,
+            "risk_score": risk_score,
+            "route_deviation": route_deviation,
+            "updated_at": timestamp.isoformat()
+        }
+
+    @staticmethod
+    def assign_vehicle(shipment_id: str, truck_id: str, driver_id: str, actor_id: str, actor_role: str) -> Dict[str, Any]:
+        timestamp = datetime.now(timezone.utc)
         
-    # 6. Update Shipment State (Mock)
-    state_update = {
-        "event_id": f"evt_{int(datetime.utcnow().timestamp()*1000)}",
-        "timestamp": datetime.utcnow().isoformat(),
-        "shipment_id": event.shipment_id,
-        "vehicle_id": event.vehicle_id,
-        "latitude": event.latitude,
-        "longitude": event.longitude,
-        "delay_risk_score": delay_risk_score,
-        "risk_level": risk_level,
-        "predicted_delay_minutes": predicted_delay_minutes,
-        "route_deviation_km": round(route_deviation_km, 2),
-        "reason": reason,
-        "eta_minutes": eta_minutes
-    }
-    
-    # 7. Create Audit Event
-    if risk_level in ["HIGH", "CRITICAL"]:
-        audit_log_db.append({
-            "action": "RISK_ESCALATED",
-            "shipment_id": event.shipment_id,
-            "details": reason,
-            "timestamp": state_update["timestamp"]
-        })
-        
-    return state_update
+        with _engine().begin() as conn:
+            shipment = conn.execute(
+                select(shipments_table).where(shipments_table.c.shipment_id == shipment_id)
+            ).first()
+            
+            if not shipment:
+                raise ValueError("Shipment not found")
+                
+            conn.execute(
+                update(shipments_table)
+                .where(shipments_table.c.shipment_id == shipment_id)
+                .values(
+                    vehicle_number=truck_id,
+                    assignment_status="ASSIGNED",
+                    status="IN_TRANSIT",
+                    updated_at=timestamp
+                )
+            )
+
+        audit_service.log_action(
+            user=actor_id,
+            role=actor_role,
+            action="VEHICLE_ASSIGNED",
+            entity="SHIPMENT",
+            entity_id=shipment_id,
+            new_value={"truck_id": truck_id, "driver_id": driver_id}
+        )
+            
+        return {
+            "shipment_id": shipment_id,
+            "truck_id": truck_id,
+            "driver_id": driver_id,
+            "status": "ASSIGNED"
+        }
+
+tracking_service = TrackingService()

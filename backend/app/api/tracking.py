@@ -457,13 +457,24 @@ def get_delay_risk(payload: dict = Depends(require_roles(UserRole.admin, UserRol
 # NEW ROUTES FOR TRANSPORTER VERTICAL SLICE
 from fastapi import WebSocket, WebSocketDisconnect
 from app.models.tracking import GPSEvent
-from app.services.tracking_service import process_gps_ping
+from app.services.tracking_service import tracking_service
 from app.api.websocket import manager
 
 @router.post("/gps")
-async def ingest_gps(event: GPSEvent):
+async def ingest_gps(event: GPSEvent, payload: dict = Depends(require_roles(UserRole.admin, UserRole.transporter))):
     try:
-        state_update = process_gps_ping(event)
+        actor_id = payload.get("sub", "unknown")
+        actor_role = payload.get("role", "unknown")
+        
+        state_update = tracking_service.ingest_gps_ping(
+            shipment_id=event.shipment_id,
+            lat=event.latitude,
+            lng=event.longitude,
+            speed=event.speed or 0.0,
+            heading=event.heading or 0.0,
+            actor_id=actor_id,
+            actor_role=actor_role
+        )
         await manager.broadcast({
             "event": "shipment.location.updated",
             "data": state_update
