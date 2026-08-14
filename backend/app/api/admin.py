@@ -243,6 +243,53 @@ def get_order_pipeline(payload: dict = Depends(require_roles(UserRole.admin))):
     return APIResponse(success=True, data=data)
 
 
+@router.get("/analytics/control-tower", dependencies=[Depends(require_roles(UserRole.admin))])
+def get_control_tower(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    status: Optional[str] = Query(None)
+) -> dict:
+    from app.services.database_service import get_control_tower_analytics
+    from app.schemas.base import APIResponse
+    data = get_control_tower_analytics(date_from=date_from, date_to=date_to, status_filter=status)
+    return APIResponse(success=True, data=data)
+
+
+@router.get("/analytics/supply-chain", dependencies=[Depends(require_roles(UserRole.admin))])
+def get_supply_chain(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None)
+) -> dict:
+    from app.services.database_service import get_supply_chain_analytics
+    from app.schemas.base import APIResponse
+    data = get_supply_chain_analytics(date_from=date_from, date_to=date_to)
+    return APIResponse(success=True, data=data)
+
+
+@router.get("/analytics/supplier-risk", dependencies=[Depends(require_roles(UserRole.admin))])
+def get_supplier_risk_admin(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    supplier_id: Optional[str] = Query(None)
+) -> dict:
+    from app.services.database_service import get_supplier_risk_analytics
+    from app.schemas.base import APIResponse
+    data = get_supplier_risk_analytics(date_from=date_from, date_to=date_to, supplier_id_filter=supplier_id)
+    return APIResponse(success=True, data=data)
+
+
+@router.get("/analytics/financial", dependencies=[Depends(require_roles(UserRole.admin))])
+def get_financial(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    entity_type: Optional[str] = Query(None)
+) -> dict:
+    from app.services.database_service import get_financial_analytics
+    from app.schemas.base import APIResponse
+    data = get_financial_analytics(date_from=date_from, date_to=date_to, entity_type_filter=entity_type)
+    return APIResponse(success=True, data=data)
+
+
 # ------------------------------------------------------------
 # USER MANAGEMENT
 # ------------------------------------------------------------

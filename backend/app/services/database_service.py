@@ -23,6 +23,8 @@ from sqlalchemy import (
     desc,
     func,
     select,
+    text,
+    text,
 )
 from sqlalchemy.engine import Engine
 from sqlalchemy.engine.url import make_url
@@ -2812,6 +2814,1172 @@ def seal_waybill(waybill_id: str) -> str | None:
             return seal_hash
     except SQLAlchemyError as exc:
         raise DatabaseError(f"Failed to seal waybill {waybill_id}") from exc
+
+
+def get_control_tower_analytics(date_from: str | None = None, date_to: str | None = None, status_filter: str | None = None) -> dict:
+    """Aggregates all Control Tower analytics in one call so all charts share the same filtered dataset."""
+    try:
+        with _engine().connect() as conn:
+            # Build date filter clause
+            date_clause = ""
+            if date_from and date_to:
+                date_clause = f"AND o.created_at >= '{date_from}' AND o.created_at <= '{date_to}'"
+            elif date_from:
+                date_clause = f"AND o.created_at >= '{date_from}'"
+            
+            status_clause = ""
+            if status_filter and status_filter != 'all':
+                status_clause = f"AND o.status = '{status_filter}'"
+
+            # 1. Order pipeline stage counts
+            pipeline_rows = conn.execute(text(f"""
+                SELECT current_stage, COUNT(*) as count
+                FROM orders o
+                WHERE 1=1 {date_clause} {status_clause}
+                GROUP BY current_stage
+                ORDER BY count DESC
+            """)).fetchall()
+            pipeline = [{'stage': r[0] or 'Unknown', 'count': int(r[1])} for r in pipeline_rows]
+
+            # 2. Order throughput over time (last 30 points)
+            throughput_rows = conn.execute(text(f"""
+                SELECT 
+                    strftime('%Y-%m-%d', o.created_at) as day,
+                    COUNT(*) as created_count,
+                    SUM(CASE WHEN o.status IN ('completed', 'delivered') THEN 1 ELSE 0 END) as completed_count
+                FROM orders o
+                WHERE 1=1 {date_clause}
+                GROUP BY day
+                ORDER BY day ASC
+                LIMIT 30
+            """)).fetchall()
+            throughput = [{'day': r[0], 'created': int(r[1]), 'completed': int(r[2] or 0)} for r in throughput_rows if r[0]]
+
+            # 3. Orders by status
+            by_status_rows = conn.execute(text(f"""
+                SELECT o.status, COUNT(*) as count
+                FROM orders o
+                WHERE 1=1 {date_clause}
+                GROUP BY o.status
+                ORDER BY count DESC
+            """)).fetchall()
+            by_status = [{'status': r[0] or 'Unknown', 'count': int(r[1])} for r in by_status_rows]
+
+            # 4. Completion rate
+            completion_row = conn.execute(text(f"""
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status IN ('completed', 'delivered') THEN 1 ELSE 0 END) as completed
+                FROM orders o
+                WHERE 1=1 {date_clause}
+            """)).fetchone()
+            total_orders = int(completion_row[0] or 0)
+            completed_orders = int(completion_row[1] or 0)
+            completion_rate = round((completed_orders / total_orders * 100) if total_orders > 0 else 0, 1)
+
+            # 5. Shipment risk classification (using delay_risk_score)
+            shipment_risk_rows = conn.execute(text("""
+                SELECT
+                    CASE
+                        WHEN delay_risk_score IS NULL THEN 'Normal'
+                        WHEN delay_risk_score < 0.3 THEN 'Normal'
+                        WHEN delay_risk_score < 0.6 THEN 'At Risk'
+                        WHEN delay_risk_score < 0.8 THEN 'Delayed'
+                        ELSE 'Critical'
+                    END as risk_level,
+                    COUNT(*) as count
+                FROM shipments
+                GROUP BY risk_level
+            """)).fetchall()
+            shipment_risk = [{'level': r[0], 'count': int(r[1])} for r in shipment_risk_rows]
+
+            # 6. Shipment risk trend (last 14 days)
+            risk_trend_rows = conn.execute(text("""
+                SELECT
+                    strftime('%Y-%m-%d', timestamp) as day,
+                    SUM(CASE WHEN delay_risk_score IS NULL OR delay_risk_score < 0.3 THEN 1 ELSE 0 END) as normal,
+                    SUM(CASE WHEN delay_risk_score >= 0.3 AND delay_risk_score < 0.6 THEN 1 ELSE 0 END) as at_risk,
+                    SUM(CASE WHEN delay_risk_score >= 0.6 AND delay_risk_score < 0.8 THEN 1 ELSE 0 END) as delayed,
+                    SUM(CASE WHEN delay_risk_score >= 0.8 THEN 1 ELSE 0 END) as critical
+                FROM shipments
+                GROUP BY day
+                ORDER BY day ASC
+                LIMIT 14
+            """)).fetchall()
+            risk_trend = [{
+                'day': r[0], 'normal': int(r[1] or 0), 'at_risk': int(r[2] or 0),
+                'delayed': int(r[3] or 0), 'critical': int(r[4] or 0)
+            } for r in risk_trend_rows if r[0]]
+
+            # 7. Shipment scatter: predicted_delay_minutes vs weight (as proxy for distance)
+            scatter_rows = conn.execute(text("""
+                SELECT
+                    weight,
+                    predicted_delay_minutes,
+                    delay_risk_score,
+                    shipment_id
+                FROM shipments
+                WHERE weight IS NOT NULL AND predicted_delay_minutes IS NOT NULL
+                LIMIT 100
+            """)).fetchall()
+            shipment_scatter = [{
+                'weight': float(r[0] or 0),
+                'delay_minutes': int(r[1] or 0),
+                'risk_score': float(r[2] or 0),
+                'id': r[3]
+            } for r in scatter_rows]
+
+            # 8. Inventory health classification
+            inv_rows = conn.execute(text("""
+                SELECT
+                    sku, name,
+                    available_stock,
+                    reorder_point,
+                    safety_stock_qty,
+                    quantity,
+                    price
+                FROM products
+                WHERE sku IS NOT NULL
+                LIMIT 50
+            """)).fetchall()
+            inventory_items = []
+            for r in inv_rows:
+                avail = int(r[2] or 0)
+                reorder = int(r[3] or 0) if r[3] else max(int(r[5] or 0) // 4, 5)
+                safety = int(r[4] or 0) if r[4] else max(reorder // 2, 2)
+                # Classify
+                if avail <= 0:
+                    health = 'Critical'
+                elif avail <= safety:
+                    health = 'Critical'
+                elif avail <= reorder:
+                    health = 'Low'
+                elif avail > reorder * 3:
+                    health = 'Overstock'
+                else:
+                    health = 'Healthy'
+                inventory_items.append({
+                    'sku': r[0], 'name': r[1],
+                    'available_stock': avail,
+                    'reorder_point': reorder,
+                    'safety_stock': safety,
+                    'quantity': int(r[5] or 0),
+                    'price': float(r[6] or 0),
+                    'health': health
+                })
+
+            # 9. Inventory health summary
+            health_summary = {'Healthy': 0, 'Low': 0, 'Critical': 0, 'Overstock': 0}
+            for item in inventory_items:
+                health_summary[item['health']] = health_summary.get(item['health'], 0) + 1
+            inventory_health_breakdown = [
+                {'category': k, 'count': v} for k, v in health_summary.items()
+            ]
+
+            # 10. Stock vs demand trend (sales history)
+            stock_demand_rows = conn.execute(text("""
+                SELECT
+                    strftime('%Y-%m-%d', sold_at) as day,
+                    SUM(units_sold) as demand
+                FROM sales_history
+                GROUP BY day
+                ORDER BY day ASC
+                LIMIT 30
+            """)).fetchall()
+            stock_demand = [{'day': r[0], 'demand': int(r[1] or 0)} for r in stock_demand_rows if r[0]]
+
+            # KPIs
+            total_inv = sum(i['available_stock'] for i in inventory_items)
+            critical_inv = sum(1 for i in inventory_items if i['health'] == 'Critical')
+            total_risk_shipments = sum(s['count'] for s in shipment_risk if s['level'] in ('At Risk', 'Delayed', 'Critical'))
+
+            return {
+                'kpis': {
+                    'total_orders': total_orders,
+                    'completed_orders': completed_orders,
+                    'completion_rate': completion_rate,
+                    'total_risk_shipments': total_risk_shipments,
+                    'critical_inventory': critical_inv,
+                    'total_inventory_items': len(inventory_items),
+                    'total_stock': total_inv
+                },
+                'order_pipeline': pipeline,
+                'order_throughput': throughput,
+                'orders_by_status': by_status,
+                'completion_rate': completion_rate,
+                'shipment_risk': shipment_risk,
+                'risk_trend': risk_trend,
+                'shipment_scatter': shipment_scatter,
+                'inventory_items': inventory_items,
+                'inventory_health_breakdown': inventory_health_breakdown,
+                'stock_demand_trend': stock_demand
+            }
+    except SQLAlchemyError as exc:
+        raise DatabaseError('Failed to get control tower analytics') from exc
+
+
+def get_supply_chain_analytics(date_from: str | None = None, date_to: str | None = None) -> dict:
+    """Aggregates all Supply Chain Depth analytics in one call."""
+    try:
+        with _engine().connect() as conn:
+            date_clause = ''
+            if date_from:
+                date_clause = f"AND o.created_at >= '{date_from}'"
+            if date_to:
+                date_clause += f" AND o.created_at <= '{date_to}'"
+
+            # Network nodes from users table
+            user_rows = conn.execute(text("""
+                SELECT id, name, role, company_name, is_active FROM users
+                WHERE role IN ('manufacturer', 'transporter', 'dealer', 'retail_shop')
+            """)).fetchall()
+            nodes = [{
+                'id': str(r[0]),
+                'name': r[1] or r[2],
+                'entity_type': r[2],
+                'company': r[3] or r[1],
+                'is_active': bool(r[4])
+            } for r in user_rows]
+
+            # Supplier nodes
+            sup_rows = conn.execute(text("""
+                SELECT s.supplier_id, s.name, s.tier,
+                    COALESCE(rs.overall_score, 0.5) as risk
+                FROM suppliers s
+                LEFT JOIN supplier_risk_scores rs ON s.supplier_id = rs.supplier_id
+            """)).fetchall()
+            supplier_nodes = [{
+                'id': r[0], 'name': r[1], 'entity_type': 'supplier',
+                'tier': int(r[2] or 1), 'risk_score': float(r[3] or 0.5)
+            } for r in sup_rows]
+            nodes = supplier_nodes + nodes
+
+            # Edges from orders (manufacturer -> transporter -> dealer)
+            edge_rows = conn.execute(text(f"""
+                SELECT
+                    manufacturer_id, transporter_id, dealer_id,
+                    COUNT(*) as order_count,
+                    SUM(quantity) as total_qty
+                FROM orders o
+                WHERE manufacturer_id IS NOT NULL {date_clause}
+                GROUP BY manufacturer_id, transporter_id, dealer_id
+                LIMIT 100
+            """)).fetchall()
+            edges = []
+            for r in edge_rows:
+                mfg, trans, dlr = str(r[0] or ''), str(r[1] or ''), str(r[2] or '')
+                count, qty = int(r[3] or 0), int(r[4] or 0)
+                if mfg and trans:
+                    edges.append({'source': mfg, 'target': trans, 'value': count, 'qty': qty})
+                if trans and dlr:
+                    edges.append({'source': trans, 'target': dlr, 'value': count, 'qty': qty})
+
+            # Sankey flow data: group by entity type
+            flow_rows = conn.execute(text(f"""
+                SELECT
+                    manufacturer_id as source_id,
+                    dealer_id as target_id,
+                    COUNT(*) as flow_count,
+                    SUM(o.quantity) as flow_qty
+                FROM orders o
+                WHERE manufacturer_id IS NOT NULL AND dealer_id IS NOT NULL {date_clause}
+                GROUP BY manufacturer_id, dealer_id
+                ORDER BY flow_count DESC
+                LIMIT 20
+            """)).fetchall()
+            sankey_flows = [{
+                'source': str(r[0]), 'target': str(r[1]),
+                'value': int(r[2] or 0), 'qty': int(r[3] or 0)
+            } for r in flow_rows]
+
+            # Bubble chart: partner volume vs risk
+            bubble_rows = conn.execute(text("""
+                SELECT
+                    s.supplier_id, s.name,
+                    COALESCE(rs.overall_score, 0.5) as risk_score,
+                    COALESCE(rs.delivery_score, 0.5) as delivery,
+                    COUNT(DISTINCT o.order_code) as order_count
+                FROM suppliers s
+                LEFT JOIN supplier_risk_scores rs ON s.supplier_id = rs.supplier_id
+                LEFT JOIN orders o ON o.manufacturer_id = s.supplier_id
+                GROUP BY s.supplier_id, s.name
+            """)).fetchall()
+            partner_bubbles = [{
+                'id': r[0], 'name': r[1],
+                'risk_score': float(r[2] or 0.5),
+                'delivery_score': float(r[3] or 0.5),
+                'order_count': int(r[4] or 0)
+            } for r in bubble_rows]
+
+            # Micro sparklines: orders per entity per day (last 7 days)
+            sparkline_rows = conn.execute(text("""
+                SELECT
+                    strftime('%Y-%m-%d', created_at) as day,
+                    manufacturer_id,
+                    COUNT(*) as count
+                FROM orders
+                WHERE manufacturer_id IS NOT NULL
+                GROUP BY day, manufacturer_id
+                ORDER BY day ASC
+                LIMIT 200
+            """)).fetchall()
+            sparklines_by_entity = {}
+            for r in sparkline_rows:
+                eid = str(r[1] or '')
+                if eid:
+                    if eid not in sparklines_by_entity:
+                        sparklines_by_entity[eid] = []
+                    sparklines_by_entity[eid].append({'day': r[0], 'count': int(r[2] or 0)})
+            micro_charts = [{'entity_id': k, 'data': v[:7]} for k, v in list(sparklines_by_entity.items())[:6]]
+
+            return {
+                'kpis': {
+                    'total_nodes': len(nodes),
+                    'total_edges': len(edges),
+                    'total_suppliers': len(supplier_nodes),
+                    'active_flows': len(sankey_flows)
+                },
+                'nodes': nodes,
+                'edges': edges,
+                'sankey_flows': sankey_flows,
+                'partner_bubbles': partner_bubbles,
+                'micro_charts': micro_charts
+            }
+    except SQLAlchemyError as exc:
+        raise DatabaseError('Failed to get supply chain analytics') from exc
+
+
+def get_supplier_risk_analytics(date_from: str | None = None, date_to: str | None = None, supplier_id_filter: str | None = None) -> dict:
+    """Aggregates all Supplier Risk analytics in one call."""
+    try:
+        with _engine().connect() as conn:
+            sup_filter = ''
+            if supplier_id_filter:
+                sup_filter = f"AND s.supplier_id = '{supplier_id_filter}'"
+
+            # Supplier risk scores
+            risk_rows = conn.execute(text(f"""
+                SELECT
+                    s.supplier_id, s.name, s.tier,
+                    COALESCE(rs.overall_score, 0.5) as overall_score,
+                    COALESCE(rs.financial_score, 0.5) as financial_score,
+                    COALESCE(rs.geopolitical_score, 0.5) as geopolitical_score,
+                    COALESCE(rs.operational_score, 0.5) as operational_score,
+                    COALESCE(rs.delivery_score, 0.5) as delivery_score,
+                    COALESCE(rs.esg_score, 0.5) as esg_score
+                FROM suppliers s
+                LEFT JOIN supplier_risk_scores rs ON s.supplier_id = rs.supplier_id
+                WHERE 1=1 {sup_filter}
+                ORDER BY overall_score DESC
+            """)).fetchall()
+
+            suppliers_data = []
+            for r in risk_rows:
+                overall = float(r[3] or 0.5)
+                # Classify risk level
+                if overall >= 0.8:
+                    risk_level = 'Critical'
+                elif overall >= 0.6:
+                    risk_level = 'High'
+                elif overall >= 0.4:
+                    risk_level = 'Medium'
+                else:
+                    risk_level = 'Low'
+                suppliers_data.append({
+                    'supplier_id': r[0],
+                    'name': r[1],
+                    'tier': int(r[2] or 1),
+                    'overall_score': overall,
+                    'financial_score': float(r[4] or 0.5),
+                    'geopolitical_score': float(r[5] or 0.5),
+                    'operational_score': float(r[6] or 0.5),
+                    'delivery_score': float(r[7] or 0.5),
+                    'esg_score': float(r[8] or 0.5),
+                    'risk_level': risk_level
+                })
+
+            # On-time delivery performance per supplier from shipments/orders
+            ontime_rows = conn.execute(text("""
+                SELECT
+                    o.manufacturer_id as supplier_id,
+                    COUNT(*) as total_deliveries,
+                    SUM(CASE WHEN s.delay_risk_score IS NULL OR s.delay_risk_score < 0.3 THEN 1 ELSE 0 END) as on_time
+                FROM orders o
+                LEFT JOIN shipments s ON o.shipment_id = s.shipment_id
+                WHERE o.manufacturer_id IS NOT NULL
+                GROUP BY o.manufacturer_id
+            """)).fetchall()
+            ontime_by_supplier = {}
+            for r in ontime_rows:
+                total = int(r[1] or 0)
+                on_time = int(r[2] or 0)
+                ontime_pct = round((on_time / total * 100) if total > 0 else 0, 1)
+                ontime_by_supplier[str(r[0])] = {'total': total, 'on_time': on_time, 'pct': ontime_pct}
+
+            # Enrich suppliers with on-time data
+            for s in suppliers_data:
+                ot = ontime_by_supplier.get(s['supplier_id'], {'total': 0, 'on_time': 0, 'pct': 0})
+                s['on_time_pct'] = ot['pct']
+                s['total_deliveries'] = ot['total']
+
+            # Dispute counts per supplier
+            dispute_rows = conn.execute(text("""
+                SELECT o.manufacturer_id, COUNT(*) as disputes
+                FROM orders o
+                WHERE o.discrepancy_status IS NOT NULL AND o.manufacturer_id IS NOT NULL
+                GROUP BY o.manufacturer_id
+            """)).fetchall()
+            disputes_by_supplier = {str(r[0]): int(r[1] or 0) for r in dispute_rows}
+            for s in suppliers_data:
+                s['dispute_count'] = disputes_by_supplier.get(s['supplier_id'], 0)
+
+            # Distribution data for violin (overall_score distribution)
+            all_scores = [s['overall_score'] for s in suppliers_data]
+
+            # Radar data for first supplier (or selected)
+            radar_data = []
+            if suppliers_data:
+                s = suppliers_data[0]
+                radar_data = [
+                    {'axis': 'Financial', 'value': round(s['financial_score'] * 100, 1)},
+                    {'axis': 'Geopolitical', 'value': round(s['geopolitical_score'] * 100, 1)},
+                    {'axis': 'Operational', 'value': round(s['operational_score'] * 100, 1)},
+                    {'axis': 'Delivery', 'value': round(s['delivery_score'] * 100, 1)},
+                    {'axis': 'ESG', 'value': round(s['esg_score'] * 100, 1)}
+                ]
+
+            return {
+                'kpis': {
+                    'total_suppliers': len(suppliers_data),
+                    'critical_suppliers': sum(1 for s in suppliers_data if s['risk_level'] == 'Critical'),
+                    'high_risk': sum(1 for s in suppliers_data if s['risk_level'] == 'High'),
+                    'avg_on_time_pct': round(sum(s['on_time_pct'] for s in suppliers_data) / len(suppliers_data), 1) if suppliers_data else 0
+                },
+                'suppliers': suppliers_data,
+                'radar_data': radar_data,
+                'all_scores': all_scores
+            }
+    except SQLAlchemyError as exc:
+        raise DatabaseError('Failed to get supplier risk analytics') from exc
+
+
+def get_financial_analytics(date_from: str | None = None, date_to: str | None = None, entity_type_filter: str | None = None) -> dict:
+    """Aggregates all Financial Ledger analytics in one call."""
+    try:
+        with _engine().connect() as conn:
+            date_clause = ''
+            if date_from:
+                date_clause += f" AND fl.created_at >= '{date_from}'"
+            if date_to:
+                date_clause += f" AND fl.created_at <= '{date_to}'"
+
+            entity_clause = ''
+            if entity_type_filter and entity_type_filter != 'all':
+                entity_clause = f" AND fl.entity_type = '{entity_type_filter}'"
+
+            # Revenue vs cost by month
+            rev_cost_rows = conn.execute(text(f"""
+                SELECT
+                    strftime('%Y-%m', fl.created_at) as month,
+                    SUM(CASE WHEN fl.transaction_type IN ('sale', 'revenue', 'SALE', 'REVENUE') THEN fl.base_amount_inr ELSE 0 END) as revenue,
+                    COALESCE((
+                        SELECT SUM(cl.total_cost)
+                        FROM cost_ledger cl
+                        WHERE strftime('%Y-%m', cl.created_at) = strftime('%Y-%m', fl.created_at)
+                    ), 0) as total_cost
+                FROM financial_ledger fl
+                WHERE 1=1 {date_clause} {entity_clause}
+                GROUP BY month
+                ORDER BY month ASC
+                LIMIT 12
+            """)).fetchall()
+
+            rev_cost = []
+            for r in rev_cost_rows:
+                if r[0]:
+                    rev = float(r[1] or 0)
+                    cost = float(r[2] or 0)
+                    profit = rev - cost
+                    margin = round((profit / rev * 100) if rev > 0 else 0, 1)
+                    rev_cost.append({
+                        'month': r[0], 'revenue': round(rev, 2),
+                        'cost': round(cost, 2), 'profit': round(profit, 2),
+                        'margin': margin
+                    })
+
+            # If no data from financial_ledger, try orders + products
+            if not rev_cost:
+                fallback_rows = conn.execute(text("""
+                    SELECT
+                        strftime('%Y-%m', o.created_at) as month,
+                        SUM(p.price * o.quantity) as revenue,
+                        COALESCE(SUM(cl.total_cost), SUM(p.price * o.quantity) * 0.65) as cost
+                    FROM orders o
+                    JOIN products p ON o.product_sku = p.sku
+                    LEFT JOIN cost_ledger cl ON o.order_code = cl.order_id
+                    GROUP BY month
+                    ORDER BY month ASC
+                    LIMIT 12
+                """)).fetchall()
+                for r in fallback_rows:
+                    if r[0]:
+                        rev = float(r[1] or 0)
+                        cost = float(r[2] or rev * 0.65)
+                        profit = rev - cost
+                        margin = round((profit / rev * 100) if rev > 0 else 0, 1)
+                        rev_cost.append({
+                            'month': r[0], 'revenue': round(rev, 2),
+                            'cost': round(cost, 2), 'profit': round(profit, 2),
+                            'margin': margin
+                        })
+
+            # Cost breakdown by category (from cost_ledger)
+            cost_breakdown_rows = conn.execute(text("""
+                SELECT
+                    strftime('%Y-%m', created_at) as month,
+                    SUM(transport_cost) as transport,
+                    SUM(storage_cost) as storage,
+                    SUM(handling_cost) as handling,
+                    SUM(delay_penalty) as delay_penalty,
+                    SUM(other_cost) as other
+                FROM cost_ledger
+                GROUP BY month
+                ORDER BY month ASC
+                LIMIT 12
+            """)).fetchall()
+            cost_breakdown = [{
+                'month': r[0],
+                'Transportation': round(float(r[1] or 0), 2),
+                'Warehouse': round(float(r[2] or 0), 2),
+                'Handling': round(float(r[3] or 0), 2),
+                'Procurement': round(float(r[4] or 0), 2),
+                'Other': round(float(r[5] or 0), 2)
+            } for r in cost_breakdown_rows if r[0]]
+
+            # Totals for donut
+            cost_totals_row = conn.execute(text("""
+                SELECT
+                    SUM(transport_cost) as transport,
+                    SUM(storage_cost) as storage,
+                    SUM(handling_cost) as handling,
+                    SUM(delay_penalty) as delay_penalty,
+                    SUM(other_cost) as other
+                FROM cost_ledger
+            """)).fetchone()
+            cost_totals = {
+                'Transportation': round(float(cost_totals_row[0] or 0), 2),
+                'Warehouse': round(float(cost_totals_row[1] or 0), 2),
+                'Handling': round(float(cost_totals_row[2] or 0), 2),
+                'Procurement': round(float(cost_totals_row[3] or 0), 2),
+                'Other': round(float(cost_totals_row[4] or 0), 2)
+            }
+
+            # Ledger verification: use invoices + settlements
+            # Verified = invoice has a settlement with status 'settled'
+            # Pending = invoice status pending
+            # Disputed = disputes table
+            # Failed = invoice status failed/rejected
+            verification_rows = conn.execute(text("""
+                SELECT
+                    CASE
+                        WHEN i.status IN ('settled', 'paid', 'SETTLED', 'PAID') THEN 'Verified'
+                        WHEN i.status IN ('pending', 'PENDING') THEN 'Pending'
+                        WHEN i.status IN ('disputed', 'DISPUTED') THEN 'Disputed'
+                        WHEN i.status IN ('failed', 'rejected', 'FAILED', 'REJECTED') THEN 'Failed'
+                        ELSE 'Pending'
+                    END as v_status,
+                    COUNT(*) as count,
+                    SUM(i.amount) as total_amount
+                FROM invoices i
+                GROUP BY v_status
+            """)).fetchall()
+            verification_summary = [{
+                'status': r[0], 'count': int(r[1] or 0), 'amount': round(float(r[2] or 0), 2)
+            } for r in verification_rows]
+
+            # If no invoices, use financial_ledger transaction_types as proxy
+            if not verification_summary:
+                txn_rows = conn.execute(text("""
+                    SELECT transaction_type, COUNT(*) as count, SUM(base_amount_inr) as total
+                    FROM financial_ledger
+                    GROUP BY transaction_type
+                    ORDER BY count DESC
+                    LIMIT 10
+                """)).fetchall()
+                # Map transaction types to verification statuses
+                status_map = {'settled': 'Verified', 'sale': 'Verified', 'SALE': 'Verified',
+                              'pending': 'Pending', 'PENDING': 'Pending',
+                              'dispute': 'Disputed', 'failed': 'Failed'}
+                for r in txn_rows:
+                    v_status = status_map.get(r[0], 'Pending')
+                    verification_summary.append({
+                        'status': v_status, 'count': int(r[1] or 0), 'amount': round(float(r[2] or 0), 2)
+                    })
+
+            # Verification trend by month
+            verif_trend_rows = conn.execute(text("""
+                SELECT
+                    strftime('%Y-%m', issued_at) as month,
+                    SUM(CASE WHEN status IN ('settled', 'paid') THEN 1 ELSE 0 END) as verified,
+                    SUM(CASE WHEN status IN ('pending') THEN 1 ELSE 0 END) as pending,
+                    SUM(CASE WHEN status IN ('disputed') THEN 1 ELSE 0 END) as disputed,
+                    SUM(CASE WHEN status IN ('failed', 'rejected') THEN 1 ELSE 0 END) as failed
+                FROM invoices
+                GROUP BY month
+                ORDER BY month ASC
+                LIMIT 12
+            """)).fetchall()
+            verification_trend = [{
+                'month': r[0],
+                'Verified': int(r[1] or 0), 'Pending': int(r[2] or 0),
+                'Disputed': int(r[3] or 0), 'Failed': int(r[4] or 0)
+            } for r in verif_trend_rows if r[0]]
+
+            # Verification by entity
+            verif_entity_rows = conn.execute(text("""
+                SELECT
+                    fl.entity_type,
+                    COUNT(*) as total_txns,
+                    SUM(CASE WHEN i.status IN ('settled','paid') THEN 1 ELSE 0 END) as verified
+                FROM financial_ledger fl
+                LEFT JOIN invoices i ON fl.entity_id = i.order_id
+                GROUP BY fl.entity_type
+                ORDER BY total_txns DESC
+                LIMIT 10
+            """)).fetchall()
+            verification_by_entity = [{
+                'entity': r[0] or 'Unknown',
+                'total': int(r[1] or 0),
+                'verified': int(r[2] or 0)
+            } for r in verif_entity_rows]
+
+            # Waterfall data from rev_cost
+            waterfall = []
+            if rev_cost:
+                total_rev = sum(m['revenue'] for m in rev_cost)
+                total_cost = sum(m['cost'] for m in rev_cost)
+                total_profit = total_rev - total_cost
+                waterfall = [
+                    {'name': 'Revenue', 'value': round(total_rev, 2), 'type': 'revenue'},
+                    {'name': 'Total Costs', 'value': round(-total_cost, 2), 'type': 'cost'},
+                    {'name': 'Net Profit', 'value': round(total_profit, 2), 'type': 'profit' if total_profit >= 0 else 'negative'}
+                ]
+
+            # KPIs
+            total_rev_all = sum(m['revenue'] for m in rev_cost)
+            total_cost_all = sum(m['cost'] for m in rev_cost)
+            total_profit_all = total_rev_all - total_cost_all
+            avg_margin = round((total_profit_all / total_rev_all * 100) if total_rev_all > 0 else 0, 1)
+
+            return {
+                'kpis': {
+                    'total_revenue': round(total_rev_all, 2),
+                    'total_cost': round(total_cost_all, 2),
+                    'total_profit': round(total_profit_all, 2),
+                    'avg_margin': avg_margin
+                },
+                'revenue_cost_trend': rev_cost,
+                'waterfall': waterfall,
+                'cost_breakdown_monthly': cost_breakdown,
+                'cost_totals': cost_totals,
+                'verification_summary': verification_summary,
+                'verification_trend': verification_trend,
+                'verification_by_entity': verification_by_entity
+            }
+    except SQLAlchemyError as exc:
+        raise DatabaseError('Failed to get financial analytics') from exc
+
+def get_mfg_dashboard_analytics(date_from=None, date_to=None, sku_filter=None):
+    """Dashboard: production output trend, orders by status, completion donut, KPIs."""
+    try:
+        with _engine().connect() as conn:
+            dc = f"AND created_at >= '{date_from}'" if date_from else ""
+            dc += f" AND created_at <= '{date_to}'" if date_to else ""
+            sc = f"AND sku = '{sku_filter}'" if sku_filter else ""
+
+            # KPIs
+            kpi = conn.execute(text(f"""
+                SELECT COUNT(*) as total,
+                    SUM(CASE WHEN status='STARTED' OR status='CREATED' THEN 1 ELSE 0 END) as active,
+                    SUM(CASE WHEN status='COMPLETED' THEN 1 ELSE 0 END) as completed,
+                    SUM(quantity) as total_qty,
+                    SUM(CASE WHEN status='COMPLETED' THEN quantity ELSE 0 END) as completed_qty
+                FROM production_orders WHERE 1=1 {dc} {sc}
+            """)).fetchone()
+
+            # Production output trend by day
+            trend = conn.execute(text(f"""
+                SELECT strftime('%Y-%m-%d', created_at) as day,
+                    SUM(CASE WHEN status IN ('STARTED','COMPLETED') THEN quantity ELSE 0 END) as started_qty,
+                    SUM(CASE WHEN status='COMPLETED' THEN quantity ELSE 0 END) as completed_qty
+                FROM production_orders WHERE 1=1 {dc} {sc}
+                GROUP BY day ORDER BY day ASC LIMIT 30
+            """)).fetchall()
+
+            # Orders by status
+            by_status = conn.execute(text(f"""
+                SELECT status, COUNT(*) as count, SUM(quantity) as total_qty
+                FROM production_orders WHERE 1=1 {dc} {sc}
+                GROUP BY status ORDER BY count DESC
+            """)).fetchall()
+
+            total = int(kpi[0] or 0)
+            completed = int(kpi[2] or 0)
+            completion_rate = round((completed / total * 100) if total > 0 else 0, 1)
+
+            return {
+                'kpis': {'total_orders': total, 'active_orders': int(kpi[1] or 0),
+                         'completed_orders': completed, 'total_qty': int(kpi[3] or 0),
+                         'completed_qty': int(kpi[4] or 0), 'completion_rate': completion_rate},
+                'output_trend': [{'day': r[0], 'started_qty': int(r[1] or 0), 'completed_qty': int(r[2] or 0)} for r in trend if r[0]],
+                'by_status': [{'status': r[0], 'count': int(r[1] or 0), 'total_qty': int(r[2] or 0)} for r in by_status],
+                'completion_rate': completion_rate
+            }
+    except SQLAlchemyError as exc:
+        raise DatabaseError('mfg dashboard analytics failed') from exc
+
+
+def get_mfg_production_analytics(date_from=None, date_to=None, sku_filter=None, status_filter=None):
+    """Production: gantt data, status+QA stacked, quantity trend."""
+    try:
+        with _engine().connect() as conn:
+            dc = f"AND created_at >= '{date_from}'" if date_from else ""
+            dc += f" AND created_at <= '{date_to}'" if date_to else ""
+            sc = f"AND sku = '{sku_filter}'" if sku_filter else ""
+            stc = f"AND status = '{status_filter}'" if status_filter else ""
+
+            # Gantt/timeline: orders with dates
+            gantt = conn.execute(text(f"""
+                SELECT order_id, sku, quantity, status, qa_status,
+                    start_date, end_date, created_at
+                FROM production_orders WHERE 1=1 {dc} {sc} {stc}
+                ORDER BY created_at DESC LIMIT 50
+            """)).fetchall()
+
+            # Status x QA stacked
+            stacked = conn.execute(text(f"""
+                SELECT status, qa_status, COUNT(*) as count, SUM(quantity) as qty
+                FROM production_orders WHERE 1=1 {dc} {sc}
+                GROUP BY status, qa_status ORDER BY status, qa_status
+            """)).fetchall()
+
+            # Quantity trend
+            qty_trend = conn.execute(text(f"""
+                SELECT strftime('%Y-%m-%d', created_at) as day,
+                    SUM(CASE WHEN status='STARTED' THEN quantity ELSE 0 END) as started,
+                    SUM(CASE WHEN status='COMPLETED' THEN quantity ELSE 0 END) as completed
+                FROM production_orders WHERE 1=1 {dc} {sc}
+                GROUP BY day ORDER BY day ASC LIMIT 30
+            """)).fetchall()
+
+            gantt_data = []
+            for r in gantt:
+                gantt_data.append({
+                    'order_id': r[0], 'sku': r[1], 'quantity': int(r[2] or 0),
+                    'status': r[3], 'qa_status': r[4],
+                    'start_date': str(r[5]) if r[5] else str(r[7]),
+                    'end_date': str(r[6]) if r[6] else None,
+                    'created_at': str(r[7])
+                })
+
+            # Pivot stacked for chart
+            stacked_pivot = {}
+            for r in stacked:
+                st = r[0]
+                if st not in stacked_pivot:
+                    stacked_pivot[st] = {'status': st, 'PENDING': 0, 'PASSED': 0, 'FAILED': 0, 'total_qty': 0}
+                stacked_pivot[st][r[1]] = int(r[2] or 0)
+                stacked_pivot[st]['total_qty'] += int(r[3] or 0)
+
+            return {
+                'gantt_data': gantt_data,
+                'status_qa_stacked': list(stacked_pivot.values()),
+                'qty_trend': [{'day': r[0], 'started': int(r[1] or 0), 'completed': int(r[2] or 0)} for r in qty_trend if r[0]]
+            }
+    except SQLAlchemyError as exc:
+        raise DatabaseError('mfg production analytics failed') from exc
+
+
+def get_mfg_forecast_analytics(date_from=None, date_to=None, sku_filter=None):
+    """AI Forecast: demand from orders (actual only - no fake forecast). Demand by SKU, trend."""
+    try:
+        with _engine().connect() as conn:
+            dc = f"AND created_at >= '{date_from}'" if date_from else ""
+            dc += f" AND created_at <= '{date_to}'" if date_to else ""
+            sc = f"AND product_sku = '{sku_filter}'" if sku_filter else ""
+
+            # Demand trend by day
+            trend = conn.execute(text(f"""
+                SELECT strftime('%Y-%m-%d', created_at) as day,
+                    SUM(quantity) as demand_qty, COUNT(*) as order_count
+                FROM orders WHERE 1=1 {dc} {sc}
+                GROUP BY day ORDER BY day ASC LIMIT 30
+            """)).fetchall()
+
+            # Demand by SKU
+            by_sku = conn.execute(text(f"""
+                SELECT product_sku, SUM(quantity) as demand_qty, COUNT(*) as order_count
+                FROM orders WHERE 1=1 {dc}
+                GROUP BY product_sku ORDER BY demand_qty DESC LIMIT 20
+            """)).fetchall()
+
+            # Historical trend (last 12 weeks aggregated)
+            hist = conn.execute(text(f"""
+                SELECT strftime('%Y-%W', created_at) as week,
+                    SUM(quantity) as demand_qty
+                FROM orders WHERE 1=1 {sc}
+                GROUP BY week ORDER BY week ASC LIMIT 24
+            """)).fetchall()
+
+            kpi_row = conn.execute(text(f"""
+                SELECT COUNT(*) as orders, SUM(quantity) as total_demand,
+                    COUNT(DISTINCT product_sku) as unique_skus
+                FROM orders WHERE 1=1 {dc} {sc}
+            """)).fetchone()
+
+            return {
+                'kpis': {'total_orders': int(kpi_row[0] or 0), 'total_demand': int(kpi_row[1] or 0), 'unique_skus': int(kpi_row[2] or 0)},
+                'demand_trend': [{'day': r[0], 'demand_qty': int(r[1] or 0), 'order_count': int(r[2] or 0)} for r in trend if r[0]],
+                'demand_by_sku': [{'sku': r[0], 'demand_qty': int(r[1] or 0), 'order_count': int(r[2] or 0)} for r in by_sku if r[0]],
+                'historical_trend': [{'week': r[0], 'demand_qty': int(r[1] or 0)} for r in hist if r[0]]
+            }
+    except SQLAlchemyError as exc:
+        raise DatabaseError('mfg forecast analytics failed') from exc
+
+
+def get_mfg_materials_analytics(sku_filter=None):
+    """Materials: stacked stock position, stock movements, heatmap risk."""
+    try:
+        with _engine().connect() as conn:
+            sc = f"WHERE sku = '{sku_filter}'" if sku_filter else ""
+
+            # Stock position per SKU
+            stock = conn.execute(text(f"""
+                SELECT sku, name, available_stock, reserved_stock, in_transit,
+                    reorder_point, quantity, price
+                FROM products {sc}
+                ORDER BY available_stock ASC LIMIT 30
+            """)).fetchall()
+
+            # Stock movements history (last 30)
+            movements = conn.execute(text("""
+                SELECT strftime('%Y-%m-%d', created_at) as day, sku,
+                    SUM(CASE WHEN movement_type IN ('IN','RECEIPT','RESTOCK') THEN quantity ELSE 0 END) as stock_in,
+                    SUM(CASE WHEN movement_type IN ('OUT','SALE','DISPATCH') THEN quantity ELSE 0 END) as stock_out
+                FROM stock_movements
+                GROUP BY day, sku ORDER BY day ASC LIMIT 200
+            """)).fetchall()
+
+            items = []
+            for r in stock:
+                avail = int(r[2] or 0)
+                reorder = int(r[5] or 0)
+                risk = 'Critical' if avail <= 0 else 'At Risk' if avail <= reorder else 'Healthy'
+                items.append({
+                    'sku': r[0], 'name': r[1], 'available': avail,
+                    'reserved': int(r[3] or 0), 'in_transit': int(r[4] or 0),
+                    'reorder_point': reorder, 'total_qty': int(r[6] or 0),
+                    'price': float(r[7] or 0), 'risk': risk
+                })
+
+            # If no stock movements, fall back to current stock vs reorder comparison
+            mv_data = [{'day': r[0], 'sku': r[1], 'stock_in': int(r[2] or 0), 'stock_out': int(r[3] or 0)} for r in movements if r[0]]
+            has_movements = len(mv_data) > 0
+
+            return {
+                'kpis': {
+                    'total_skus': len(items),
+                    'at_risk': sum(1 for i in items if i['risk'] in ('At Risk', 'Critical')),
+                    'critical': sum(1 for i in items if i['risk'] == 'Critical'),
+                    'total_value': round(sum(i['available'] * i['price'] for i in items), 2)
+                },
+                'stock_items': items,
+                'stock_movements': mv_data,
+                'has_movements': has_movements
+            }
+    except SQLAlchemyError as exc:
+        raise DatabaseError('mfg materials analytics failed') from exc
+
+
+def get_mfg_quality_analytics(date_from=None, date_to=None, sku_filter=None):
+    """QA: pass/fail trend, defect pareto, result donut."""
+    try:
+        with _engine().connect() as conn:
+            dc = f"AND qi.created_at >= '{date_from}'" if date_from else ""
+            dc += f" AND qi.created_at <= '{date_to}'" if date_to else ""
+            sc = f"AND po.sku = '{sku_filter}'" if sku_filter else ""
+
+            # Pass/fail trend
+            trend = conn.execute(text(f"""
+                SELECT strftime('%Y-%m-%d', qi.created_at) as day,
+                    SUM(qi.quantity_passed) as passed,
+                    SUM(qi.quantity_failed) as failed,
+                    SUM(qi.quantity_inspected) as inspected
+                FROM quality_inspections qi
+                JOIN production_orders po ON qi.production_order_id = po.order_id
+                WHERE 1=1 {dc} {sc}
+                GROUP BY day ORDER BY day ASC LIMIT 30
+            """)).fetchall()
+
+            # Defect pareto
+            pareto = conn.execute(text(f"""
+                SELECT qi.defect_type, SUM(qi.quantity_failed) as defect_count
+                FROM quality_inspections qi
+                JOIN production_orders po ON qi.production_order_id = po.order_id
+                WHERE qi.defect_type IS NOT NULL AND qi.quantity_failed > 0 {dc.replace('AND qi.', 'AND qi.')} {sc}
+                GROUP BY qi.defect_type ORDER BY defect_count DESC LIMIT 15
+            """)).fetchall()
+
+            # Overall totals
+            totals = conn.execute(text(f"""
+                SELECT SUM(qi.quantity_passed) as total_passed,
+                    SUM(qi.quantity_failed) as total_failed,
+                    SUM(qi.quantity_inspected) as total_inspected,
+                    COUNT(*) as total_inspections
+                FROM quality_inspections qi
+                JOIN production_orders po ON qi.production_order_id = po.order_id
+                WHERE 1=1 {dc} {sc}
+            """)).fetchone()
+
+            tp = int(totals[0] or 0)
+            tf = int(totals[1] or 0)
+            ti = int(totals[2] or 0)
+            pass_rate = round((tp / (tp + tf) * 100) if (tp + tf) > 0 else 0, 1)
+            defect_rate = round((tf / ti * 100) if ti > 0 else 0, 1)
+
+            # Build pareto with cumulative %
+            pareto_data = []
+            total_defects = sum(int(r[1] or 0) for r in pareto)
+            cum = 0
+            for r in pareto:
+                cnt = int(r[1] or 0)
+                cum += cnt
+                pareto_data.append({
+                    'defect_type': r[0] or 'Unknown',
+                    'count': cnt,
+                    'cumulative_pct': round((cum / total_defects * 100) if total_defects > 0 else 0, 1)
+                })
+
+            return {
+                'kpis': {'total_passed': tp, 'total_failed': tf, 'total_inspected': ti,
+                         'total_inspections': int(totals[3] or 0),
+                         'pass_rate': pass_rate, 'defect_rate': defect_rate},
+                'pass_fail_trend': [{'day': r[0], 'passed': int(r[1] or 0), 'failed': int(r[2] or 0), 'inspected': int(r[3] or 0)} for r in trend if r[0]],
+                'defect_pareto': pareto_data,
+                'result_donut': [{'status': 'Passed', 'count': tp}, {'status': 'Failed', 'count': tf}]
+            }
+    except SQLAlchemyError as exc:
+        raise DatabaseError('mfg quality analytics failed') from exc
+
+
+def get_mfg_ledger_analytics(date_from=None, date_to=None):
+    """Financial Ledger: dispatch value, waybill composition, trend. Uses waybill_documents + production_orders."""
+    try:
+        with _engine().connect() as conn:
+            dc = f"AND wd.created_at >= '{date_from}'" if date_from else ""
+            dc += f" AND wd.created_at <= '{date_to}'" if date_to else ""
+
+            # Waterfall: value of completed vs dispatched orders (price * quantity)
+            value_rows = conn.execute(text(f"""
+                SELECT po.status,
+                    SUM(po.quantity * COALESCE(p.price, 0)) as value,
+                    COUNT(*) as count
+                FROM production_orders po
+                LEFT JOIN products p ON po.sku = p.sku
+                GROUP BY po.status ORDER BY po.status
+            """)).fetchall()
+
+            waterfall = [{'name': r[0], 'value': round(float(r[1] or 0), 2), 'count': int(r[2] or 0)} for r in value_rows]
+
+            # Waybill status composition
+            wb_status = conn.execute(text(f"""
+                SELECT wd.status, COUNT(*) as count
+                FROM waybill_documents wd WHERE 1=1 {dc}
+                GROUP BY wd.status ORDER BY count DESC
+            """)).fetchall()
+
+            # Dispatch trend by day
+            dispatch_trend = conn.execute(text(f"""
+                SELECT strftime('%Y-%m-%d', wd.created_at) as day, COUNT(*) as dispatches
+                FROM waybill_documents wd WHERE 1=1 {dc}
+                GROUP BY day ORDER BY day ASC LIMIT 30
+            """)).fetchall()
+
+            kpi = conn.execute(text("""
+                SELECT COUNT(*) as total_waybills,
+                    SUM(CASE WHEN status='DELIVERED' THEN 1 ELSE 0 END) as delivered
+                FROM waybill_documents
+            """)).fetchone()
+
+            return {
+                'kpis': {'total_waybills': int(kpi[0] or 0), 'delivered': int(kpi[1] or 0)},
+                'waterfall': waterfall,
+                'waybill_composition': [{'status': r[0], 'count': int(r[1] or 0)} for r in wb_status],
+                'dispatch_trend': [{'day': r[0], 'dispatches': int(r[1] or 0)} for r in dispatch_trend if r[0]]
+            }
+    except SQLAlchemyError as exc:
+        raise DatabaseError('mfg ledger analytics failed') from exc
+
+
+def get_mfg_alerts_analytics(severity_filter=None, date_from=None, date_to=None):
+    """Alert Center: by severity, trend, status donut. Uses issues table."""
+    try:
+        with _engine().connect() as conn:
+            dc = f"AND created_at >= '{date_from}'" if date_from else ""
+            dc += f" AND created_at <= '{date_to}'" if date_to else ""
+            sev = f"AND severity = '{severity_filter}'" if severity_filter else ""
+
+            by_severity = conn.execute(text(f"""
+                SELECT severity, COUNT(*) as count
+                FROM issues WHERE 1=1 {dc} {sev}
+                GROUP BY severity ORDER BY CASE severity WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 ELSE 4 END
+            """)).fetchall()
+
+            trend = conn.execute(text(f"""
+                SELECT strftime('%Y-%m-%d', created_at) as day, COUNT(*) as count
+                FROM issues WHERE 1=1 {dc} {sev}
+                GROUP BY day ORDER BY day ASC LIMIT 30
+            """)).fetchall()
+
+            by_status = conn.execute(text(f"""
+                SELECT status, COUNT(*) as count
+                FROM issues WHERE 1=1 {dc} {sev}
+                GROUP BY status ORDER BY count DESC
+            """)).fetchall()
+
+            kpi = conn.execute(text(f"""
+                SELECT COUNT(*) as total,
+                    SUM(CASE WHEN severity='CRITICAL' THEN 1 ELSE 0 END) as critical,
+                    SUM(CASE WHEN status='OPEN' THEN 1 ELSE 0 END) as open_count
+                FROM issues WHERE 1=1 {dc}
+            """)).fetchone()
+
+            return {
+                'kpis': {'total': int(kpi[0] or 0), 'critical': int(kpi[1] or 0), 'open': int(kpi[2] or 0)},
+                'by_severity': [{'severity': r[0], 'count': int(r[1] or 0)} for r in by_severity],
+                'trend': [{'day': r[0], 'count': int(r[1] or 0)} for r in trend if r[0]],
+                'by_status': [{'status': r[0], 'count': int(r[1] or 0)} for r in by_status]
+            }
+    except SQLAlchemyError as exc:
+        raise DatabaseError('mfg alerts analytics failed') from exc
+
+
+def get_mfg_disputes_analytics(status_filter=None, date_from=None, date_to=None):
+    """Dispute Center: lifecycle funnel, by type, trend. Uses disputes table."""
+    try:
+        with _engine().connect() as conn:
+            dc = f"AND created_at >= '{date_from}'" if date_from else ""
+            dc += f" AND created_at <= '{date_to}'" if date_to else ""
+            stc = f"AND status = '{status_filter}'" if status_filter else ""
+
+            # Lifecycle funnel (status counts in order)
+            funnel_order = "CASE status WHEN 'OPEN' THEN 1 WHEN 'UNDER_REVIEW' THEN 2 WHEN 'RESOLVED' THEN 3 WHEN 'CLOSED' THEN 4 ELSE 5 END"
+            funnel = conn.execute(text(f"""
+                SELECT status, COUNT(*) as count
+                FROM disputes WHERE 1=1 {dc}
+                GROUP BY status ORDER BY {funnel_order}
+            """)).fetchall()
+
+            # By mismatch_type (dispute type)
+            by_type = conn.execute(text(f"""
+                SELECT mismatch_type, COUNT(*) as count
+                FROM disputes WHERE 1=1 {dc} {stc}
+                GROUP BY mismatch_type ORDER BY count DESC LIMIT 10
+            """)).fetchall()
+
+            # Trend by day
+            trend = conn.execute(text(f"""
+                SELECT strftime('%Y-%m-%d', created_at) as day, COUNT(*) as count
+                FROM disputes WHERE 1=1 {dc} {stc}
+                GROUP BY day ORDER BY day ASC LIMIT 30
+            """)).fetchall()
+
+            kpi = conn.execute(text(f"""
+                SELECT COUNT(*) as total,
+                    SUM(CASE WHEN status='OPEN' THEN 1 ELSE 0 END) as open_count,
+                    SUM(CASE WHEN status='RESOLVED' OR status='CLOSED' THEN 1 ELSE 0 END) as resolved
+                FROM disputes WHERE 1=1 {dc}
+            """)).fetchone()
+
+            return {
+                'kpis': {'total': int(kpi[0] or 0), 'open': int(kpi[1] or 0), 'resolved': int(kpi[2] or 0)},
+                'lifecycle_funnel': [{'stage': r[0], 'count': int(r[1] or 0)} for r in funnel],
+                'by_type': [{'type': r[0] or 'Unknown', 'count': int(r[1] or 0)} for r in by_type],
+                'trend': [{'day': r[0], 'count': int(r[1] or 0)} for r in trend if r[0]]
+            }
+    except SQLAlchemyError as exc:
+        raise DatabaseError('mfg disputes analytics failed') from exc
+
+
+def get_mfg_batch_analytics(date_from=None, date_to=None):
+    """Batch Traceability: sankey/flow (batch journey), status donut, volume trend."""
+    try:
+        with _engine().connect() as conn:
+            dc = f"AND po.created_at >= '{date_from}'" if date_from else ""
+            dc += f" AND po.created_at <= '{date_to}'" if date_to else ""
+
+            # Batch journey: production -> QA -> dispatch
+            # Flow: count of batches per transition
+            flow_data = conn.execute(text(f"""
+                SELECT po.status as prod_status,
+                    po.qa_status,
+                    COUNT(*) as batch_count,
+                    SUM(po.quantity) as total_qty
+                FROM production_orders po
+                WHERE 1=1 {dc}
+                GROUP BY po.status, po.qa_status
+                ORDER BY prod_status, qa_status
+            """)).fetchall()
+
+            # Batch status donut
+            batch_status = conn.execute(text(f"""
+                SELECT status, COUNT(*) as count, SUM(quantity) as qty
+                FROM production_orders WHERE 1=1 {dc.replace('po.', '')}
+                GROUP BY status
+            """)).fetchall()
+
+            # Volume trend
+            vol_trend = conn.execute(text(f"""
+                SELECT strftime('%Y-%m-%d', po.created_at) as day,
+                    COUNT(*) as batch_count, SUM(po.quantity) as qty
+                FROM production_orders po WHERE 1=1 {dc}
+                GROUP BY day ORDER BY day ASC LIMIT 30
+            """)).fetchall()
+
+            # Waybill flow (dispatch tracking)
+            waybill_flow = conn.execute(text("""
+                SELECT status, COUNT(*) as count
+                FROM waybill_documents GROUP BY status ORDER BY count DESC
+            """)).fetchall()
+
+            # Build sankey nodes and links
+            # Nodes: Production statuses -> QA statuses -> Dispatch statuses
+            sankey_links = []
+            for r in flow_data:
+                prod_s = f"Production: {r[0]}"
+                qa_s = f"QA: {r[1]}"
+                cnt = int(r[2] or 0)
+                qty = int(r[3] or 0)
+                if cnt > 0:
+                    sankey_links.append({'source': prod_s, 'target': qa_s, 'value': cnt, 'qty': qty})
+
+            for r in waybill_flow:
+                sankey_links.append({'source': 'QA: PASSED', 'target': f"Dispatch: {r[0]}", 'value': int(r[1] or 0), 'qty': 0})
+
+            kpi = conn.execute(text("""
+                SELECT COUNT(*) as total_batches, COUNT(DISTINCT batch_id) as unique_batches,
+                    SUM(quantity) as total_qty
+                FROM production_orders
+            """)).fetchone()
+
+            return {
+                'kpis': {'total_batches': int(kpi[0] or 0), 'unique_batches': int(kpi[1] or 0), 'total_qty': int(kpi[2] or 0)},
+                'sankey_links': sankey_links,
+                'batch_status': [{'status': r[0], 'count': int(r[1] or 0), 'qty': int(r[2] or 0)} for r in batch_status],
+                'volume_trend': [{'day': r[0], 'batch_count': int(r[1] or 0), 'qty': int(r[2] or 0)} for r in vol_trend if r[0]]
+            }
+    except SQLAlchemyError as exc:
+        raise DatabaseError('mfg batch analytics failed') from exc
 
 
 def record_ledger_entry(

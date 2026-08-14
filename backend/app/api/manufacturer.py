@@ -166,3 +166,79 @@ def get_suppliers():
             results.append(data)
             
         return APIResponse(success=True, data=results)
+
+@router.get("/analytics/dashboard", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer))])
+def mfg_analytics_dashboard(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    sku: Optional[str] = Query(None)
+):
+    from app.services.database_service import get_mfg_dashboard_analytics
+    return APIResponse(success=True, data=get_mfg_dashboard_analytics(date_from=date_from, date_to=date_to, sku_filter=sku))
+
+@router.get("/analytics/production", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer))])
+def mfg_analytics_production(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    sku: Optional[str] = Query(None),
+    status: Optional[str] = Query(None)
+):
+    from app.services.database_service import get_mfg_production_analytics
+    return APIResponse(success=True, data=get_mfg_production_analytics(date_from=date_from, date_to=date_to, sku_filter=sku, status_filter=status))
+
+@router.get("/analytics/forecast", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer))])
+def mfg_analytics_forecast(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    sku: Optional[str] = Query(None)
+):
+    from app.services.database_service import get_mfg_forecast_analytics
+    return APIResponse(success=True, data=get_mfg_forecast_analytics(date_from=date_from, date_to=date_to, sku_filter=sku))
+
+@router.get("/analytics/materials", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer))])
+def mfg_analytics_materials(sku: Optional[str] = Query(None)):
+    from app.services.database_service import get_mfg_materials_analytics
+    return APIResponse(success=True, data=get_mfg_materials_analytics(sku_filter=sku))
+
+@router.get("/analytics/quality", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer))])
+def mfg_analytics_quality(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    sku: Optional[str] = Query(None)
+):
+    from app.services.database_service import get_mfg_quality_analytics
+    return APIResponse(success=True, data=get_mfg_quality_analytics(date_from=date_from, date_to=date_to, sku_filter=sku))
+
+@router.get("/analytics/ledger", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer))])
+def mfg_analytics_ledger(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None)
+):
+    from app.services.database_service import get_mfg_ledger_analytics
+    return APIResponse(success=True, data=get_mfg_ledger_analytics(date_from=date_from, date_to=date_to))
+
+@router.get("/analytics/alerts", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer))])
+def mfg_analytics_alerts(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    severity: Optional[str] = Query(None)
+):
+    from app.services.database_service import get_mfg_alerts_analytics
+    return APIResponse(success=True, data=get_mfg_alerts_analytics(severity_filter=severity, date_from=date_from, date_to=date_to))
+
+@router.get("/analytics/disputes", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer))])
+def mfg_analytics_disputes(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    status: Optional[str] = Query(None)
+):
+    from app.services.database_service import get_mfg_disputes_analytics
+    return APIResponse(success=True, data=get_mfg_disputes_analytics(status_filter=status, date_from=date_from, date_to=date_to))
+
+@router.get("/analytics/batch", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer))])
+def mfg_analytics_batch(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None)
+):
+    from app.services.database_service import get_mfg_batch_analytics
+    return APIResponse(success=True, data=get_mfg_batch_analytics(date_from=date_from, date_to=date_to))

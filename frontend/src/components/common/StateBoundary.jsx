@@ -1,37 +1,61 @@
 import React from 'react';
 
 export function StateBoundary({ state, emptyMessage = 'No data available.', onRetry, children }) {
-    if (state.loading) {
-        return (
-            <div className="w-full h-full min-h-[200px] flex items-center justify-center bg-slate-800 rounded-lg animate-pulse">
-                <span className="text-slate-400">Loading data...</span>
-            </div>
-        );
-    }
+  const baseStyle = {
+    width: '100%',
+    minHeight: '200px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.75rem',
+    borderRadius: '8px',
+    padding: '2rem'
+  };
 
-    if (state.error) {
-        return (
-            <div className="w-full h-full min-h-[200px] flex flex-col items-center justify-center bg-slate-800 border border-red-500 rounded-lg p-4">
-                <span className="text-red-400 mb-2">Error loading data</span>
-                <span className="text-slate-300 text-sm mb-4">{state.error}</span>
-                {onRetry && (
-                    <button onClick={onRetry} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors">
-                        Retry
-                    </button>
-                )}
-            </div>
-        );
-    }
+  if (state.loading) {
+    return (
+      <div style={{ ...baseStyle, backgroundColor: 'var(--bg)' }}>
+        <div style={{
+          width: '32px', height: '32px', borderRadius: '50%',
+          border: '3px solid var(--border)', borderTopColor: 'var(--blue)',
+          animation: 'spin 0.8s linear infinite'
+        }} />
+        <span style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>Loading data…</span>
+      </div>
+    );
+  }
 
-    if (state.isEmpty) {
-        return (
-            <div className="w-full h-full min-h-[200px] flex flex-col items-center justify-center bg-slate-800 rounded-lg p-4">
-                <span className="text-slate-400 text-xl mb-2">??</span>
-                <span className="text-slate-400">{emptyMessage}</span>
-            </div>
-        );
-    }
+  if (state.error) {
+    return (
+      <div style={{ ...baseStyle, backgroundColor: 'var(--bg)', border: '1px solid var(--border)' }}>
+        <span style={{ fontSize: '1.5rem' }}>⚠</span>
+        <span style={{ color: 'var(--red)', fontWeight: 600 }}>Error loading data</span>
+        <span style={{ color: 'var(--muted)', fontSize: '0.8rem', textAlign: 'center' }}>{state.error}</span>
+        {onRetry && (
+          <button
+            onClick={onRetry}
+            style={{
+              padding: '0.4rem 1rem', borderRadius: '6px',
+              border: '1px solid var(--border)', background: 'var(--surface)',
+              color: 'var(--text)', cursor: 'pointer', fontWeight: 500, fontSize: '0.85rem'
+            }}
+          >
+            Retry
+          </button>
+        )}
+      </div>
+    );
+  }
 
-    // Success State
-    return <>{children}</>;
+  if (state.isEmpty) {
+    return (
+      <div style={{ ...baseStyle, backgroundColor: 'var(--bg)' }}>
+        <span style={{ fontSize: '1.5rem' }}>📊</span>
+        <span style={{ color: 'var(--muted)' }}>{emptyMessage}</span>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
 }

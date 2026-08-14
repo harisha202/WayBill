@@ -1,5 +1,23 @@
-import React from 'react';
+/**
+ * AdminFeatures.jsx
+ *
+ * Re-exports all Admin analytics tab components and preserves
+ * the existing non-analytics features (ActivityLog, AdminLedger wrapper,
+ * UserManagement, SettlementDashboard).
+ *
+ * Analytics tabs are now fully implemented in the analytics/ folder.
+ * This file acts as the single import facade so WaybillRouter.jsx
+ * does not need to change.
+ */
 
+// ─── NEW ANALYTICS TAB COMPONENTS ──────────────────────────────────────────────
+export { ControlTower } from './analytics/ControlTower';
+export { SupplyChainDepth } from './analytics/SupplyChainDepth';
+export { SupplierRiskTab as SupplierRisk } from './analytics/SupplierRiskTab';
+export { FinancialLedger as AdminLedger } from './analytics/FinancialLedger';
+
+// ─── PRESERVED: ACTIVITY LOG ────────────────────────────────────────────────────
+import React from 'react';
 import { SettlementsTable, SettlementLifecycle, SettlementDashboard } from './SettlementDashboard';
 import { useApi } from '../../api/hooks/useApi';
 import { StateBoundary } from '../common/StateBoundary';
@@ -9,57 +27,15 @@ const containerStyle = {
   color: 'var(--text)',
   padding: '2rem',
   minHeight: '100vh',
-  fontFamily: 'Inter, system-ui, sans-serif'
-};
-
-const gridStyle = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
-  gap: '1.5rem',
-  marginBottom: '2rem'
-};
-
-const kpiGridStyle = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-  gap: '1.5rem',
-  marginBottom: '2rem'
+  fontFamily: 'inherit'
 };
 
 const cardStyle = {
   backgroundColor: 'var(--surface)',
   borderRadius: '12px',
   padding: '1.5rem',
-  border: '1px solid #334155',
-  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-};
-
-const titleStyle = {
-  fontSize: '1.25rem',
-  fontWeight: '600',
-  marginBottom: '1rem',
-  display: 'flex',
-  alignItems: 'center',
-  color: 'var(--dashboard-heading)'
-};
-
-const iconStyle = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  background: 'var(--bg)',
-  width: '32px',
-  height: '32px',
-  borderRadius: '8px',
-  marginRight: '12px',
-  fontSize: '16px',
-  border: '1px solid #334155'
-};
-
-const chartContainerStyle = {
-  height: '300px',
-  width: '100%',
-  position: 'relative'
+  border: '1px solid var(--border)',
+  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
 };
 
 const tableStyle = {
@@ -69,85 +45,21 @@ const tableStyle = {
 };
 
 const thStyle = {
-  padding: '1rem',
+  padding: '0.75rem 1rem',
   color: 'var(--muted)',
   fontWeight: '600',
-  borderBottom: '1px solid #334155',
-  backgroundColor: 'rgba(0,0,0,0.2)'
+  borderBottom: '1px solid var(--border)',
+  backgroundColor: 'var(--bg)',
+  fontSize: '0.75rem',
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em'
 };
 
 const tdStyle = {
-  padding: '1rem',
-  borderBottom: '1px solid #334155'
+  padding: '0.75rem 1rem',
+  borderBottom: '1px solid var(--border)',
+  fontSize: '0.8125rem'
 };
-
-export function ControlTower() {
-  const statsApi = useApi('/admin/stats');
-  
-  const stats = statsApi.data || {};
-
-  return (
-    <div style={containerStyle}>
-      <header style={{ marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 0.5rem 0' }}>Control Tower</h1>
-        <p style={{ color: 'var(--muted)', margin: 0 }}>KPIs & Core Metrics Overview</p>
-      </header>
-
-      <StateBoundary state={statsApi} onRetry={statsApi.refetch}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
-          {[
-            { label: 'Active Orders', value: stats.active_orders || 0, icon: '📦', color: '#3b82f6' },
-            { label: 'Active Shipments', value: stats.active_shipments || 0, icon: '🚛', color: '#10b981' },
-            { label: 'In-Transit', value: stats.in_transit_shipments || 0, icon: '🚚', color: '#f59e0b' },
-            { label: 'Delayed Shipments', value: stats.delayed_shipments || 0, icon: '⚠️', color: '#ef4444' },
-            { label: 'Critical Risks', value: stats.critical_risks || 0, icon: '🔥', color: '#dc2626' },
-            { label: 'Manufacturers', value: stats.active_manufacturers || 0, icon: '🏭', color: '#6366f1' },
-            { label: 'Transporters', value: stats.active_transporters || 0, icon: '🚆', color: '#8b5cf6' },
-            { label: 'Dealers', value: stats.active_dealers || 0, icon: '🏪', color: '#ec4899' },
-            { label: 'Retail Shops', value: stats.active_retail_shops || 0, icon: '🛒', color: '#f43f5e' },
-            { label: 'Inventory Alerts', value: stats.inventory_alerts || 0, icon: '📉', color: '#f97316' },
-            { label: 'Pending Waybills', value: stats.pending_waybills || 0, icon: '📄', color: '#06b6d4' },
-            { label: 'Discrepancies', value: stats.pending_discrepancies || 0, icon: '❌', color: '#f43f5e' }
-          ].map((kpi, i) => (
-            <div key={i} style={{ ...cardStyle, display: 'flex', alignItems: 'center', borderLeft: `4px solid ${kpi.color}` }}>
-              <div style={{ fontSize: '2.5rem', marginRight: '1rem', color: kpi.color }}>{kpi.icon}</div>
-              <div>
-                <div style={{ color: 'var(--muted)', fontSize: '0.875rem', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '500' }}>{kpi.label}</div>
-                <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{kpi.value}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </StateBoundary>
-    </div>
-  );
-}
-
-export function SupplyChainDepth() {
-  return (
-    <div style={containerStyle}>
-      <header style={{ marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 0.5rem 0' }}>Supply Chain Depth</h1>
-        <p style={{ color: 'var(--muted)', margin: 0 }}>Network Topology and Infrastructure</p>
-      </header>
-
-    </div>
-  );
-}
-
-export function SupplierRisk() {
-  const supplierRiskApi = useApi('/manufacturer/analytics/supplier-risk');
-
-  return (
-    <div style={containerStyle}>
-      <header style={{ marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 0.5rem 0' }}>Supplier Risk</h1>
-        <p style={{ color: 'var(--muted)', margin: 0 }}>Global Risk Assessment and Trends</p>
-      </header>
-
-    </div>
-  );
-}
 
 export function ActivityLog() {
   const activityApi = useApi('/admin/activity-logs');
@@ -169,10 +81,14 @@ export function ActivityLog() {
   return (
     <div style={containerStyle}>
       <header style={{ marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 0.5rem 0' }}>Activity & Audit Log</h1>
-        <p style={{ color: 'var(--muted)', margin: 0 }}>System anomalies, user actions, and event tracking</p>
+        <h1 style={{ fontSize: '1.625rem', fontWeight: 700, margin: '0 0 0.25rem 0', color: 'var(--dashboard-heading)' }}>
+          Activity &amp; Audit Log
+        </h1>
+        <p style={{ color: 'var(--muted)', margin: 0, fontSize: '0.875rem' }}>
+          System anomalies, user actions, and event tracking
+        </p>
       </header>
-      
+
       <StateBoundary state={activityApi} onRetry={activityApi.refetch}>
         <div style={{ ...cardStyle, padding: 0, overflowX: 'auto' }}>
           <table style={tableStyle}>
@@ -196,17 +112,17 @@ export function ActivityLog() {
                 </tr>
               ) : (
                 logs.map((log) => (
-                  <tr key={log.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <tr key={log.id}>
                     <td style={tdStyle}>{new Date(log.timestamp).toLocaleString()}</td>
                     <td style={tdStyle}>{log.user_id || 'System'}</td>
                     <td style={tdStyle}>{log.role || '-'}</td>
                     <td style={tdStyle}>
-                      <span style={{ 
-                        padding: '0.25rem 0.5rem', 
-                        borderRadius: '0.25rem', 
-                        fontSize: '0.75rem', 
-                        fontWeight: 'bold',
-                        backgroundColor: '#e0e7ff',
+                      <span style={{
+                        padding: '0.2rem 0.5rem',
+                        borderRadius: '4px',
+                        fontSize: '0.7rem',
+                        fontWeight: 600,
+                        backgroundColor: 'rgba(79, 70, 229, 0.1)',
                         color: '#4f46e5'
                       }}>
                         {log.action}
@@ -219,7 +135,15 @@ export function ActivityLog() {
                       </pre>
                     </td>
                     <td style={tdStyle}>
-                      <button className="secondary-btn" style={{ fontSize: '0.8rem', backgroundColor: '#3b82f6', color: '#ffffff', border: 'none', padding: '0.4rem 0.6rem', borderRadius: '4px' }} onClick={() => openModal(log)}>View Details</button>
+                      <button
+                        style={{
+                          fontSize: '0.75rem', background: 'var(--blue)', color: '#fff',
+                          border: 'none', padding: '0.35rem 0.65rem', borderRadius: '6px', cursor: 'pointer'
+                        }}
+                        onClick={() => openModal(log)}
+                      >
+                        Details
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -230,62 +154,44 @@ export function ActivityLog() {
       </StateBoundary>
 
       {isModalOpen && selectedLog && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div className="card" style={{ width: '600px', maxWidth: '90vw', backgroundColor: '#ffffff', color: '#000000', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
-            <h3 style={{ marginTop: 0, color: '#000000', marginBottom: '1rem' }}>Audit Log Details</h3>
-            
-            <div style={{ flex: 1, overflowY: 'auto', fontSize: '0.9rem', lineHeight: '1.5' }}>
-              <p><strong>Timestamp:</strong> {new Date(selectedLog.timestamp).toLocaleString()}</p>
-              <p><strong>User:</strong> {selectedLog.user_id || 'System'} ({selectedLog.role || '-'})</p>
-              <p><strong>Action:</strong> {selectedLog.action}</p>
-              <p><strong>Entity:</strong> {selectedLog.entity_type} {selectedLog.entity_id ? `(#${selectedLog.entity_id})` : ''}</p>
-              
-              <div style={{ marginTop: '1.5rem' }}>
-                <p style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>JSON Payload:</p>
-                <pre style={{ 
-                  backgroundColor: '#f1f5f9', 
-                  padding: '1rem', 
-                  borderRadius: '6px', 
-                  overflowX: 'auto',
-                  border: '1px solid #e2e8f0',
-                  color: '#334155'
-                }}>
-                  {JSON.stringify(selectedLog.details, null, 2)}
-                </pre>
-              </div>
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 1000
+        }}>
+          <div style={{
+            ...cardStyle, width: '600px', maxWidth: '90vw',
+            maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflowY: 'auto'
+          }}>
+            <h3 style={{ marginTop: 0, marginBottom: '1rem', color: 'var(--dashboard-heading)' }}>Audit Log Details</h3>
+            <p style={{ margin: '0 0 0.5rem', fontSize: '0.875rem' }}><strong>Timestamp:</strong> {new Date(selectedLog.timestamp).toLocaleString()}</p>
+            <p style={{ margin: '0 0 0.5rem', fontSize: '0.875rem' }}><strong>User:</strong> {selectedLog.user_id || 'System'} ({selectedLog.role || '-'})</p>
+            <p style={{ margin: '0 0 0.5rem', fontSize: '0.875rem' }}><strong>Action:</strong> {selectedLog.action}</p>
+            <p style={{ margin: '0 0 0.5rem', fontSize: '0.875rem' }}><strong>Entity:</strong> {selectedLog.entity_type} {selectedLog.entity_id ? `(#${selectedLog.entity_id})` : ''}</p>
+            <div style={{ marginTop: '1rem' }}>
+              <p style={{ fontWeight: 600, marginBottom: '0.5rem', fontSize: '0.875rem' }}>JSON Payload:</p>
+              <pre style={{
+                backgroundColor: 'var(--bg)', padding: '1rem', borderRadius: '6px',
+                overflowX: 'auto', border: '1px solid var(--border)',
+                color: 'var(--text)', fontSize: '0.8rem', margin: 0
+              }}>
+                {JSON.stringify(selectedLog.details, null, 2)}
+              </pre>
             </div>
-            
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid #e2e8f0' }}>
-              <button className="primary-btn" onClick={() => setIsModalOpen(false)}>Close</button>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+              <button
+                style={{
+                  padding: '0.5rem 1.25rem', borderRadius: '8px', border: 'none',
+                  background: 'var(--blue)', color: 'white', cursor: 'pointer', fontWeight: 600
+                }}
+                onClick={() => setIsModalOpen(false)}
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-export function AdminLedger() {
-  const profitTrendApi = useApi('/admin/analytics/profit-trend');
-  const currencyApi = useApi('/blockchain/analytics/currency-exposure');
-
-  return (
-    <div style={containerStyle}>
-      <header style={{ marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 0.5rem 0' }}>Admin Ledger</h1>
-        <p style={{ color: 'var(--muted)', margin: 0 }}>Financial Overview & Accounting (in ?)</p>
-      </header>
-      
-      <div style={gridStyle}>
-
-        
-        <div style={{ gridColumn: '1 / -1' }}>
-          <SettlementLifecycle />
-        </div>
-        <div style={{ gridColumn: '1 / -1' }}>
-          <SettlementsTable />
-        </div>
-      </div>
     </div>
   );
 }
