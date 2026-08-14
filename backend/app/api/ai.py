@@ -25,7 +25,7 @@ class ChatRequest(BaseModel):
     context_data: Optional[dict] = None
     allow_data_tools: bool = False
 
-@router.post("/chat/stream")
+@router.post("/chat/stream", dependencies=[Depends(require_roles(UserRole.admin))])
 async def chat_stream(payload: dict):
     question = payload.get("question", "")
     context_data = payload.get("context_data", {})
@@ -36,6 +36,33 @@ async def chat_stream(payload: dict):
     
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
+
+from datetime import datetime
+from fastapi import UploadFile, File, HTTPException
+from app.services.database_service import get_rag_quota, increment_rag_quota
+
+@router.get("/rag-quota", dependencies=[Depends(require_roles(UserRole.admin))])
+async def get_quota():
+    month_str = datetime.utcnow().strftime("%Y-%m")
+    return get_rag_quota(month_str)
+
+@router.post("/document/upload", dependencies=[Depends(require_roles(UserRole.admin))])
+async def upload_document(file: UploadFile = File(...)):
+    # Mocking document parsing
+    # In a real app we'd use PyPDF2 or pandas
+    
+    # Calculate mock pages based on file size, just for demonstration
+    file.file.seek(0, 2)
+    size = file.file.tell()
+    pages_to_add = max(1, size // 10000) # roughly 10kb per page
+    if pages_to_add > 50: pages_to_add = 50 # cap for demo
+    
+    month_str = datetime.utcnow().strftime("%Y-%m")
+    try:
+        quota = increment_rag_quota(month_str, pages_to_add)
+        return {"status": "success", "message": f"Processed {pages_to_add} pages from {file.filename}", "quota": quota}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/supplier-risk")
 async def get_supplier_risk(payload: dict):

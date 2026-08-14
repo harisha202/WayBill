@@ -180,4 +180,36 @@ class WaybillService:
             "to_custodian": new_custodian
         }
 
+    @staticmethod
+    def verify_waybill(waybill_id: str, seal_hash: str) -> dict:
+        with _engine().begin() as conn:
+            row = conn.execute(
+                select(waybill_documents_table).where(waybill_documents_table.c.waybill_id == waybill_id)
+            ).first()
+            
+            if not row:
+                return {
+                    "is_valid": False,
+                    "current_status": "NOT_FOUND",
+                    "custody": "Unknown",
+                    "reason": "Waybill ID does not exist"
+                }
+                
+            if row.seal_hash != seal_hash:
+                return {
+                    "is_valid": False,
+                    "current_status": "TAMPERED",
+                    "custody": row.current_custodian,
+                    "reason": "Cryptographic seal mismatch"
+                }
+                
+            return {
+                "is_valid": True,
+                "current_status": row.status,
+                "custody": row.current_custodian,
+                "batch_id": row.batch_id,
+                "sku": row.sku,
+                "quantity": row.quantity
+            }
+
 waybill_service = WaybillService()

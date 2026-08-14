@@ -2,6 +2,8 @@ import React from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 
 import { ControlTower, SupplyChainDepth, SupplierRisk, ActivityLog, AdminLedger } from '../components/dashboard/AdminFeatures';
+import { UserManagement } from '../components/dashboard/UserManagement';
+import { AdminSettings } from '../components/dashboard/AdminSettings';
 import { ManufacturerDashboard, Production, AIForecast, RawMaterialSourcing, QualityAssurance, ManufacturerLedger } from '../components/dashboard/ManufacturerFeatures';
 import { TransporterDashboard, LiveMap, RouteOptimizer, FleetManagement, DriverLogs, MaintenanceAlerts } from '../components/dashboard/TransporterFeatures';
 import { DealerDashboard, Inventory, OrderFulfillment, PartnerNetwork } from '../components/dashboard/DealerFeatures';
@@ -23,7 +25,9 @@ export default function WaybillRouter({ user, role, isGuest, onLogout, onNavigat
         else if (currentPath.includes('risk')) content = <SupplierRisk />;
         else if (currentPath.includes('activity')) content = <ActivityLog />;
         else if (currentPath.includes('ledger')) content = <AdminLedger />;
-        else if (currentPath.includes('tower') || currentPath === '/admin') content = <ControlTower />;
+        else if (currentPath.includes('users')) content = <UserManagement />;
+        else if (currentPath.includes('settings')) content = <AdminSettings />;
+        else content = <ControlTower />;
     }
     else if (role === 'manufacturer' || role === 'Manufacturer') {
         if (currentPath.includes('production')) content = <Production />;

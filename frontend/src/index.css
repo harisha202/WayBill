@@ -6,25 +6,40 @@
   --surface-2: #ffffff;
   --text: #0f172a;
   --muted: #64748b;
+  --border: #e2e8f0;
+  
+  /* Semantic Colors */
+  --green: #059669; /* Success / Active / Verified */
+  --yellow: #f59e0b; /* Warning */
+  --orange: #ea580c; /* Elevated Risk */
+  --red: #dc2626; /* Critical / Failed */
+  --blue: #2563eb; /* Information / In Progress */
+  --gray: #94a3b8; /* Disabled / Unknown */
+
+  /* Dashboard specific */
   --dashboard-text: #334155;
   --dashboard-heading: #0f172a;
   --dashboard-muted: #64748b;
   --dashboard-nav-text: #64748b;
   --dashboard-nav-active-text: #0f6e56;
-  --border: #e2e8f0;
-  --glow: rgba(34, 211, 238, 0.25);
+
+  /* Legacy brand colors for roles */
   --primary: #0F6E56;
-  --success: #059669;
-  --danger: #dc2626;
-  --warning: #BA7517;
-  --purple: #7c3aed;
   --admin: #3b82f6;
   --manufacturer: #14b8a6;
   --transporter: #60a5fa;
   --dealer: #8b5cf6;
   --retail: #10b981;
+
   --tap-ring: rgba(59, 130, 246, 0.3);
   --tap-inset: rgba(255, 255, 255, 0.08);
+
+  /* Typography Scale */
+  --text-page-title: 1.75rem; /* ~28px */
+  --text-section: 1.25rem; /* ~20px */
+  --text-card: 1rem; /* 16px */
+  --text-body: 0.875rem; /* 14px */
+  --text-meta: 0.75rem; /* 12px */
 }
 
 * {

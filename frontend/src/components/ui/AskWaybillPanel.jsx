@@ -22,10 +22,13 @@ export const AskWaybillPanel = () => {
         setLoading(true);
 
         try {
-            // Note: chatStream uses a manual fetch to handle the stream instead of axios
+            const token = localStorage.getItem('waybill_token');
             const response = await fetch(`http://localhost:8000/api/ai/chat/stream`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': token ? `Bearer ${token}` : ''
+                },
                 body: JSON.stringify({ question: userMsg, context_data: {} })
             });
 

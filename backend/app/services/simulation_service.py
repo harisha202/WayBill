@@ -3,7 +3,7 @@ import random
 import logging
 from datetime import datetime
 from app.services.database_service import create_or_update_shipment, update_shipment_location
-from app.services.tracking_service import TrackingService
+from app.services.tracking_service import tracking_service
 from app.api.websocket import manager
 from app.models.tracking import GPSEvent
 
@@ -50,7 +50,7 @@ async def simulate_gps_ping():
         )
         
         try:
-            state_update = TrackingService.ingest_gps_ping(
+            state_update = tracking_service.ingest_gps_ping(
                 shipment_id=event.shipment_id,
                 lat=event.latitude,
                 lng=event.longitude,
@@ -111,5 +111,5 @@ async def simulate_truck_movement():
             logger.error(f"Failed to update simulation shipment: {e}")
 
 def start_simulation(app):
-    asyncio.create_task(simulate_truck_movement())
-    asyncio.create_task(simulate_gps_ping())
+    # Disabled to comply with the 'no fake operational data' rule.
+    pass

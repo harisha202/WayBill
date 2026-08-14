@@ -1,8 +1,10 @@
-﻿import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Logo } from '../../components/ui/Logo'
 
-function Login({ role, onSubmit, onBack, onSignupClick, onGuestClick }) {
+function Login({ role, onSubmit, onBack }) {
+  const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
+  const [companyName, setCompanyName] = useState('')
   const [password, setPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
   const [error, setError] = useState('')
@@ -15,7 +17,7 @@ function Login({ role, onSubmit, onBack, onSignupClick, onGuestClick }) {
     setError('')
     setIsLoading(true)
     try {
-      await onSubmit?.({ email, password, role })
+      await onSubmit?.({ username, email, companyName, password, role })
     } catch (err) {
       setError(err?.message ?? 'Login failed')
     } finally {
@@ -24,6 +26,10 @@ function Login({ role, onSubmit, onBack, onSignupClick, onGuestClick }) {
   }
 
   const getRoleLabel = () => ({ manufacturer: 'Manufacturer', transporter: 'Transporter', dealer: 'Dealer', retailshop: 'Retail Shop', admin: 'Admin' })[role?.toLowerCase()] || role
+
+  const normalizedRole = String(role || '').toLowerCase()
+  const isCompanyRequired = ['manufacturer', 'dealer', 'retailshop'].includes(normalizedRole)
+  const isCompanySupported = isCompanyRequired
 
   return (
     <main className="standard-auth-container bg-theme-signin">
@@ -37,6 +43,29 @@ function Login({ role, onSubmit, onBack, onSignupClick, onGuestClick }) {
 
         <form onSubmit={handleSubmit} className="standard-auth-form" autoComplete="off">
           
+
+
+          <div className="standard-auth-form-group">
+            <label className="standard-auth-label">Username</label>
+            <input type="text" className="standard-auth-input" placeholder="Enter your username" required value={username} onChange={(e) => setUsername(e.target.value)} />
+          </div>
+
+          {isCompanySupported && (
+            <div className="standard-auth-form-group">
+              <label className="standard-auth-label">
+                Company Name *
+              </label>
+              <input 
+                type="text" 
+                className="standard-auth-input" 
+                placeholder="Enter company name" 
+                required
+                value={companyName} 
+                onChange={(e) => setCompanyName(e.target.value)} 
+              />
+            </div>
+          )}
+
           <div className="standard-auth-form-group">
             <label className="standard-auth-label">Email Address</label>
             <input ref={emailInputRef} type="email" className="standard-auth-input" placeholder="you@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -59,18 +88,14 @@ function Login({ role, onSubmit, onBack, onSignupClick, onGuestClick }) {
               {isLoading ? 'Logging in...' : 'Login'}
             </button>
             
-            <button type="button" onClick={onGuestClick} disabled={isLoading} className="standard-auth-btn-outline">
-              Continue as Guest
-            </button>
+
 
             <button type="button" onClick={onBack} disabled={isLoading} className="standard-auth-btn-outline" style={{ border: 'none' }}>
               Back
             </button>
           </div>
           
-          <div style={{ marginTop: '1.5rem', textAlign: 'center', fontSize: '0.85rem', color: 'var(--muted)' }}>
-            Don't have an account? <span onClick={onSignupClick} style={{ color: '#3b82f6', fontWeight: 600, cursor: 'pointer' }}>Sign up free</span>
-          </div>
+
         </form>
       </div>
     </main>

@@ -1,35 +1,41 @@
 import React from 'react';
+import { useApi } from '../../api/hooks/useApi';
+import { DataTable } from '../ui/DataTable';
+import { StatusPill } from '../ui/StatusPill';
 
-const DiscrepancyPanel = ({ data = [] }) => {
-  return (
-    <div style={{ backgroundColor: 'var(--surface)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border)' }}>
-      <h3 style={{ color: 'var(--text)', marginTop: 0 }}>Discrepancy & Backorders</h3>
-      <table style={{ width: '100%', borderCollapse: 'collapse', color: 'var(--text)' }}>
-        <thead>
-          <tr style={{ borderBottom: '1px solid var(--border)' }}>
-            <th style={{ padding: '8px', textAlign: 'left' }}>Item</th>
-            <th style={{ padding: '8px', textAlign: 'left' }}>Ordered</th>
-            <th style={{ padding: '8px', textAlign: 'left' }}>Received</th>
-            <th style={{ padding: '8px', textAlign: 'left' }}>Backorder Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.length === 0 ? (
-            <tr><td colSpan="4" style={{ textAlign: 'center', padding: '16px' }}>No discrepancies found</td></tr>
-          ) : (
-            data.map((item, idx) => (
-              <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
-                <td style={{ padding: '8px' }}>{item.name}</td>
-                <td style={{ padding: '8px' }}>{item.ordered}</td>
-                <td style={{ padding: '8px' }}>{item.received}</td>
-                <td style={{ padding: '8px', color: '#d9534f', fontWeight: 'bold' }}>{item.ordered - item.received}</td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
-};
+export function DiscrepancyPanel() {
+    const { data: discrepancies, loading, error } = useApi('/dealer/discrepancies');
 
-export default DiscrepancyPanel;
+    const columns = [
+        { key: 'discrepancy_id', header: 'Discrepancy ID', render: (val) => <strong>{val.substring(0,8)}</strong> },
+        { key: 'order_id', header: 'Order Code' },
+        { key: 'sku', header: 'SKU' },
+        { key: 'ordered_quantity', header: 'Ordered' },
+        { key: 'received_quantity', header: 'Received' },
+        { key: 'missing_quantity', header: 'Missing', render: (val) => <span style={{ color: 'var(--red)', fontWeight: 'bold' }}>{val}</span> },
+        { key: 'status', header: 'Status', render: (val) => <StatusPill status={val === 'OPEN' ? 'warning' : 'active'} text={val} /> },
+        { key: 'created_at', header: 'Date', render: (val) => new Date(val).toLocaleDateString() }
+    ];
+
+    return (
+        <div style={{ padding: '2rem', fontFamily: 'var(--app-font-normal)' }}>
+            <h2 style={{ fontSize: 'var(--text-section-title)', fontWeight: '700', marginBottom: '1rem', color: 'var(--dashboard-heading)' }}>
+                Discrepancies & Backorders
+            </h2>
+            <p style={{ color: 'var(--muted)', marginBottom: '2rem' }}>
+                Review missing items and pending backorders from partial receipts.
+            </p>
+            
+            {error ? (
+                <div style={{ color: 'var(--red)' }}>Error loading discrepancies: {error.message}</div>
+            ) : (
+                <DataTable 
+                    data={discrepancies || []}
+                    columns={columns}
+                    loading={loading}
+                    emptyMessage="No open discrepancies."
+                />
+            )}
+        </div>
+    );
+}

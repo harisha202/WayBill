@@ -1,12 +1,6 @@
 import React from 'react';
 
-const mockSettlements = [
-  { id: 'SET-2001', orderId: 'ORD-1001', amount: '₹45,000', date: '2023-10-25', status: 'PAID' },
-  { id: 'SET-2002', orderId: 'ORD-1002', amount: '₹1,20,000', date: '2023-10-26', status: 'PENDING' },
-  { id: 'SET-2003', orderId: 'ORD-1003', amount: '₹85,000', date: '2023-10-27', status: 'PARTIAL' },
-  { id: 'SET-2004', orderId: 'ORD-1004', amount: '₹15,000', date: '2023-10-28', status: 'DISPUTED' },
-  { id: 'SET-2005', orderId: 'ORD-1005', amount: '₹55,000', date: '2023-10-29', status: 'PAID' },
-];
+const mockSettlements = [];
 
 const getStatusStyle = (status) => {
   switch (status) {

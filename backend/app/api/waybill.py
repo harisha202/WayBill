@@ -17,13 +17,11 @@ from app.schemas.waybill import (
 from app.schemas.base import APIResponse
 from app.services.database_service import (
     check_and_record_idempotency_key,
-    create_waybill,
-    update_waybill_custody,
     get_waybill,
     get_all_waybills,
-    verify_waybill,
     verify_waybill_trust
 )
+from app.services.waybill_service import waybill_service
 
 router = APIRouter(prefix="/waybills", tags=["waybills"])
 limiter = Limiter(key_func=get_remote_address)
@@ -40,8 +38,7 @@ def create_waybill_endpoint(
     actor_role = payload.get("role")
     waybill_id = f"WB-{uuid.uuid4().hex[:8].upper()}"
     
-    waybill = create_waybill(
-        waybill_id=waybill_id,
+    waybill = waybill_service.create_waybill(
         batch_id=req.batch_id,
         sku=req.sku,
         quantity=req.quantity,
@@ -65,14 +62,12 @@ def transfer_waybill_custody(
     actor_id = payload.get("sub")
     actor_role = payload.get("role")
     
-    waybill = update_waybill_custody(
+    waybill = waybill_service.transfer_custody(
         waybill_id=waybill_id,
         new_custodian=req.to_custodian,
         actor_id=actor_id,
         actor_role=actor_role,
-        quantity=req.quantity,
-        location=req.location,
-        event_type="transfer"
+        location=req.location
     )
     
     if not waybill:
@@ -93,14 +88,12 @@ def receive_waybill_custody(
     actor_role = payload.get("role")
     
     # Using actor_id as the new custodian for receiving if it's implicitly received by the caller
-    waybill = update_waybill_custody(
+    waybill = waybill_service.transfer_custody(
         waybill_id=waybill_id,
         new_custodian=actor_id, 
         actor_id=actor_id,
         actor_role=actor_role,
-        quantity=req.received_quantity,
-        location=req.location,
-        event_type="receive"
+        location=req.location
     )
     
     if not waybill:
@@ -119,7 +112,7 @@ def verify_waybill_endpoint(
     if not check_and_record_idempotency_key(req.idempotency_key):
         return APIResponse(success=True, message="Already processed (idempotent)")
         
-    verification = verify_waybill(waybill_id, req.seal_hash)
+    verification = waybill_service.verify_waybill(waybill_id, req.seal_hash)
     
     return APIResponse(
         success=True,

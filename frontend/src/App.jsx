@@ -10,10 +10,7 @@ import {
 
 import Homepage from './pages/Landing/Homepage'
 import Login from './pages/Auth/Login'
-import Signup from './pages/Auth/Signup'
-import GuestForm from './pages/Auth/GuestForm'
 import RoleSelection from './pages/Auth/RoleSelection'
-import FeedbackForm from './pages/Feedback/Feedbackform'
 import WaybillRouter from './pages/WaybillRouter'
 import { DEFAULT_PATH_BY_ROLE } from './components/layout/navConfig'
 
@@ -130,15 +127,9 @@ function App() {
 
     logout()
     
-    if (entryMethod === 'signup' || entryMethod === 'guest') {
-      setScreen('feedback')
-      setEntryIntent('login')
-      navigate('/feedback')
-    } else {
-      setScreen('home')
-      setEntryIntent('login')
-      navigate('/')
-    }
+    setScreen('home')
+    setEntryIntent('login')
+    navigate('/')
   }
 
   const openRoleSelection = (intent) => {
@@ -167,18 +158,7 @@ function App() {
     }
   }, [auth.isGuest, auth.role, auth.user, currentPath, ])
 
-  if (screen === 'feedback') {
-    return (
-      <FeedbackForm
-        initialData={logoutFeedbackPrefill}
-        onSubmitted={() => {
-          setLogoutFeedbackPrefill(null)
-          setScreen('home')
-          navigate('/')
-        }}
-      />
-    )
-  }
+
 
   
   if ((auth.user && auth.role) || (auth.isGuest && auth.role)) {
@@ -208,8 +188,6 @@ function App() {
       <Login
         role={pendingRole}
         onBack={() => openRoleSelection('login')}
-        onSignupClick={() => openRoleSelection('signup')}
-        onGuestClick={() => openRoleSelection('guest')}
         onSubmit={async ({ email, password }) => {
           const data = await authApi.login({
             email,
@@ -229,65 +207,7 @@ function App() {
     )
   }
 
-  if (screen === 'signup') {
-    return (
-      <Signup
-        role={pendingRole}
-        onBack={() => setScreen('role-selection')}
-        onLoginClick={() => {
-          setEntryIntent('login')
-          setScreen('login')
-        }}
-        onSubmit={async ({ name, email, password }) => {
-          const data = await authApi.signup({
-            name,
-            email,
-            password,
-            role: ROLE_TO_API[pendingRole],
-          })
 
-          const normalizedRole = normalizeRole(data.role)
-          navigate(DEFAULT_PATH_BY_ROLE[normalizedRole] ?? '/', { replace: true })
-
-          setUserSession({
-            user: { ...data.user, token: data.access_token },
-            role: normalizedRole,
-            entryMethod: 'signup',
-          })
-        }}
-      />
-    )
-  }
-
-  if (screen === 'guest') {
-    return (
-      <GuestForm
-        role={pendingRole}
-        onBack={() => setScreen('role-selection')}
-        onSubmit={async (guestData) => {
-          const apiRole = ROLE_TO_API[guestData.role] || ROLE_TO_API[pendingRole] || 'dealer'
-          const response = await authApi.guestEntry({
-            name: guestData.user?.name || 'Guest User',
-            email: guestData.user?.email || 'guest@example.com',
-            company: guestData.user?.company || 'Guest Company',
-            phone: guestData.user?.phone || 'N/A',
-            role: apiRole,
-          })
-
-          if (response?.email_sent === false) {
-            const warning = response?.email_error || 'Guest account was created, but the confirmation email could not be delivered.'
-            const shouldContinue = window.confirm(`${warning}\n\nPress OK to continue as guest, or Cancel to stay on this form.`)
-            if (!shouldContinue) {
-              return
-            }
-          }
-
-          enterGuest(guestData.role, guestData.user?.name)
-          navigate(DEFAULT_PATH_BY_ROLE[guestData.role] ?? '/', { replace: true })
-        }}
-      />
-    )
-  }
 
   if (screen === 'role-selection') {
     return (
@@ -300,16 +220,6 @@ function App() {
         }}
         onSelectRole={(role) => {
           setPendingRole(role)
-          if (entryIntent === 'signup') {
-            setScreen('signup')
-            return
-          }
-
-          if (entryIntent === 'guest') {
-            setScreen('guest')
-            return
-          }
-
           setScreen('login')
         }}
       />
@@ -318,9 +228,7 @@ function App() {
 
   return (
     <Homepage
-      onGuestEntry={() => openRoleSelection('guest')}
       onLoginClick={() => openRoleSelection('login')}
-      onSignupClick={() => openRoleSelection('signup')}
     />
   )
 }

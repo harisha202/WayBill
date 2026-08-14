@@ -46,14 +46,31 @@ logger = logging.getLogger("global_supply_chain_db")
 _ACTIVE_DATABASE_URL: str | None = None
 _ENGINE: Engine | None = None
 
+
+
+rag_quota_table = Table(
+    "rag_quota",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("month", String, nullable=False), # e.g. "2026-08"
+    Column("pages_used", Integer, default=0),
+    Column("page_limit", Integer, default=200),
+    Column("updated_at", DateTime, default=datetime.utcnow, onupdate=datetime.utcnow),
+)
+
 users_table = Table(
     "users",
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("username", String(120), nullable=False, unique=True),
     Column("name", String(120), nullable=False),
     Column("email", String(160), nullable=False, unique=True),
     Column("password_hash", String(255), nullable=False),
     Column("role", String(40), nullable=False),
+    Column("company_name", String(160), nullable=True),
+    Column("phone", String(64), nullable=True),
+    Column("is_active", Integer, nullable=False, default=1),
+    Column("last_login_at", DateTime(timezone=True), nullable=True),
     Column("failed_login_attempts", Integer, nullable=False, default=0),
     Column("locked_until", DateTime(timezone=True), nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
@@ -508,6 +525,98 @@ warehouses_table = Table(
     Column("created_at", DateTime(timezone=True), nullable=False),
 )
 
+stock_movements_table = Table(
+    "stock_movements",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("movement_id", String(80), nullable=False, unique=True),
+    Column("sku", String(80), nullable=False),
+    Column("quantity", Integer, nullable=False),
+    Column("movement_type", String(40), nullable=False),
+    Column("previous_quantity", Integer, nullable=False),
+    Column("new_quantity", Integer, nullable=False),
+    Column("reference_type", String(80), nullable=True),
+    Column("reference_id", String(80), nullable=True),
+    Column("user_id", String(80), nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+discrepancies_table = Table(
+    "discrepancies",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("discrepancy_id", String(80), nullable=False, unique=True),
+    Column("order_id", String(80), nullable=False),
+    Column("waybill_id", String(80), nullable=True),
+    Column("sku", String(80), nullable=False),
+    Column("ordered_quantity", Integer, nullable=False),
+    Column("received_quantity", Integer, nullable=False),
+    Column("missing_quantity", Integer, nullable=False),
+    Column("reason", String(255), nullable=True),
+    Column("status", String(40), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+production_orders_table = Table(
+    "production_orders",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("order_id", String(80), nullable=False, unique=True),
+    Column("batch_id", String(80), nullable=False),
+    Column("sku", String(80), nullable=False),
+    Column("quantity", Integer, nullable=False),
+    Column("status", String(40), nullable=False),
+    Column("qa_status", String(40), nullable=False, default="PENDING"),
+    Column("start_date", DateTime(timezone=True), nullable=True),
+    Column("end_date", DateTime(timezone=True), nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+quality_inspections_table = Table(
+    "quality_inspections",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("inspection_id", String(80), nullable=False, unique=True),
+    Column("production_order_id", String(80), nullable=False),
+    Column("inspector_id", String(80), nullable=False),
+    Column("quantity_inspected", Integer, nullable=False),
+    Column("quantity_passed", Integer, nullable=False),
+    Column("quantity_failed", Integer, nullable=False),
+    Column("defect_type", String(255), nullable=True),
+    Column("notes", String(1024), nullable=True),
+    Column("status", String(40), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+issues_table = Table(
+    "issues",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("issue_id", String(80), nullable=False, unique=True),
+    Column("entity_type", String(40), nullable=False),
+    Column("entity_id", String(80), nullable=True),
+    Column("issue_type", String(80), nullable=False),
+    Column("severity", String(40), nullable=False),
+    Column("description", String(1024), nullable=False),
+    Column("status", String(40), nullable=False),
+    Column("reporter_id", String(80), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+interventions_table = Table(
+    "interventions",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("intervention_id", String(80), nullable=False, unique=True),
+    Column("shipment_id", String(80), nullable=False),
+    Column("action_type", String(80), nullable=False),
+    Column("reason", String(255), nullable=False),
+    Column("severity", String(40), nullable=False),
+    Column("status", String(40), nullable=False),
+    Column("actor_id", String(80), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -717,38 +826,53 @@ def _seed_defaults() -> None:
                 users_table.insert(),
                 [
                     {
+                        "username": "admin",
                         "name": "WayBill Admin",
                         "email": "admin@waybill.com",
                         "password_hash": hash_password("admin123"),
                         "role": "admin",
+                        "company_name": "WayBill HQ",
+                        "phone": "555-0000",
                         "created_at": now,
                     },
                     {
+                        "username": "maker",
                         "name": "WayBill Manufacturer",
                         "email": "manufacturer@waybill.com",
                         "password_hash": hash_password("maker123"),
                         "role": "manufacturer",
+                        "company_name": "Maker Corp",
+                        "phone": "555-1111",
                         "created_at": now,
                     },
                     {
+                        "username": "transporter",
                         "name": "WayBill Transporter",
                         "email": "transporter@waybill.com",
-                        "password_hash": hash_password("transport123"),
+                        "password_hash": hash_password("transit123"),
                         "role": "transporter",
+                        "company_name": "Transit Inc",
+                        "phone": "555-2222",
                         "created_at": now,
                     },
                     {
+                        "username": "dealer",
                         "name": "WayBill Dealer",
                         "email": "dealer@waybill.com",
                         "password_hash": hash_password("dealer123"),
                         "role": "dealer",
+                        "company_name": "Dealer LLC",
+                        "phone": "555-3333",
                         "created_at": now,
                     },
                     {
+                        "username": "retail",
                         "name": "WayBill Retail",
                         "email": "retail@waybill.com",
                         "password_hash": hash_password("retail123"),
                         "role": "retail_shop",
+                        "company_name": "Retail Store",
+                        "phone": "555-4444",
                         "created_at": now,
                     },
                 ],
@@ -796,16 +920,29 @@ def get_user_by_email(email: str) -> dict | None:
         raise DatabaseError("Failed to query user by email") from exc
 
 
-def create_user(name: str, email: str, password_hash: str, role: str) -> dict:
+def create_user(
+    username: str,
+    name: str,
+    email: str,
+    password_hash: str,
+    role: str,
+    company_name: str | None = None,
+    phone: str | None = None,
+    is_active: int = 1,
+) -> dict:
     created_at = _utc_now()
     try:
         with _engine().begin() as conn:
             result = conn.execute(
                 users_table.insert().values(
+                    username=username,
                     name=name,
                     email=str(email).strip().lower(),
                     password_hash=password_hash,
                     role=role,
+                    company_name=company_name,
+                    phone=phone,
+                    is_active=is_active,
                     failed_login_attempts=0,
                     locked_until=None,
                     created_at=created_at,
@@ -813,16 +950,20 @@ def create_user(name: str, email: str, password_hash: str, role: str) -> dict:
             )
             user_id = _inserted_id(result, message="Failed to determine created user id")
     except IntegrityError as exc:
-        raise DatabaseConflictError("User email already exists") from exc
+        raise DatabaseConflictError("User username or email already exists") from exc
     except SQLAlchemyError as exc:
         raise DatabaseError("Failed to create user") from exc
 
     return {
         "id": user_id,
+        "username": username,
         "name": name,
         "email": str(email).strip().lower(),
         "password_hash": password_hash,
         "role": role,
+        "company_name": company_name,
+        "phone": phone,
+        "is_active": is_active,
         "created_at": created_at,
     }
 
@@ -963,6 +1104,78 @@ def list_users(skip: int = 0, limit: int = 100) -> list[dict]:
             return [_row_to_dict(row) for row in rows]
     except SQLAlchemyError as exc:
         raise DatabaseError("Failed to list users") from exc
+
+
+def get_user_by_id(user_id: int) -> dict | None:
+    try:
+        with _engine().connect() as conn:
+            row = conn.execute(
+                select(users_table).where(users_table.c.id == user_id)
+            ).first()
+            return _row_to_dict(row) if row else None
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to get user by id") from exc
+
+
+def update_user(user_id: int, full_name: str, company_name: str | None, phone: str | None, role: str) -> dict:
+    try:
+        with _engine().begin() as conn:
+            # Check if user exists
+            row = conn.execute(select(users_table).where(users_table.c.id == user_id)).first()
+            if not row:
+                raise DatabaseError("User not found")
+            
+            conn.execute(
+                users_table.update()
+                .where(users_table.c.id == user_id)
+                .values(
+                    name=full_name,
+                    company_name=company_name,
+                    phone=phone,
+                    role=role
+                )
+            )
+            return get_user_by_id(user_id)
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to update user") from exc
+
+
+def set_user_status(user_id: int, is_active: int) -> dict:
+    try:
+        with _engine().begin() as conn:
+            row = conn.execute(select(users_table).where(users_table.c.id == user_id)).first()
+            if not row:
+                raise DatabaseError("User not found")
+                
+            conn.execute(
+                users_table.update()
+                .where(users_table.c.id == user_id)
+                .values(is_active=is_active)
+            )
+            return get_user_by_id(user_id)
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to set user status") from exc
+
+
+def reset_user_password(user_id: int, new_password_hash: str) -> dict:
+    try:
+        with _engine().begin() as conn:
+            row = conn.execute(select(users_table).where(users_table.c.id == user_id)).first()
+            if not row:
+                raise DatabaseError("User not found")
+                
+            conn.execute(
+                users_table.update()
+                .where(users_table.c.id == user_id)
+                .values(
+                    password_hash=new_password_hash,
+                    failed_login_attempts=0,
+                    locked_until=None
+                )
+            )
+            return get_user_by_id(user_id)
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to reset user password") from exc
 
 
 def list_products(skip: int = 0, limit: int = 100) -> list[dict]:
@@ -1923,18 +2136,23 @@ def summarize_global_metrics() -> dict:
     try:
         with _engine().connect() as conn:
             return {
+                "active_orders": int(conn.execute(select(func.count()).select_from(orders_table).where(orders_table.c.status != 'delivered')).scalar() or 0),
+                "active_shipments": int(conn.execute(select(func.count()).select_from(shipments_table).where(shipments_table.c.status != 'delivered')).scalar() or 0),
+                "in_transit_shipments": int(conn.execute(select(func.count()).select_from(shipments_table).where(shipments_table.c.status == 'in_transit')).scalar() or 0),
+                "delayed_shipments": int(conn.execute(select(func.count()).select_from(shipments_table).where(shipments_table.c.status == 'delayed')).scalar() or 0),
+                "critical_risks": int(conn.execute(select(func.count()).select_from(anomalies_table).where(anomalies_table.c.severity == 'critical')).scalar() or 0),
+                "active_manufacturers": int(conn.execute(select(func.count()).select_from(users_table).where((users_table.c.role == 'manufacturer') & (users_table.c.is_active == True))).scalar() or 0),
+                "active_transporters": int(conn.execute(select(func.count()).select_from(users_table).where((users_table.c.role == 'transporter') & (users_table.c.is_active == True))).scalar() or 0),
+                "active_dealers": int(conn.execute(select(func.count()).select_from(users_table).where((users_table.c.role == 'dealer') & (users_table.c.is_active == True))).scalar() or 0),
+                "active_retail_shops": int(conn.execute(select(func.count()).select_from(users_table).where((users_table.c.role == 'retail_shop') & (users_table.c.is_active == True))).scalar() or 0),
+                "inventory_alerts": 0, # Placeholder, will implement below
+                "pending_waybills": int(conn.execute(select(func.count()).select_from(waybill_documents_table).where(waybill_documents_table.c.status == 'pending')).scalar() or 0),
+                "pending_discrepancies": int(conn.execute(select(func.count()).select_from(anomalies_table).where(anomalies_table.c.status == 'open')).scalar() or 0),
+                
+                # Keep old ones just in case
                 "total_products": int(conn.execute(select(func.count()).select_from(products_table)).scalar() or 0),
                 "total_batches": int(conn.execute(select(func.count()).select_from(batches_table)).scalar() or 0),
-                "active_shipments": int(conn.execute(select(func.count()).select_from(shipments_table)).scalar() or 0),
-                "revenue": round(
-                    float(
-                        conn.execute(
-                            select(func.coalesce(func.sum(sales_history_table.c.sale_amount), 0.0))
-                        ).scalar()
-                        or 0.0
-                    ),
-                    2,
-                ),
+                "revenue": round(float(conn.execute(select(func.coalesce(func.sum(sales_history_table.c.sale_amount), 0.0))).scalar() or 0.0), 2),
             }
     except SQLAlchemyError as exc:
         raise DatabaseError("Failed to summarize global metrics") from exc
@@ -2035,6 +2253,33 @@ def get_activity_logs(limit: int = 100) -> list[dict]:
                 d['timestamp'] = d['timestamp'].isoformat()
             results.append(d)
         return results
+
+def get_rag_quota(month_str: str) -> dict:
+    with _engine().begin() as conn:
+        row = conn.execute(
+            select(rag_quota_table).where(rag_quota_table.c.month == month_str)
+        ).first()
+        if not row:
+            conn.execute(
+                rag_quota_table.insert().values(month=month_str, pages_used=0, page_limit=200)
+            )
+            return {"month": month_str, "pages_used": 0, "page_limit": 200}
+        return dict(row._mapping)
+
+def increment_rag_quota(month_str: str, pages: int) -> dict:
+    quota = get_rag_quota(month_str)
+    new_used = quota["pages_used"] + pages
+    if new_used > quota["page_limit"]:
+        raise ValueError("Monthly document page limit exceeded")
+    
+    with _engine().begin() as conn:
+        conn.execute(
+            rag_quota_table.update()
+            .where(rag_quota_table.c.month == month_str)
+            .values(pages_used=new_used)
+        )
+    return get_rag_quota(month_str)
+
 
 def get_supplier_tree() -> list[dict]:
     with _engine().begin() as conn:

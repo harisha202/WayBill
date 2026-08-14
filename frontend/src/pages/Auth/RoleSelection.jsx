@@ -29,8 +29,8 @@ function RoleSelection({ selectedRole, onSelectRole, onSelect, onBack, includeAd
       
       <div className="standard-auth-header">
         <Logo style={{ width: 72, height: 72, margin: '0 auto 1rem auto', display: 'block' }} />
-        <h1 className="standard-auth-title" style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>WayBill</h1>
-        <p className="standard-auth-subtitle" style={{ fontSize: '1.1rem' }}>Select your role to continue</p>
+        <h1 className="standard-auth-title" style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>{ROLE_SELECTION_CONFIG.title}</h1>
+        <p className="standard-auth-subtitle" style={{ fontSize: '1.1rem' }}>{ROLE_SELECTION_CONFIG.subtitle}</p>
       </div>
 
       <div className="standard-role-grid">

@@ -198,24 +198,7 @@ function DashboardLayout({
   children,
 }) {
   const [activeLink, setActiveLink] = useState(() => getLinkForPath(role, currentPath))
-  const [notificationItems, setNotificationItems] = useState([
-    {
-      id: 'mock-1',
-      title: 'Route Deviation Detected',
-      message: 'Truck T-105 has deviated from the optimal route by 15 miles.',
-      severity: 'high',
-      timestamp: new Date(Date.now() - 1000 * 60 * 15).toISOString(), // 15 mins ago
-      metadata: { vehicle: 'T-105', driver: 'John D.', location: 'I-95 North' }
-    },
-    {
-      id: 'mock-2',
-      title: 'Delivery Confirmed',
-      message: 'Shipment #WB-0042 delivered successfully to Retail Node.',
-      severity: 'info',
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 hours ago
-      metadata: { waybill: 'WB-0042', status: 'Completed' }
-    }
-  ])
+  const [notificationItems, setNotificationItems] = useState([])
   const [alertsOpen, setAlertsOpen] = useState(false)
   const socketUserId = SOCKET_USER_BY_ROLE[role]
   const notificationCount = notificationItems.length
@@ -325,7 +308,7 @@ function DashboardLayout({
         </main>
       </section>
       <AlertsDrawer open={alertsOpen} items={notificationItems} onClose={() => setAlertsOpen(false)} />
-      <AskWaybillPanel />
+      {(role === 'admin' || role === 'Admin') && <AskWaybillPanel />}
       <Toaster position="top-right" />
     </div>
   )

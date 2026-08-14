@@ -361,9 +361,7 @@ export const authApi = {
         Accept: 'application/json',
       },
     }),
-  signup: (payload) => http.post('/auth/signup', payload),
-  guestEntry: (payload) => http.post('/auth/guest-entry', payload),
-  submitFeedback: (payload) => http.post('/auth/feedback', payload),
+
 }
 
 export const adminApi = {

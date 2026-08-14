@@ -226,24 +226,24 @@ def forward_order_to_manufacturer(order_code: str, data: DealerOrderForwardReque
 
 
 @router.patch("/orders/{order_code}/receive", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))], response_model=APIResponse[dict])
-def receive_order(order_code: str, data: ReceiptRequest) -> APIResponse[dict]:
-    order = get_order(order_code)
-    if order is None:
-        raise HTTPException(status_code=404, detail="Order not found")
+def receive_order(
+    order_code: str, 
+    data: ReceiptRequest,
+    payload: dict = Depends(require_roles(UserRole.admin, UserRole.dealer))
+) -> APIResponse[dict]:
+    actor_id = payload.get("sub", "unknown")
+    actor_role = payload.get("role", "dealer")
+    
     try:
-        updated = receive_order_with_discrepancy(order_code, data.received_quantity)
-        tx_hash = _write_stage_event(
-            updated or order,
-            stage="dealer_received",
-            payload={"orderCode": order_code, "receivedBy": "dealer", "receivedQuantity": data.received_quantity},
-        )
-        delivered_tx_hash = _write_stage_event(
-            updated or order,
-            stage="delivered",
-            payload={"orderCode": order_code, "deliveredTo": "dealer"},
+        from app.services.inventory_service import inventory_service
+        result = inventory_service.receive_order(
+            order_code=order_code,
+            received_quantity=data.received_quantity,
+            actor_id=actor_id,
+            actor_role=actor_role
         )
         
-        # Update Waybill Custody to Dealer
+        # Optionally update Waybill Custody if associated
         from app.services.database_service import _engine, update_waybill_custody
         from sqlalchemy import select, Table, MetaData
         
@@ -253,18 +253,21 @@ def receive_order(order_code: str, data: ReceiptRequest) -> APIResponse[dict]:
             stmt = select(waybill_table).where(waybill_table.c.order_id == order_code)
             row = conn.execute(stmt).mappings().first()
             if row:
-                update_waybill_custody(row["waybill_id"], "Dealer Warehouse", "Dealer", "delivered")
+                update_waybill_custody(row["waybill_id"], actor_id, actor_role, "receive")
 
-    except DatabaseError as exc:
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
         raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
 
     notification_service.publish(
         user_id="retail_shop",
         title="Order ready for retail",
         message=f"{order_code} received by dealer and ready for retail handoff.",
-        metadata={"orderCode": order_code, "txHash": tx_hash, "deliveredTxHash": delivered_tx_hash},
+        metadata={"orderCode": order_code, "discrepancy": result.get("discrepancy", 0)}
     )
-    return APIResponse(success=True, data={"order": updated, "txHash": tx_hash, "deliveredTxHash": delivered_tx_hash})
+    
+    return APIResponse(success=True, data=result, message="Order received successfully")
 
 
 @router.patch("/orders/{order_code}/retail-receive", dependencies=[Depends(require_roles(UserRole.admin, UserRole.retail_shop, UserRole.dealer))])
@@ -367,19 +370,16 @@ def ai_reorder_recommendations(days: int = Query(30, ge=7, le=120)) -> dict:
 @router.get("/analytics", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
 def analytics(time_range: str = Query("30d", alias="range")) -> dict:
     rows = _pipeline_rows(limit=500)
-    points = 7 if time_range == "7d" else 90 if time_range == "90d" else 30
-    delivered_count = sum(1 for item in rows if "deliver" in str(item.get("status")))
-    in_transit_count = sum(1 for item in rows if "transit" in str(item.get("status")))
+    delivered_count = sum(1 for item in rows if "deliver" in str(item.get("status")).lower() or "receive" in str(item.get("status")).lower())
+    in_transit_count = sum(1 for item in rows if "transit" in str(item.get("status")).lower())
     pending_count = max(len(rows) - delivered_count - in_transit_count, 0)
+    
     inventory_items = _inventory_items()
-    inventory_value = sum(float(item["unitPrice"]) * int(item["currentStock"]) for item in inventory_items)
 
-    revenue_base = max(inventory_value * 0.012, 420.0)
-    flow_factor = (delivered_count * 35.0) + (in_transit_count * 22.0) - (pending_count * 14.0)
-    revenue = [
-        max(0.0, round(revenue_base + (index * max(flow_factor / max(points, 1), 4.0)) + ((index % 4) - 1.5) * 18.0, 2))
-        for index in range(points)
-    ]
+    # Simple zeroed array for revenue trend since we don't have historical real sales data table in dealer scope.
+    # We will strictly avoid fake math.
+    points = 7 if time_range == "7d" else 30
+    revenue = [0.0] * points
 
     category_counts: dict[str, int] = {}
     for item in inventory_items:
@@ -398,8 +398,8 @@ def analytics(time_range: str = Query("30d", alias="range")) -> dict:
         "revenue": revenue,
         "topProducts": top_products,
         "orderStatus": [
-            {"label": "Delivered", "value": delivered_count, "color": "#22c55e"},
-            {"label": "Dispatched", "value": in_transit_count, "color": "#0ea5e9"},
+            {"label": "Delivered/Received", "value": delivered_count, "color": "#22c55e"},
+            {"label": "In Transit", "value": in_transit_count, "color": "#0ea5e9"},
             {"label": "Pending", "value": pending_count, "color": "#f59e0b"},
         ],
         "categoryMix": top_products,

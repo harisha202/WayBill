@@ -45,13 +45,6 @@ class LoginRequest(BaseModel):
     role: UserRole
 
 
-class SignupRequest(BaseModel):
-    name: str = Field(min_length=2, max_length=80)
-    email: str
-    password: str = Field(min_length=8, max_length=128)
-    role: UserRole
-
-
 class SendOTPRequest(BaseModel):
     email: str
     name: str = Field(default="User", max_length=80)
@@ -83,28 +76,6 @@ class RoleAssignmentResponse(BaseModel):
     email: str
     role: UserRole
     updated_by: str
-
-
-class GuestEntryRequest(BaseModel):
-    name: str = Field(default="Guest User", min_length=1, max_length=80)
-    email: str = Field(default="guest@example.com", min_length=3, max_length=120)
-    company: str = Field(default="Guest Company", min_length=1, max_length=120)
-    phone: str = Field(default="N/A", min_length=1, max_length=40)
-    role: UserRole
-    source: str = Field(default="guest_form", min_length=3, max_length=40)
-
-
-class FeedbackRequest(BaseModel):
-    name: str = Field(min_length=1, max_length=80)
-    email: str = Field(min_length=3, max_length=120)
-    role: UserRole
-    category: str = Field(min_length=2, max_length=120)
-    priority: str = Field(min_length=2, max_length=20)
-    rating: int = Field(ge=1, le=5)
-    message: str = Field(min_length=3, max_length=1200)
-    improvements: str = Field(default="", max_length=1200)
-    source: str = Field(default="feedback_form", min_length=3, max_length=40)
-
 
 def normalize_email(email: str) -> str:
     return str(email).strip().lower()
@@ -252,74 +223,6 @@ async def resend_otp(request: Request) -> dict:
     return _build_otp_response(data)
 
 
-@router.post("/signup", response_model=LoginResponse, status_code=status.HTTP_201_CREATED)
-async def signup(request: Request) -> LoginResponse:
-    try:
-        body = await request.json()
-        data = SignupRequest(**body)
-    except Exception as exc:
-        logger.error(f"Signup parsing failed: {exc}")
-        raise HTTPException(status_code=422, detail=f"Invalid request payload: {exc}")
-        
-    email = normalize_email(data.email)
-    try:
-        existing_user = get_user_by_email(email)
-    except DatabaseError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Database temporarily unavailable",
-        ) from exc
-
-    if existing_user is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Email already registered",
-        )
-
-    if not otp_service.consume_verified_email(email):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email verification required. Please verify OTP before signup.",
-        )
-
-    password_hash = hash_password(data.password)
-    try:
-        db_user = create_user(
-            name=data.name,
-            email=email,
-            password_hash=password_hash,
-            role=data.role.value,
-        )
-    except DatabaseConflictError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Email already registered",
-        ) from exc
-    except DatabaseError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Database temporarily unavailable",
-        ) from exc
-
-    token = create_access_token(subject=email, role=data.role)
-    refresh = create_refresh_token(subject=email, role=data.role)
-
-    # Do not fail signup on welcome-mail delivery issues.
-    email_service.send_welcome_email(email, data.name, data.role.value)
-
-    return LoginResponse(
-        access_token=token,
-        refresh_token=refresh,
-        role=data.role,
-        user={
-            "id": db_user["id"],
-            "email": email,
-            "name": normalize_display_name(data.name),
-            "role": data.role,
-        },
-    )
-
-
 @router.post("/login", response_model=LoginResponse)
 @limiter.limit(lambda: os.getenv("RATE_LIMIT_AUTH", "5/minute"))
 async def login(request: Request) -> LoginResponse:
@@ -343,6 +246,13 @@ async def login(request: Request) -> LoginResponse:
         raise HTTPException(
             status_code=status.HTTP_423_LOCKED,
             detail="Account is temporarily locked due to too many failed login attempts. Try again later."
+        )
+
+    # Check if account is inactive
+    if db_user and db_user.get("is_active") == 0:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account is inactive. Please contact your administrator."
         )
 
     if db_user is not None:
@@ -479,96 +389,3 @@ def validate_token(
 ):
     return {"valid": True, "payload": payload}
 
-
-@router.post("/guest-entry")
-def save_guest_entry(data: GuestEntryRequest) -> dict:
-    normalized_email = normalize_email(data.email)
-    clean_name = normalize_display_name(data.name, fallback="Guest User")
-    company = data.company.strip()
-    phone = data.phone.strip()
-    try:
-        entry = create_guest_entry(
-            name=clean_name,
-            email=normalized_email,
-            company=company,
-            phone=phone,
-            role=data.role.value,
-            source=data.source.strip(),
-        )
-    except DatabaseError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Database temporarily unavailable",
-        ) from exc
-
-    email_sent = email_service.send_guest_account_email(
-        to_email=normalized_email,
-        name=clean_name,
-        company=company,
-        phone=phone,
-    )
-
-    response = {
-        "success": True,
-        "message": "Guest account created successfully",
-        "entry_id": entry["id"],
-        "created_at": entry["created_at"],
-        "email_sent": bool(email_sent),
-    }
-    if not email_sent:
-        delivery_reason = getattr(email_service, "last_error_message", "").strip()
-        response["email_error"] = (
-            "Guest account was created, but the confirmation email could not be delivered."
-        )
-        if delivery_reason:
-            response["email_error"] = f"{response['email_error']} {delivery_reason}"
-    return response
-
-
-@router.post("/feedback")
-def submit_feedback(data: FeedbackRequest) -> dict:
-    normalized_email = normalize_email(data.email)
-    clean_name = normalize_display_name(data.name, fallback="User")
-
-    try:
-        entry = create_guest_entry(
-            name=clean_name,
-            email=normalized_email,
-            company=data.category.strip(),
-            phone=f"{data.priority.strip()}-{data.rating}",
-            role=data.role.value,
-            source=data.source.strip(),
-        )
-    except DatabaseError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Database temporarily unavailable",
-        ) from exc
-
-    email_sent = email_service.send_feedback_thank_you_email(
-        to_email=normalized_email,
-        name=clean_name,
-    )
-
-    response = {
-        "success": True,
-        "entry_id": entry["id"],
-        "created_at": entry["created_at"],
-    }
-
-    if not email_sent:
-        logger.warning(
-            "Feedback thank-you email failed for %s (name: %s)",
-            normalized_email,
-            clean_name,
-        )
-        response["message"] = "Feedback submitted; thank-you email could not be delivered."
-        response["email_sent"] = False
-        response["email_error"] = (
-            "Email delivery failed. Verify SMTP credentials or enable MOCK_EMAIL_DELIVERY."
-        )
-        return response
-
-    response["message"] = "Feedback submitted successfully"
-    response["email_sent"] = True
-    return response

@@ -21,7 +21,17 @@ from app.services.database_service import (
     list_orders,
     list_users,
     summarize_global_metrics,
+    create_user,
+    get_user_by_id,
+    update_user,
+    set_user_status,
+    reset_user_password,
+    log_activity,
+    DatabaseConflictError
 )
+from app.core.security import hash_password
+from app.schemas.user import UserCreateRequest, UserUpdateRequest, UserStatusRequest, UserResetPasswordRequest, UserResponse
+from fastapi import HTTPException, status
 from app.services.notification_service import notification_service
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -232,28 +242,83 @@ def get_order_pipeline(payload: dict = Depends(require_roles(UserRole.admin))):
     from app.schemas.base import APIResponse
     return APIResponse(success=True, data=data)
 
-@router.get("/analytics/cost-breakdown", dependencies=[Depends(require_roles(UserRole.admin))])
-def get_cost_breakdown():
-    # Mocked data according to decision guide
-    data = [
-        {"name": "Transport", "value": 50000},
-        {"name": "Storage", "value": 20000},
-        {"name": "Handling", "value": 10000},
-        {"name": "Production", "value": 90000},
-        {"name": "Penalty", "value": 5000}
-    ]
-    from app.schemas.base import APIResponse
-    return APIResponse(success=True, data=data)
 
-@router.get("/analytics/profit-trend", dependencies=[Depends(require_roles(UserRole.admin))])
-def get_profit_trend(group_by: str = Query("Month")):
-    # Mocked data according to decision guide
-    data = [
-        {"period": "Q1", "revenue": 100000, "total_cost": 80000, "profit": 20000},
-        {"period": "Q2", "revenue": 120000, "total_cost": 90000, "profit": 30000},
-        {"period": "Q3", "revenue": 150000, "total_cost": 100000, "profit": 50000},
-        {"period": "Q4", "revenue": 130000, "total_cost": 110000, "profit": 20000},
-    ]
-    from app.schemas.base import APIResponse
-    return APIResponse(success=True, data=data)
+# ------------------------------------------------------------
+# USER MANAGEMENT
+# ------------------------------------------------------------
 
+@router.get("/users", dependencies=[Depends(require_roles(UserRole.admin))])
+def get_all_users(payload: dict = Depends(require_roles(UserRole.admin))):
+    users = list_users(limit=1000)
+    # Filter out passwords
+    safe_users = []
+    for u in users:
+        u.pop("password_hash", None)
+        safe_users.append(u)
+    return {"success": True, "data": safe_users}
+
+@router.post("/users", dependencies=[Depends(require_roles(UserRole.admin))])
+def create_new_user(user: UserCreateRequest, payload: dict = Depends(require_roles(UserRole.admin))):
+    if user.role.lower() == UserRole.admin.value.lower():
+        raise HTTPException(status_code=400, detail="Cannot create ADMIN accounts via this endpoint")
+        
+    req_company = [UserRole.manufacturer.value, UserRole.dealer.value, UserRole.retail_shop.value]
+    if user.role.lower() in req_company and not user.company_name:
+        raise HTTPException(status_code=400, detail=f"Company name is required for role: {user.role}")
+        
+    pwd_hash = hash_password(user.password)
+    try:
+        new_user = create_user(
+            username=user.username,
+            name=user.full_name,
+            email=user.email,
+            password_hash=pwd_hash,
+            role=user.role,
+            company_name=user.company_name,
+            phone=user.phone,
+            is_active=1
+        )
+        log_activity(payload["sub"], UserRole.admin.value, "USER_CREATED", "user", str(new_user["id"]), {"role": user.role, "result": "SUCCESS"})
+        new_user.pop("password_hash", None)
+        return {"success": True, "data": new_user}
+    except DatabaseConflictError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.put("/users/{user_id}", dependencies=[Depends(require_roles(UserRole.admin))])
+def update_existing_user(user_id: int, user: UserUpdateRequest, payload: dict = Depends(require_roles(UserRole.admin))):
+    if user.role.lower() == UserRole.admin.value.lower():
+        raise HTTPException(status_code=400, detail="Cannot change user to ADMIN role")
+    
+    req_company = [UserRole.manufacturer.value, UserRole.dealer.value, UserRole.retail_shop.value]
+    if user.role.lower() in req_company and not user.company_name:
+        raise HTTPException(status_code=400, detail=f"Company name is required for role: {user.role}")
+        
+    try:
+        updated = update_user(user_id, user.full_name, user.company_name, user.phone, user.role)
+        log_activity(payload["sub"], UserRole.admin.value, "USER_UPDATED", "user", str(user_id), {"role": user.role, "result": "SUCCESS"})
+        updated.pop("password_hash", None)
+        return {"success": True, "data": updated}
+    except DatabaseError as e:
+        raise HTTPException(status_code=404, detail="User not found or update failed")
+
+@router.post("/users/{user_id}/status", dependencies=[Depends(require_roles(UserRole.admin))])
+def change_user_status(user_id: int, status_req: UserStatusRequest, payload: dict = Depends(require_roles(UserRole.admin))):
+    try:
+        updated = set_user_status(user_id, status_req.is_active)
+        action = "USER_ACTIVATED" if status_req.is_active == 1 else "USER_DEACTIVATED"
+        log_activity(payload["sub"], UserRole.admin.value, action, "user", str(user_id), {"result": "SUCCESS"})
+        updated.pop("password_hash", None)
+        return {"success": True, "data": updated}
+    except DatabaseError as e:
+        raise HTTPException(status_code=404, detail="User not found")
+
+@router.post("/users/{user_id}/reset-password", dependencies=[Depends(require_roles(UserRole.admin))])
+def reset_password(user_id: int, reset_req: UserResetPasswordRequest, payload: dict = Depends(require_roles(UserRole.admin))):
+    pwd_hash = hash_password(reset_req.new_password)
+    try:
+        updated = reset_user_password(user_id, pwd_hash)
+        log_activity(payload["sub"], UserRole.admin.value, "PASSWORD_RESET", "user", str(user_id), {"result": "SUCCESS"})
+        updated.pop("password_hash", None)
+        return {"success": True, "message": "Password reset successfully"}
+    except DatabaseError as e:
+        raise HTTPException(status_code=404, detail="User not found")

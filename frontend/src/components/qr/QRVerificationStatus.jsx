@@ -1,86 +1,39 @@
 import React from 'react';
+import { StatusPill } from '../ui/StatusPill';
 
-const QRVerificationStatus = ({ status, message }) => {
-  if (!status) return null;
-
-  const getStatusConfig = () => {
-    switch (status.toLowerCase()) {
-      case 'valid':
-        return {
-          color: 'var(--success, #28a745)',
-          bgColor: 'var(--success-light, #d4edda)',
-          borderColor: 'var(--success-border, #c3e6cb)',
-          icon: '✓'
-        };
-      case 'invalid':
-        return {
-          color: 'var(--error, #dc3545)',
-          bgColor: 'var(--error-light, #f8d7da)',
-          borderColor: 'var(--error-border, #f5c6cb)',
-          icon: '✗'
-        };
-      case 'tampered':
-        return {
-          color: 'var(--warning, #856404)',
-          bgColor: 'var(--warning-light, #fff3cd)',
-          borderColor: 'var(--warning-border, #ffeeba)',
-          icon: '⚠'
-        };
-      case 'not found':
-        return {
-          color: 'var(--info, #0c5460)',
-          bgColor: 'var(--info-light, #d1ecf1)',
-          borderColor: 'var(--info-border, #bee5eb)',
-          icon: '?'
-        };
-      default:
-        return {
-          color: 'var(--text, #333333)',
-          bgColor: 'var(--bg, #e9ecef)',
-          borderColor: 'var(--border, #dee2e6)',
-          icon: 'i'
-        };
-    }
-  };
-
-  const config = getStatusConfig();
-
-  const containerStyle = {
-    backgroundColor: config.bgColor,
-    color: config.color,
-    border: `1px solid ${config.borderColor}`,
-    borderRadius: '8px',
-    padding: '1.25rem',
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '1rem',
-    fontFamily: 'sans-serif',
-    marginBottom: '1rem'
-  };
-
-  return (
-    <div style={containerStyle}>
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: '32px',
-        height: '32px',
-        borderRadius: '50%',
-        backgroundColor: config.color,
-        color: '#ffffff',
-        fontWeight: 'bold',
-        fontSize: '1.25rem',
-        flexShrink: 0
-      }}>
-        {config.icon}
-      </div>
-      <div>
-        <h3 style={{ margin: '0 0 0.25rem 0', fontSize: '1.25rem' }}>{status}</h3>
-        <p style={{ margin: 0, opacity: 0.9 }}>{message}</p>
-      </div>
-    </div>
-  );
+const QRVerificationStatus = ({ verification, scanResult, onReset }) => {
+    return (
+        <div>
+            <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                {verification.is_valid ? (
+                    <div style={{ color: 'var(--green)' }}>
+                        <div style={{ fontSize: '4rem' }}>✅</div>
+                        <h2 style={{ margin: '0.5rem 0' }}>Waybill Verified</h2>
+                        <p style={{ margin: 0 }}>The cryptographic seal matches the blockchain ledger.</p>
+                    </div>
+                ) : (
+                    <div style={{ color: 'var(--red)' }}>
+                        <div style={{ fontSize: '4rem' }}>⚠️</div>
+                        <h2 style={{ margin: '0.5rem 0' }}>Seal Verification Failed</h2>
+                        <p style={{ margin: 0 }}>This waybill has been tampered with or is invalid.</p>
+                        {verification.reason && <p style={{ fontSize: 'var(--text-meta)' }}>Reason: {verification.reason}</p>}
+                    </div>
+                )}
+            </div>
+            
+            <div style={{ background: 'var(--bg-dark)', padding: '1.5rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                <p style={{ margin: '0 0 0.5rem 0' }}><strong>Waybill ID:</strong> {scanResult?.split('|')[0]}</p>
+                <p style={{ margin: '0 0 0.5rem 0' }}><strong>Current Custody:</strong> {verification.custody}</p>
+                <p style={{ margin: '0 0 0.5rem 0' }}><strong>Status:</strong> <StatusPill status={verification.current_status || 'UNKNOWN'} text={verification.current_status || 'UNKNOWN'} /></p>
+            </div>
+            
+            <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+                <button onClick={onReset} style={{ padding: '0.75rem 2rem', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
+                    Scan Another
+                </button>
+            </div>
+        </div>
+    );
 };
 
 export default QRVerificationStatus;

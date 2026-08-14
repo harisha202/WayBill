@@ -1,36 +1,36 @@
 {
-  "title": "Choose Your Role",
-  "subtitle": "Select your role to access the appropriate dashboard and features",
+  "title": "Choose your workspace",
+  "subtitle": "Select the workspace associated with your account.",
   "roles": [
     {
       "id": "Admin",
       "letter": "A",
-      "title": "Admin",
-      "description": "Full system control and oversight"
+      "title": "ADMIN / CEO",
+      "description": "Manage users, supply-chain operations, risk, finance and audit."
     },
     {
       "id": "Manufacturer",
       "letter": "M",
-      "title": "Manufacturer",
-      "description": "Production and batch management"
+      "title": "MANUFACTURER",
+      "description": "Manage production, demand, raw materials and quality."
     },
     {
       "id": "Transporter",
       "letter": "T",
-      "title": "Transporter",
-      "description": "Fleet tracking and logistics"
+      "title": "TRANSPORTER",
+      "description": "Manage vehicles, GPS, routes, ETA and shipments."
     },
     {
       "id": "Dealer",
       "letter": "D",
-      "title": "Dealer",
-      "description": "Distribution and wholesale"
+      "title": "DEALER",
+      "description": "Manage orders, inventory, receiving and distribution."
     },
     {
       "id": "RetailShop",
       "letter": "R",
-      "title": "Retail Shop",
-      "description": "POS and inventory management"
+      "title": "RETAIL SHOP",
+      "description": "Manage sales, inventory, incoming shipments and QR verification."
     }
   ],
   "cssKeyByRole": {

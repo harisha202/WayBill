@@ -64,27 +64,41 @@ const chartContainerStyle = {
 
 export function ControlTower() {
   const statsApi = useApi('/admin/stats');
-  const revenueCostApi = useApi('/admin/analytics/revenue-cost');
-  const costBreakdownApi = useApi('/admin/analytics/cost-breakdown');
-  const orderPipelineApi = useApi('/admin/analytics/order-pipeline');
+  
+  const stats = statsApi.data || {};
 
   return (
     <div style={containerStyle}>
-      <header style={{ marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 0.5rem 0' }}>Control Tower</h1>
-        <p style={{ color: 'var(--muted)', margin: 0 }}>KPIs & Core Metrics Overview</p>
+      <header style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 0.5rem 0' }}>Control Tower</h1>
+          <p style={{ color: 'var(--muted)', margin: 0 }}>KPIs & Core Metrics Overview</p>
+        </div>
+        <button 
+          onClick={() => window.location.href = '/admin/users'}
+          style={{ background: 'var(--admin)', color: 'white', padding: '0.75rem 1.5rem', borderRadius: '8px', fontSize: '1rem', fontWeight: 600, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+        >
+          <span>👥</span> User Management
+        </button>
       </header>
 
-      {/* KPI Cards */}
       <StateBoundary state={statsApi} onRetry={statsApi.refetch}>
-        <div style={kpiGridStyle}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
           {[
-            { label: 'Active Shipments', value: statsApi.data?.active_shipments || 0, icon: '??', color: '#3b82f6' },
-            { label: 'Total Revenue', value: '?' + (statsApi.data?.revenue || 0).toLocaleString(), icon: '??', color: '#10b981' },
-            { label: 'Total Products', value: statsApi.data?.total_products || 0, icon: '??', color: '#f59e0b' },
-            { label: 'Total Users', value: statsApi.data?.total_users || 0, icon: '??', color: '#a855f7' }
+            { label: 'Active Orders', value: stats.active_orders || 0, icon: '📦', color: '#3b82f6' },
+            { label: 'Active Shipments', value: stats.active_shipments || 0, icon: '🚛', color: '#10b981' },
+            { label: 'In-Transit', value: stats.in_transit_shipments || 0, icon: '🚚', color: '#f59e0b' },
+            { label: 'Delayed Shipments', value: stats.delayed_shipments || 0, icon: '⚠️', color: '#ef4444' },
+            { label: 'Critical Risks', value: stats.critical_risks || 0, icon: '🔥', color: '#dc2626' },
+            { label: 'Manufacturers', value: stats.active_manufacturers || 0, icon: '🏭', color: '#6366f1' },
+            { label: 'Transporters', value: stats.active_transporters || 0, icon: '🚆', color: '#8b5cf6' },
+            { label: 'Dealers', value: stats.active_dealers || 0, icon: '🏪', color: '#ec4899' },
+            { label: 'Retail Shops', value: stats.active_retail_shops || 0, icon: '🛒', color: '#f43f5e' },
+            { label: 'Inventory Alerts', value: stats.inventory_alerts || 0, icon: '📉', color: '#f97316' },
+            { label: 'Pending Waybills', value: stats.pending_waybills || 0, icon: '📄', color: '#06b6d4' },
+            { label: 'Discrepancies', value: stats.pending_discrepancies || 0, icon: '❌', color: '#f43f5e' }
           ].map((kpi, i) => (
-            <div key={i} style={{ ...cardStyle, display: 'flex', alignItems: 'center' }}>
+            <div key={i} style={{ ...cardStyle, display: 'flex', alignItems: 'center', borderLeft: `4px solid ${kpi.color}` }}>
               <div style={{ fontSize: '2.5rem', marginRight: '1rem', color: kpi.color }}>{kpi.icon}</div>
               <div>
                 <div style={{ color: 'var(--muted)', fontSize: '0.875rem', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '500' }}>{kpi.label}</div>
@@ -94,8 +108,6 @@ export function ControlTower() {
           ))}
         </div>
       </StateBoundary>
-
-
     </div>
   );
 }
@@ -127,15 +139,67 @@ export function SupplierRisk() {
 }
 
 export function ActivityLog() {
-  const anomalyTrendData = { labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], data: [2, 0, 5, 1, 3] };
+  const activityApi = useApi('/admin/activity-logs');
+  const logs = activityApi.data?.logs || [];
 
   return (
     <div style={containerStyle}>
       <header style={{ marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 0.5rem 0' }}>Activity Log</h1>
-        <p style={{ color: 'var(--muted)', margin: 0 }}>System Anomalies and Event Tracking</p>
+        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 0.5rem 0' }}>Activity & Audit Log</h1>
+        <p style={{ color: 'var(--muted)', margin: 0 }}>System anomalies, user actions, and event tracking</p>
       </header>
-
+      
+      <StateBoundary state={activityApi} onRetry={activityApi.refetch}>
+        <div style={{ ...cardStyle, padding: 0, overflowX: 'auto' }}>
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={thStyle}>Timestamp</th>
+                <th style={thStyle}>User (ID)</th>
+                <th style={thStyle}>Role</th>
+                <th style={thStyle}>Action</th>
+                <th style={thStyle}>Entity</th>
+                <th style={thStyle}>Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logs.length === 0 ? (
+                <tr>
+                  <td colSpan="6" style={{ ...tdStyle, textAlign: 'center', padding: '2rem', color: 'var(--muted)' }}>
+                    No audit logs found.
+                  </td>
+                </tr>
+              ) : (
+                logs.map((log) => (
+                  <tr key={log.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={tdStyle}>{new Date(log.timestamp).toLocaleString()}</td>
+                    <td style={tdStyle}>{log.user_id || 'System'}</td>
+                    <td style={tdStyle}>{log.role || '-'}</td>
+                    <td style={tdStyle}>
+                      <span style={{ 
+                        padding: '0.25rem 0.5rem', 
+                        borderRadius: '0.25rem', 
+                        fontSize: '0.75rem', 
+                        fontWeight: 'bold',
+                        backgroundColor: '#e0e7ff',
+                        color: '#4f46e5'
+                      }}>
+                        {log.action}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>{log.entity_type} {log.entity_id ? `(#${log.entity_id})` : ''}</td>
+                    <td style={tdStyle}>
+                      <pre style={{ margin: 0, fontSize: '0.75rem', whiteSpace: 'pre-wrap', color: 'var(--muted)' }}>
+                        {log.details ? JSON.stringify(log.details) : '-'}
+                      </pre>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </StateBoundary>
     </div>
   );
 }

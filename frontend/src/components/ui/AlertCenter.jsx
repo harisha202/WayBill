@@ -7,12 +7,7 @@ const alertTypes = {
   resolved: { color: '#10b981', icon: '🟢', label: 'Resolved' }
 };
 
-const mockAlerts = [
-  { id: 1, type: 'critical', title: 'Route Deviation Detected', message: 'Truck TRK-002 has significantly deviated from the planned route.', time: '10 mins ago' },
-  { id: 2, type: 'warning', title: 'Supplier Delay', message: 'Supplier A reported a delay in delivering Raw Materials.', time: '1 hour ago' },
-  { id: 3, type: 'attention', title: 'Low Inventory', message: 'Aluminum inventory is running low in Warehouse B.', time: '2 hours ago' },
-  { id: 4, type: 'resolved', title: 'Payment Confirmed', message: 'Invoice INV-1002 has been successfully settled.', time: '5 hours ago' }
-];
+const mockAlerts = [];
 
 export default function AlertCenter() {
   return (

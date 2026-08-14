@@ -2,6 +2,7 @@
   "ROLE_LINKS": {
     "Admin": [
       "🗼 Control Tower",
+      "👥 User Management",
       "🌳 Supply Chain Depth",
       "⚠️ Supplier Risk",
       "🔗 Activity Log",
@@ -9,7 +10,8 @@
       "🔔 Alert Center",
       "⚖️ Dispute Center",
       "✅ Seal Verification",
-      "📦 Batch Traceability"
+      "📦 Batch Traceability",
+      "⚙️ Admin Settings"
     ],
     "Manufacturer": [
       "🏠 Dashboard",
@@ -59,6 +61,7 @@
   "PATH_BY_ROLE_LINK": {
     "Admin": {
       "🗼 Control Tower": "/admin",
+      "👥 User Management": "/admin/users",
       "🌳 Supply Chain Depth": "/admin/depth",
       "⚠️ Supplier Risk": "/admin/risk",
       "🔗 Activity Log": "/admin/activity",
@@ -66,7 +69,8 @@
       "🔔 Alert Center": "/admin/alerts",
       "⚖️ Dispute Center": "/admin/disputes",
       "✅ Seal Verification": "/admin/verify",
-      "📦 Batch Traceability": "/admin/batch"
+      "📦 Batch Traceability": "/admin/batch",
+      "⚙️ Admin Settings": "/admin/settings"
     },
     "Manufacturer": {
       "🏠 Dashboard": "/manufacturer",

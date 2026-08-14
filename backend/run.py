@@ -14,9 +14,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import admin, ai, auth, blockchain, dealer, inventory, manufacturer, tracking, suppliers, route_optimizer, waybill
+from app.api import admin, ai, auth, blockchain, dealer, inventory, manufacturer, tracking, suppliers, route_optimizer, waybill, retail
 from app.core.config import ConfigurationError, get_settings, validate_settings
-from app.api.tracking import get_tracking_socket_payload
 from app.services.ai_service import ai_status
 from app.services.database_service import DatabaseError, check_database_connection, initialize_database
 from app.services.notification_service import notification_service
@@ -67,6 +66,7 @@ def create_app() -> FastAPI:
     app.include_router(suppliers.router, prefix="/api")
     app.include_router(route_optimizer.router, prefix="/api")
     app.include_router(waybill.router, prefix="/api")
+    app.include_router(retail.router, prefix="/api")
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
@@ -142,16 +142,6 @@ def create_app() -> FastAPI:
             "ai": ai_status(),
         }
 
-    @app.websocket("/ws/gps")
-    async def gps_socket(websocket: WebSocket) -> None:
-        await websocket.accept()
-        try:
-            while True:
-                payload = get_tracking_socket_payload()
-                await websocket.send_text(json.dumps(payload))
-                await asyncio.sleep(2)
-        except WebSocketDisconnect:
-            return
 
     @app.websocket("/ws/notifications/{user_id}")
     async def notifications_socket(websocket: WebSocket, user_id: str) -> None:

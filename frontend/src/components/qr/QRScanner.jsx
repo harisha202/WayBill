@@ -41,17 +41,7 @@ const QRScanner = ({ onScan }) => {
     animation: 'scan 2s infinite linear'
   };
 
-  // Mock scan buttons for demonstration
-  const handleMockScan = (type) => {
-    let mockData = '';
-    switch(type) {
-      case 'valid': mockData = 'waybill://token/v1/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.valid-data'; break;
-      case 'tampered': mockData = 'waybill://token/v1/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.tamper-detected'; break;
-      case 'invalid': mockData = 'waybill://token/v1/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.invalid-sig'; break;
-      default: mockData = 'waybill://token/v1/notfound';
-    }
-    onScan(mockData);
-  };
+
 
   return (
     <div style={{ width: '100%' }}>
@@ -86,15 +76,7 @@ const QRScanner = ({ onScan }) => {
         )}
       </div>
 
-      <div style={{ marginTop: '1rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem', justifyContent: 'center' }}>
-        <p style={{ width: '100%', textAlign: 'center', fontSize: '0.875rem', color: 'var(--text-secondary, #666666)' }}>
-          Developer Tools (Mock Scans):
-        </p>
-        <button onClick={() => handleMockScan('valid')} style={{ padding: '0.5rem', fontSize: '0.75rem', cursor: 'pointer' }}>Scan Valid</button>
-        <button onClick={() => handleMockScan('tampered')} style={{ padding: '0.5rem', fontSize: '0.75rem', cursor: 'pointer' }}>Scan Tampered</button>
-        <button onClick={() => handleMockScan('invalid')} style={{ padding: '0.5rem', fontSize: '0.75rem', cursor: 'pointer' }}>Scan Invalid</button>
-        <button onClick={() => handleMockScan('notfound')} style={{ padding: '0.5rem', fontSize: '0.75rem', cursor: 'pointer' }}>Scan Not Found</button>
-      </div>
+
     </div>
   );
 };
