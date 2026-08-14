@@ -28,16 +28,19 @@ from slowapi.middleware import SlowAPIMiddleware
 logger = logging.getLogger("global_supply_chain_api")
 
 
+from contextlib import asynccontextmanager
+
 def create_app() -> FastAPI:
     settings = get_settings()
     validate_settings(settings)
     initialize_database()
 
-    app = FastAPI(title=settings.app_name)
-    
-    @app.on_event("startup")
-    async def startup_event():
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
         start_simulation(app)
+        yield
+
+    app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
     app.state.limiter = auth.limiter
     app.add_middleware(SlowAPIMiddleware)

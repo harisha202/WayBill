@@ -18,7 +18,7 @@ export const adminApi = {
 
   updateUserStatus: async (userId, isActive) => {
     const response = await axiosInstance.post(`/admin/users/${userId}/status`, {
-      is_active: isActive
+      is_active: isActive ? 1 : 0
     });
     return response.data;
   },
@@ -27,6 +27,11 @@ export const adminApi = {
     const response = await axiosInstance.post(`/admin/users/${userId}/reset-password`, {
       new_password: newPassword
     });
+    return response.data;
+  },
+
+  deleteUser: async (userId) => {
+    const response = await axiosInstance.delete(`/admin/users/${userId}`);
     return response.data;
   }
 };

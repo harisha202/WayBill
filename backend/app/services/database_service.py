@@ -1154,7 +1154,15 @@ def set_user_status(user_id: int, is_active: int) -> dict:
             )
             return get_user_by_id(user_id)
     except SQLAlchemyError as exc:
-        raise DatabaseError("Failed to set user status") from exc
+        raise DatabaseError("Failed to update user status") from exc
+
+def delete_user(user_id: int) -> bool:
+    try:
+        with _engine().begin() as conn:
+            result = conn.execute(users_table.delete().where(users_table.c.id == user_id))
+            return result.rowcount > 0
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to delete user") from exc
 
 
 def reset_user_password(user_id: int, new_password_hash: str) -> dict:

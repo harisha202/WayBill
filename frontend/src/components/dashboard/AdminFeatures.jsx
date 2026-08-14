@@ -62,6 +62,25 @@ const chartContainerStyle = {
   position: 'relative'
 };
 
+const tableStyle = {
+  width: '100%',
+  borderCollapse: 'collapse',
+  textAlign: 'left'
+};
+
+const thStyle = {
+  padding: '1rem',
+  color: 'var(--muted)',
+  fontWeight: '600',
+  borderBottom: '1px solid #334155',
+  backgroundColor: 'rgba(0,0,0,0.2)'
+};
+
+const tdStyle = {
+  padding: '1rem',
+  borderBottom: '1px solid #334155'
+};
+
 export function ControlTower() {
   const statsApi = useApi('/admin/stats');
   
@@ -69,17 +88,9 @@ export function ControlTower() {
 
   return (
     <div style={containerStyle}>
-      <header style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 0.5rem 0' }}>Control Tower</h1>
-          <p style={{ color: 'var(--muted)', margin: 0 }}>KPIs & Core Metrics Overview</p>
-        </div>
-        <button 
-          onClick={() => window.location.href = '/admin/users'}
-          style={{ background: 'var(--admin)', color: 'white', padding: '0.75rem 1.5rem', borderRadius: '8px', fontSize: '1rem', fontWeight: 600, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-        >
-          <span>👥</span> User Management
-        </button>
+      <header style={{ marginBottom: '2rem' }}>
+        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 0.5rem 0' }}>Control Tower</h1>
+        <p style={{ color: 'var(--muted)', margin: 0 }}>KPIs & Core Metrics Overview</p>
       </header>
 
       <StateBoundary state={statsApi} onRetry={statsApi.refetch}>
@@ -141,6 +152,19 @@ export function SupplierRisk() {
 export function ActivityLog() {
   const activityApi = useApi('/admin/activity-logs');
   const logs = activityApi.data?.logs || [];
+  const [selectedLog, setSelectedLog] = React.useState(null);
+  const [isModalOpen, setIsModalOpen] = React.useState(false);
+
+  const openModal = (log) => {
+    setSelectedLog(log);
+    setIsModalOpen(true);
+  };
+
+  React.useEffect(() => {
+    const handleRefresh = () => activityApi.refetch();
+    window.addEventListener('activity_log_changed', handleRefresh);
+    return () => window.removeEventListener('activity_log_changed', handleRefresh);
+  }, [activityApi]);
 
   return (
     <div style={containerStyle}>
@@ -160,12 +184,13 @@ export function ActivityLog() {
                 <th style={thStyle}>Action</th>
                 <th style={thStyle}>Entity</th>
                 <th style={thStyle}>Details</th>
+                <th style={thStyle}></th>
               </tr>
             </thead>
             <tbody>
               {logs.length === 0 ? (
                 <tr>
-                  <td colSpan="6" style={{ ...tdStyle, textAlign: 'center', padding: '2rem', color: 'var(--muted)' }}>
+                  <td colSpan="7" style={{ ...tdStyle, textAlign: 'center', padding: '2rem', color: 'var(--muted)' }}>
                     No audit logs found.
                   </td>
                 </tr>
@@ -189,9 +214,12 @@ export function ActivityLog() {
                     </td>
                     <td style={tdStyle}>{log.entity_type} {log.entity_id ? `(#${log.entity_id})` : ''}</td>
                     <td style={tdStyle}>
-                      <pre style={{ margin: 0, fontSize: '0.75rem', whiteSpace: 'pre-wrap', color: 'var(--muted)' }}>
+                      <pre style={{ margin: 0, fontSize: '0.75rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px', color: 'var(--muted)' }}>
                         {log.details ? JSON.stringify(log.details) : '-'}
                       </pre>
+                    </td>
+                    <td style={tdStyle}>
+                      <button className="secondary-btn" style={{ fontSize: '0.8rem', backgroundColor: '#3b82f6', color: '#ffffff', border: 'none', padding: '0.4rem 0.6rem', borderRadius: '4px' }} onClick={() => openModal(log)}>View Details</button>
                     </td>
                   </tr>
                 ))
@@ -200,6 +228,39 @@ export function ActivityLog() {
           </table>
         </div>
       </StateBoundary>
+
+      {isModalOpen && selectedLog && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="card" style={{ width: '600px', maxWidth: '90vw', backgroundColor: '#ffffff', color: '#000000', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+            <h3 style={{ marginTop: 0, color: '#000000', marginBottom: '1rem' }}>Audit Log Details</h3>
+            
+            <div style={{ flex: 1, overflowY: 'auto', fontSize: '0.9rem', lineHeight: '1.5' }}>
+              <p><strong>Timestamp:</strong> {new Date(selectedLog.timestamp).toLocaleString()}</p>
+              <p><strong>User:</strong> {selectedLog.user_id || 'System'} ({selectedLog.role || '-'})</p>
+              <p><strong>Action:</strong> {selectedLog.action}</p>
+              <p><strong>Entity:</strong> {selectedLog.entity_type} {selectedLog.entity_id ? `(#${selectedLog.entity_id})` : ''}</p>
+              
+              <div style={{ marginTop: '1.5rem' }}>
+                <p style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>JSON Payload:</p>
+                <pre style={{ 
+                  backgroundColor: '#f1f5f9', 
+                  padding: '1rem', 
+                  borderRadius: '6px', 
+                  overflowX: 'auto',
+                  border: '1px solid #e2e8f0',
+                  color: '#334155'
+                }}>
+                  {JSON.stringify(selectedLog.details, null, 2)}
+                </pre>
+              </div>
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid #e2e8f0' }}>
+              <button className="primary-btn" onClick={() => setIsModalOpen(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -322,3 +322,24 @@ def reset_password(user_id: int, reset_req: UserResetPasswordRequest, payload: d
         return {"success": True, "message": "Password reset successfully"}
     except DatabaseError as e:
         raise HTTPException(status_code=404, detail="User not found")
+
+@router.delete("/users/{user_id}", dependencies=[Depends(require_roles(UserRole.admin))])
+def delete_existing_user(user_id: int, payload: dict = Depends(require_roles(UserRole.admin))):
+    from app.services.database_service import delete_user, get_user_by_id
+    
+    user = get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    if user.get("role", "").lower() == UserRole.admin.value.lower():
+        raise HTTPException(status_code=400, detail="Cannot delete ADMIN accounts")
+        
+    try:
+        success = delete_user(user_id)
+        if success:
+            log_activity(payload["sub"], UserRole.admin.value, "USER_DELETED", "user", str(user_id), {"username": user.get("username"), "result": "SUCCESS"})
+            return {"success": True, "message": "User deleted successfully"}
+        else:
+            raise HTTPException(status_code=404, detail="User not found or already deleted")
+    except DatabaseError as e:
+        raise HTTPException(status_code=500, detail="Failed to delete user")

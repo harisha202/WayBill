@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { adminApi } from '../../api/services/adminApi';
+import { useApi } from '../../api/hooks/useApi';
 import { StateBoundary } from '../common/StateBoundary';
 
 export function UserManagement() {
@@ -31,7 +32,7 @@ export function UserManagement() {
     setError(null);
     try {
       const response = await adminApi.getUsers();
-      setUsers(response.data || []);
+      setUsers(Array.isArray(response) ? response : (response?.data || []));
     } catch (err) {
       setError(err.message || 'Unable to load users.');
     } finally {
@@ -79,10 +80,30 @@ export function UserManagement() {
     setIsModalOpen(true);
   };
 
+  const openViewModal = (user) => {
+    setModalMode('view');
+    setSelectedUser(user);
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteUser = async (user) => {
+    if (window.confirm(`Are you absolutely sure you want to PERMANENTLY delete user '${user.username}'? This cannot be undone.`)) {
+      try {
+        await adminApi.deleteUser(user.id);
+        setSuccessMessage('User deleted successfully.');
+        window.dispatchEvent(new Event('activity_log_changed'));
+        fetchUsers();
+      } catch (err) {
+        alert(err.response?.data?.detail || err.message || 'Failed to delete user.');
+      }
+    }
+  };
+
   const handleToggleStatus = async (user) => {
     if (window.confirm(`Are you sure you want to ${user.is_active ? 'deactivate' : 'activate'} this account?`)) {
       try {
         await adminApi.updateUserStatus(user.id, user.is_active ? 0 : 1);
+        window.dispatchEvent(new Event('activity_log_changed'));
         fetchUsers();
       } catch (err) {
         alert('Failed to update status: ' + err.message);
@@ -104,6 +125,9 @@ export function UserManagement() {
       if (modalMode === 'create') {
         await adminApi.createUser(formData);
         setSuccessMessage('User created successfully.');
+        setSearch('');
+        setRoleFilter('All');
+        setStatusFilter('All');
       } else if (modalMode === 'edit') {
         await adminApi.updateUser(selectedUser.id, formData);
         setSuccessMessage('User updated successfully.');
@@ -111,6 +135,7 @@ export function UserManagement() {
         await adminApi.resetUserPassword(selectedUser.id, formData.password);
         setSuccessMessage('Password reset successfully.');
       }
+      window.dispatchEvent(new Event('activity_log_changed'));
       setIsModalOpen(false);
       fetchUsers();
     } catch (err) {
@@ -162,7 +187,7 @@ export function UserManagement() {
         </select>
       </div>
 
-      <StateBoundary loading={loading} error={error} empty={filteredUsers.length === 0} onRetry={fetchUsers} emptyMessage="No users found.">
+      <StateBoundary state={{ loading, error, isEmpty: filteredUsers.length === 0 }} onRetry={fetchUsers} emptyMessage="No users found.">
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid #333' }}>
@@ -172,16 +197,16 @@ export function UserManagement() {
               <th>Company</th>
               <th>Status</th>
               <th>Last Login</th>
-              <th>Actions</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
-            {filteredUsers.map(user => (
+            {[...filteredUsers].reverse().map(user => (
               <tr key={user.id} style={{ borderBottom: '1px solid #222' }}>
                 <td style={{ padding: '0.75rem' }}>{user.name}</td>
                 <td>{user.username}</td>
                 <td>
-                  <span style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', backgroundColor: '#333' }}>
+                  <span style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', backgroundColor: '#333', color: '#ffffff' }}>
                     {user.role.toUpperCase()}
                   </span>
                 </td>
@@ -191,18 +216,27 @@ export function UserManagement() {
                     padding: '0.25rem 0.5rem', 
                     borderRadius: '4px', 
                     fontSize: '0.8rem', 
-                    backgroundColor: user.is_active ? '#2e7d32' : '#c62828' 
+                    backgroundColor: user.is_active ? '#2e7d32' : '#c62828',
+                    color: '#ffffff'
                   }}>
-                    {user.is_active ? 'ACTIVE' : 'INACTIVE'}
+                    {user.is_active ? '● ACTIVE' : '● INACTIVE'}
                   </span>
                 </td>
-                <td className="muted" style={{ fontSize: '0.8rem' }}>{user.last_login_at ? new Date(user.last_login_at).toLocaleString() : 'Never'}</td>
-                <td>
-                  <button className="secondary-btn" style={{ fontSize: '0.8rem', marginRight: '0.5rem' }} onClick={() => openEditModal(user)}>Edit</button>
-                  <button className="secondary-btn" style={{ fontSize: '0.8rem', marginRight: '0.5rem' }} onClick={() => handleToggleStatus(user)}>
+                <td className="muted" style={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                  {user.last_login_at ? new Date(user.last_login_at).toLocaleString() : (
+                    <span style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', backgroundColor: '#c62828', color: '#ffffff', display: 'inline-block' }}>
+                      ● NEVER
+                    </span>
+                  )}
+                </td>
+                <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <button className="secondary-btn" style={{ fontSize: '0.85rem', padding: '0.4rem 0.6rem', borderRadius: '4px', marginRight: '0.5rem', backgroundColor: '#3b82f6', color: '#ffffff', border: 'none' }} onClick={() => openViewModal(user)}>View</button>
+                  <button className="secondary-btn" style={{ fontSize: '0.85rem', padding: '0.4rem 0.6rem', borderRadius: '4px', marginRight: '0.5rem', backgroundColor: '#f59e0b', color: '#ffffff', border: 'none' }} onClick={() => openEditModal(user)}>Edit</button>
+                  <button className="secondary-btn" style={{ fontSize: '0.85rem', padding: '0.4rem 0.6rem', borderRadius: '4px', marginRight: '0.5rem', backgroundColor: user.is_active ? '#64748b' : '#10b981', color: '#ffffff', border: 'none' }} onClick={() => handleToggleStatus(user)}>
                     {user.is_active ? 'Deactivate' : 'Activate'}
                   </button>
-                  <button className="secondary-btn" style={{ fontSize: '0.8rem' }} onClick={() => openResetPasswordModal(user)}>Reset Pwd</button>
+                  <button className="secondary-btn" style={{ fontSize: '0.85rem', padding: '0.4rem 0.6rem', borderRadius: '4px', marginRight: '0.5rem', backgroundColor: '#8b5cf6', color: '#ffffff', border: 'none' }} onClick={() => openResetPasswordModal(user)}>Reset Pwd</button>
+                  <button className="secondary-btn" style={{ fontSize: '0.85rem', padding: '0.4rem 0.6rem', borderRadius: '4px', backgroundColor: '#ef4444', color: '#ffffff', border: 'none' }} onClick={() => handleDeleteUser(user)}>Delete</button>
                 </td>
               </tr>
             ))}
@@ -212,13 +246,37 @@ export function UserManagement() {
 
       {isModalOpen && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div className="card" style={{ width: '400px', backgroundColor: 'var(--card-bg)' }}>
-            <h3 style={{ marginTop: 0 }}>
+          <div className="card" style={{ width: modalMode === 'view' ? '600px' : '400px', maxWidth: '90vw', backgroundColor: '#ffffff', color: '#000000', maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+            <h3 style={{ marginTop: 0, color: '#000000' }}>
               {modalMode === 'create' && 'Create User'}
               {modalMode === 'edit' && 'Edit User'}
               {modalMode === 'reset_password' && 'Reset Password'}
+              {modalMode === 'view' && 'View User Details'}
             </h3>
             
+            {modalMode === 'view' && selectedUser ? (
+              <div style={{ marginTop: '1rem', fontSize: '0.9rem', lineHeight: '1.5' }}>
+                <p><strong>ID:</strong> {selectedUser.id}</p>
+                <p><strong>Username:</strong> {selectedUser.username}</p>
+                <p><strong>Full Name:</strong> {selectedUser.name}</p>
+                <p><strong>Email:</strong> {selectedUser.email}</p>
+                <p><strong>Role:</strong> {selectedUser.role.toUpperCase()}</p>
+                <p><strong>Company:</strong> {selectedUser.company_name || '-'}</p>
+                <p><strong>Phone:</strong> {selectedUser.phone || '-'}</p>
+                <p><strong>Status:</strong> {selectedUser.is_active ? 'Active' : 'Inactive'}</p>
+                <p><strong>Created At:</strong> {new Date(selectedUser.created_at).toLocaleString()}</p>
+                <p><strong>Last Login:</strong> {selectedUser.last_login_at ? new Date(selectedUser.last_login_at).toLocaleString() : 'Never'}</p>
+                
+                <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid #ccc' }}>
+                  <h4 style={{ margin: '0 0 0.5rem 0' }}>Activity History</h4>
+                  <UserActivityHistory userId={selectedUser.id} />
+                </div>
+                
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+                  <button className="primary-btn" onClick={() => setIsModalOpen(false)}>Close</button>
+                </div>
+              </div>
+            ) : (
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
               {modalMode !== 'reset_password' && (
                 <>
@@ -257,6 +315,7 @@ export function UserManagement() {
                 </button>
               </div>
             </form>
+            )}
           </div>
         </div>
       )}
@@ -267,9 +326,43 @@ export function UserManagement() {
 const inputStyle = {
   padding: '0.75rem',
   borderRadius: '4px',
-  border: '1px solid #444',
-  backgroundColor: '#222',
-  color: '#fff',
+  border: '1px solid #ccc',
+  backgroundColor: '#ffffff',
+  color: '#000000',
   width: '100%',
   boxSizing: 'border-box'
 };
+
+function UserActivityHistory({ userId }) {
+  const { data, loading, error } = useApi('/admin/activity-logs');
+  
+  if (loading) return <p style={{ fontSize: '0.85rem', color: '#666' }}>Loading activity history...</p>;
+  if (error) return <p style={{ fontSize: '0.85rem', color: '#ef4444' }}>Error loading activity history.</p>;
+  
+  const userLogs = (data?.logs || []).filter(log => log.user_id === userId);
+  
+  if (userLogs.length === 0) return <p style={{ fontSize: '0.85rem', color: '#666' }}>No activity history found for this user.</p>;
+  
+  return (
+    <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #ccc', borderRadius: '4px' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
+        <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f1f5f9' }}>
+          <tr>
+            <th style={{ padding: '0.4rem', borderBottom: '1px solid #ccc' }}>Time</th>
+            <th style={{ padding: '0.4rem', borderBottom: '1px solid #ccc' }}>Action</th>
+            <th style={{ padding: '0.4rem', borderBottom: '1px solid #ccc' }}>Entity</th>
+          </tr>
+        </thead>
+        <tbody>
+          {userLogs.map(log => (
+            <tr key={log.id} style={{ borderBottom: '1px solid #eee' }}>
+              <td style={{ padding: '0.4rem', whiteSpace: 'nowrap', color: '#555' }}>{new Date(log.timestamp).toLocaleString()}</td>
+              <td style={{ padding: '0.4rem', fontWeight: 'bold', color: '#333' }}>{log.action}</td>
+              <td style={{ padding: '0.4rem', color: '#555' }}>{log.entity_type} {log.entity_id ? `(#${log.entity_id})` : ''}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}

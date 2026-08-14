@@ -14,7 +14,8 @@ export function useApi(endpoint, dependencies = []) {
         setState({ data: null, loading: true, error: null, isEmpty: false });
         try {
             const response = await api.get(endpoint);
-            const responseData = response.data?.data || response.data;
+            // axiosInstance already unpacks the response, so response is the payload directly
+            const responseData = response?.data ?? response;
             
             // Determine if empty (null, empty array, or empty object)
             const isDataEmpty = 
