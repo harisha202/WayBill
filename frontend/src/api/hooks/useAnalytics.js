@@ -21,8 +21,10 @@ export function useAnalytics(endpoint, filters = {}, dependencies = []) {
     if (filters.status && filters.status !== 'all') params.set('status', filters.status);
     if (filters.entityType && filters.entityType !== 'all') params.set('entity_type', filters.entityType);
     if (filters.supplierId) params.set('supplier_id', filters.supplierId);
+    if (filters.sku) params.set('sku', filters.sku);
+    if (filters.severity) params.set('severity', filters.severity);
     return params.toString();
-  }, [filters.dateFrom, filters.dateTo, filters.status, filters.entityType, filters.supplierId]);
+  }, [filters.dateFrom, filters.dateTo, filters.status, filters.entityType, filters.supplierId, filters.sku, filters.severity]);
 
   const fetchData = useCallback(async () => {
     if (abortRef.current) abortRef.current.abort();
@@ -51,7 +53,7 @@ export function useAnalytics(endpoint, filters = {}, dependencies = []) {
     fetchData();
     return () => { if (abortRef.current) abortRef.current.abort(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [endpoint, filters.dateFrom, filters.dateTo, filters.status, filters.entityType, filters.supplierId, ...dependencies]);
+  }, [endpoint, filters.dateFrom, filters.dateTo, filters.status, filters.entityType, filters.supplierId, filters.sku, filters.severity, ...dependencies]);
 
   return { ...state, refetch: fetchData };
 }

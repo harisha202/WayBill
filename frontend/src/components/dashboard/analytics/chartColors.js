@@ -164,3 +164,27 @@ export function getEntityColor(entityType) {
   };
   return map[entityType] || SEMANTIC.neutral;
 }
+
+// ─── MANUFACTURER COLOR PALETTES ─────────────────────────────────────────────
+
+export const MFG_DASHBOARD  = { primary:'#2563EB', secondary:'#06B6D4', completed:'#059669', active:'#2563EB', pending:'#F59E0B', created:'#F59E0B' };
+export const MFG_PRODUCTION = { primary:'#4F46E5', secondary:'#6366F1', active:'#4F46E5', completed:'#059669', pending:'#F59E0B', failed:'#DC2626', qaColors:{ PASSED:'#059669', FAILED:'#DC2626', PENDING:'#F59E0B' } };
+export const MFG_FORECAST   = { actual:'#7C3AED', forecast:'#2563EB', trend:'#4F46E5', sku:'#2563EB' };
+export const MFG_MATERIALS  = { available:'#0D9488', reserved:'#2563EB', in_transit:'#06B6D4', at_risk:'#F59E0B', critical:'#DC2626', healthy:'#059669' };
+export const MFG_QUALITY    = { passed:'#059669', failed:'#DC2626', pending:'#F59E0B', defect:'#F97316' };
+export const MFG_LEDGER     = { value:'#16A34A', delivered:'#059669', dispatched:'#0D9488', pending:'#F59E0B', cost:'#64748B' };
+export const MFG_ALERTS     = { CRITICAL:'#DC2626', HIGH:'#F97316', MEDIUM:'#F59E0B', LOW:'#2563EB', OPEN:'#DC2626', ACKNOWLEDGED:'#F59E0B', RESOLVED:'#059669' };
+export const MFG_DISPUTES   = { OPEN:'#2563EB', UNDER_REVIEW:'#F59E0B', RESOLVED:'#059669', CLOSED:'#64748B' };
+export const MFG_BATCH      = { production:'#4F46E5', qa:'#7C3AED', completed:'#059669', dispatch:'#06B6D4', issue:'#F97316', critical:'#DC2626', CREATED:'#F59E0B', STARTED:'#2563EB', COMPLETED:'#059669' };
+
+export function getMfgStatusColor(status) {
+  const map = {
+    CREATED:'#F59E0B', STARTED:'#2563EB', COMPLETED:'#059669',
+    PASSED:'#059669', FAILED:'#DC2626', PENDING:'#F59E0B',
+    OPEN:'#DC2626', ACKNOWLEDGED:'#F59E0B', RESOLVED:'#059669',
+    UNDER_REVIEW:'#F59E0B', CLOSED:'#64748B',
+    CRITICAL:'#DC2626', HIGH:'#F97316', MEDIUM:'#F59E0B', LOW:'#2563EB',
+    DELIVERED:'#059669', DISPATCHED:'#0D9488',
+  };
+  return map[status?.toUpperCase?.()] || SEMANTIC.neutral;
+}

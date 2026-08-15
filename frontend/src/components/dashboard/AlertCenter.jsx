@@ -5,16 +5,22 @@ import { DataTable } from '../ui/DataTable';
 import { StatusPill } from '../ui/StatusPill';
 import {
   ResponsiveContainer, BarChart, Bar, LineChart, Line,
-  FunnelChart, Funnel, LabelList, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend
+  PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend
 } from 'recharts';
 
 const cardStyle = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '1.25rem' };
 
+const SEVERITY_COLORS = {
+  CRITICAL: '#DC2626',
+  HIGH: '#F97316',
+  MEDIUM: '#F59E0B',
+  LOW: '#2563EB'
+};
+
 const STATUS_COLORS = {
-  OPEN: '#2563EB',
-  UNDER_REVIEW: '#F59E0B',
-  RESOLVED: '#059669',
-  CLOSED: '#64748B'
+  OPEN: '#DC2626',
+  ACKNOWLEDGED: '#F59E0B',
+  RESOLVED: '#059669'
 };
 
 function MfgTooltip({ active, payload, label }) {
@@ -35,18 +41,18 @@ function MfgTooltip({ active, payload, label }) {
   );
 }
 
-export function DisputeCenter() {
+export function AlertCenter() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
+  const [severityFilter, setSeverityFilter] = useState('All');
 
-  const { data: analytics, loading: analyticsLoading, error: analyticsError, refetch: refetchAnalytics } = useAnalytics('/manufacturer/analytics/disputes', { 
+  const { data: analytics, loading: analyticsLoading, error: analyticsError, refetch: refetchAnalytics } = useAnalytics('/manufacturer/analytics/alerts', { 
     date_from: dateFrom, 
     date_to: dateTo, 
-    status: statusFilter === 'All' ? undefined : statusFilter 
+    severity: severityFilter === 'All' ? undefined : severityFilter 
   });
 
-  const { data: disputesData, loading: disputesLoading } = useApi('/manufacturer/issues', {}, { params: { entity_type: 'waybill' } });
+  const { data: issuesData, loading: issuesLoading } = useApi('/manufacturer/issues');
 
   const handleApply = () => {
     refetchAnalytics();
@@ -55,13 +61,14 @@ export function DisputeCenter() {
   const handleClear = () => {
     setDateFrom('');
     setDateTo('');
-    setStatusFilter('All');
+    setSeverityFilter('All');
   };
 
-  const tableColumns = [
-    { header: 'Dispute ID', accessor: 'issue_id' },
-    { header: 'Mismatch Type', accessor: 'issue_type' },
-    { header: 'Description', accessor: 'description' },
+  const issuesTableColumns = [
+    { header: 'Issue ID', accessor: 'issue_id' },
+    { header: 'Entity Type', accessor: 'entity_type' },
+    { header: 'Issue Type', accessor: 'issue_type' },
+    { header: 'Severity', accessor: (row) => <StatusPill status={row.severity} color={SEVERITY_COLORS[row.severity] || 'gray'} /> },
     { header: 'Status', accessor: (row) => <StatusPill status={row.status} color={STATUS_COLORS[row.status] || 'gray'} /> },
     { header: 'Created At', accessor: (row) => new Date(row.created_at).toLocaleString() }
   ];
@@ -69,8 +76,8 @@ export function DisputeCenter() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '1.5rem' }}>
       <div style={{ marginBottom: '0.5rem' }}>
-        <h1 style={{ fontSize: '1.875rem', fontWeight: 600, margin: '0 0 0.5rem 0' }}>Dispute Center</h1>
-        <p style={{ color: 'var(--muted)', margin: 0 }}>Track and resolve order and waybill disputes</p>
+        <h1 style={{ fontSize: '1.875rem', fontWeight: 600, margin: '0 0 0.5rem 0' }}>Alert Center</h1>
+        <p style={{ color: 'var(--muted)', margin: 0 }}>Monitor and manage operational alerts</p>
       </div>
 
       <div style={{ ...cardStyle, display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -83,13 +90,13 @@ export function DisputeCenter() {
           <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)' }} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-          <label style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 500 }}>Status</label>
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', width: '160px' }}>
+          <label style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 500 }}>Severity</label>
+          <select value={severityFilter} onChange={e => setSeverityFilter(e.target.value)} style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', width: '150px' }}>
             <option value="All">All</option>
-            <option value="OPEN">OPEN</option>
-            <option value="UNDER_REVIEW">UNDER_REVIEW</option>
-            <option value="RESOLVED">RESOLVED</option>
-            <option value="CLOSED">CLOSED</option>
+            <option value="CRITICAL">CRITICAL</option>
+            <option value="HIGH">HIGH</option>
+            <option value="MEDIUM">MEDIUM</option>
+            <option value="LOW">LOW</option>
           </select>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.25rem' }}>
@@ -106,58 +113,62 @@ export function DisputeCenter() {
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
             <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <span style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>Total Disputes</span>
+              <span style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>Total Alerts</span>
               <span style={{ fontSize: '2rem', fontWeight: 600 }}>{analytics?.kpis?.total || 0}</span>
             </div>
             <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <span style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>Open</span>
-              <span style={{ fontSize: '2rem', fontWeight: 600, color: STATUS_COLORS.OPEN }}>{analytics?.kpis?.open || 0}</span>
+              <span style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>Critical Alerts</span>
+              <span style={{ fontSize: '2rem', fontWeight: 600, color: SEVERITY_COLORS.CRITICAL }}>{analytics?.kpis?.critical || 0}</span>
             </div>
             <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <span style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>Resolved</span>
-              <span style={{ fontSize: '2rem', fontWeight: 600, color: STATUS_COLORS.RESOLVED }}>{analytics?.kpis?.resolved || 0}</span>
+              <span style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>Open Alerts</span>
+              <span style={{ fontSize: '2rem', fontWeight: 600, color: STATUS_COLORS.OPEN }}>{analytics?.kpis?.open || 0}</span>
             </div>
           </div>
 
           <div style={{ ...cardStyle, height: '480px' }}>
-            <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.125rem' }}>Dispute Lifecycle</h3>
+            <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.125rem' }}>Alerts by Severity</h3>
             <ResponsiveContainer width="100%" height="90%">
-              <FunnelChart>
+              <BarChart data={analytics?.by_severity || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                <XAxis dataKey="severity" stroke="var(--muted)" fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis stroke="var(--muted)" fontSize={12} tickLine={false} axisLine={false} />
                 <Tooltip content={<MfgTooltip />} />
-                <Funnel dataKey="count" data={analytics?.lifecycle_funnel || []} isAnimationActive={false}>
-                  <LabelList position="right" fill="var(--text)" stroke="none" dataKey="stage" />
-                  {(analytics?.lifecycle_funnel || []).map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={STATUS_COLORS[entry.stage] || 'var(--primary)'} />
+                <Bar dataKey="count" isAnimationActive={false}>
+                  {(analytics?.by_severity || []).map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={SEVERITY_COLORS[entry.severity] || 'var(--primary)'} />
                   ))}
-                </Funnel>
-              </FunnelChart>
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '1.5rem' }}>
             <div style={{ ...cardStyle, height: '380px' }}>
-              <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.125rem' }}>Disputes by Type</h3>
-              <ResponsiveContainer width="100%" height="90%">
-                <BarChart data={analytics?.by_type || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                  <XAxis dataKey="type" stroke="var(--muted)" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="var(--muted)" fontSize={12} tickLine={false} axisLine={false} />
-                  <Tooltip content={<MfgTooltip />} />
-                  <Bar dataKey="count" fill="#F59E0B" isAnimationActive={false} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            
-            <div style={{ ...cardStyle, height: '380px' }}>
-              <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.125rem' }}>Trend Over Time</h3>
+              <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.125rem' }}>Alert Trend</h3>
               <ResponsiveContainer width="100%" height="90%">
                 <LineChart data={analytics?.trend || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                   <XAxis dataKey="day" stroke="var(--muted)" fontSize={12} tickLine={false} axisLine={false} />
                   <YAxis stroke="var(--muted)" fontSize={12} tickLine={false} axisLine={false} />
                   <Tooltip content={<MfgTooltip />} />
-                  <Line type="monotone" dataKey="count" name="Disputes" stroke="#2563EB" strokeWidth={3} dot={{ r: 4, fill: '#2563EB', strokeWidth: 0 }} activeDot={{ r: 6 }} isAnimationActive={false} />
+                  <Line type="monotone" dataKey="count" name="Alerts" stroke="#DC2626" strokeWidth={3} dot={{ r: 4, fill: '#DC2626', strokeWidth: 0 }} activeDot={{ r: 6 }} isAnimationActive={false} />
                 </LineChart>
+              </ResponsiveContainer>
+            </div>
+            
+            <div style={{ ...cardStyle, height: '380px' }}>
+              <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.125rem' }}>Alerts by Status</h3>
+              <ResponsiveContainer width="100%" height="90%">
+                <PieChart>
+                  <Tooltip content={<MfgTooltip />} />
+                  <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '12px' }} />
+                  <Pie data={analytics?.by_status || []} dataKey="count" nameKey="status" cx="50%" cy="50%" innerRadius={80} outerRadius={120} paddingAngle={2} isAnimationActive={false}>
+                    {(analytics?.by_status || []).map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={STATUS_COLORS[entry.status] || 'var(--primary)'} />
+                    ))}
+                  </Pie>
+                </PieChart>
               </ResponsiveContainer>
             </div>
           </div>
@@ -165,8 +176,8 @@ export function DisputeCenter() {
       )}
 
       <div style={{ ...cardStyle }}>
-        <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.125rem' }}>Dispute Records</h3>
-        <DataTable data={disputesData || []} columns={tableColumns} loading={disputesLoading} />
+        <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.125rem' }}>Issue Records</h3>
+        <DataTable data={issuesData || []} columns={issuesTableColumns} loading={issuesLoading} />
       </div>
     </div>
   );

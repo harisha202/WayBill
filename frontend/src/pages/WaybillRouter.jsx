@@ -5,6 +5,9 @@ import { ControlTower, SupplyChainDepth, SupplierRisk, ActivityLog, AdminLedger 
 import { UserManagement } from '../components/dashboard/UserManagement';
 import { AdminSettings } from '../components/dashboard/AdminSettings';
 import { ManufacturerDashboard, Production, AIForecast, RawMaterialSourcing, QualityAssurance, ManufacturerLedger } from '../components/dashboard/ManufacturerFeatures';
+import { AlertCenter } from '../components/dashboard/AlertCenter';
+import { DisputeCenter } from '../components/dashboard/DisputeCenter';
+import { BatchTraceability } from '../components/dashboard/BatchTraceability';
 import { TransporterDashboard, LiveMap, RouteOptimizer, FleetManagement, DriverLogs, MaintenanceAlerts } from '../components/dashboard/TransporterFeatures';
 import { DealerDashboard, Inventory, OrderFulfillment, PartnerNetwork } from '../components/dashboard/DealerFeatures';
 import { RetailDashboard, RetailInventory, POSAnalytics, QRVerification, AutoReorder } from '../components/dashboard/RetailFeatures';
@@ -35,7 +38,10 @@ export default function WaybillRouter({ user, role, isGuest, onLogout, onNavigat
         else if (currentPath.includes('sourcing')) content = <RawMaterialSourcing />;
         else if (currentPath.includes('assurance')) content = <QualityAssurance />;
         else if (currentPath.includes('ledger')) content = <ManufacturerLedger />;
-        else if (currentPath === '/manufacturer') content = <ManufacturerDashboard />;
+        else if (currentPath.includes('alerts')) content = <AlertCenter />;
+        else if (currentPath.includes('disputes')) content = <DisputeCenter />;
+        else if (currentPath.includes('batch')) content = <BatchTraceability />;
+        else content = <ManufacturerDashboard />;
     }
     else if (role === 'transporter' || role === 'Transporter') {
         if (currentPath.includes('routes')) content = <RouteOptimizer />;
