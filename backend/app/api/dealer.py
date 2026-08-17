@@ -412,7 +412,7 @@ def backorders(limit: int = Query(100, ge=1, le=500)) -> dict:
     return {"items": list_backorders(limit=limit)}
 
 @router.get("/analytics/backorders")
-def get_backorder_trend(payload: dict = Depends(require_roles(UserRole.admin, UserRole.dealer))):
+def get_backorder_trend_v1(payload: dict = Depends(require_roles(UserRole.admin, UserRole.dealer))):
     from app.services.database_service import get_backorder_trends
     data = get_backorder_trends()
     return APIResponse(success=True, data=data)
@@ -423,17 +423,100 @@ def get_margin(payload: dict = Depends(require_roles(UserRole.admin, UserRole.de
     data = get_profit_margins()
     return APIResponse(success=True, data=data)
 
-@router.get("/analytics/discrepancy-trend", dependencies=[Depends(require_roles(UserRole.dealer))])
-def get_discrepancy_trend():
-    from app.schemas.base import APIResponse
-    return APIResponse(success=True, data={"ordered": 1000, "received": 950, "discrepancy": 50})
 
-@router.get("/analytics/backorder-trend", dependencies=[Depends(require_roles(UserRole.dealer))])
-def get_backorder_trend():
-    from app.schemas.base import APIResponse
-    return APIResponse(success=True, data={"ordered": 5000, "fulfilled": 4200, "backorder": 800})
+# ─── DEALER ANALYTICS ENDPOINTS ───────────────────────────────────────────────
 
-@router.get("/analytics/fulfillment-rate", dependencies=[Depends(require_roles(UserRole.dealer))])
-def get_fulfillment_rate():
-    from app.schemas.base import APIResponse
-    return APIResponse(success=True, data={"rate_percent": 80})
+@router.get("/analytics/dashboard", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
+def dealer_dashboard_analytics(days: int = Query(30, ge=7, le=365)) -> dict:
+    from app.services.database_service import (
+        get_dealer_pipeline_funnel,
+        get_dealer_order_volume_trend,
+        get_dealer_order_value_scatter,
+    )
+    try:
+        funnel = get_dealer_pipeline_funnel()
+        volume_trend = get_dealer_order_volume_trend(days=days)
+        value_scatter = get_dealer_order_value_scatter()
+        rows = _pipeline_rows(limit=500)
+        total = len(rows)
+        delivered = sum(1 for r in rows if any(k in str(r.get("status", "")).lower() for k in ("receive", "deliver")))
+        pending = sum(1 for r in rows if any(k in str(r.get("status", "")).lower() for k in ("pending", "retail_ordered")))
+        inventory_items = _inventory_items()
+        low_stock_count = sum(1 for i in inventory_items if i["stockStatus"] != "In Stock")
+        return {
+            "kpis": {
+                "totalOrders": total,
+                "deliveredOrders": delivered,
+                "pendingOrders": pending,
+                "lowStockProducts": low_stock_count,
+            },
+            "pipelineFunnel": funnel,
+            "volumeTrend": volume_trend,
+            "valueScatter": value_scatter,
+        }
+    except DatabaseError as exc:
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
+
+
+@router.get("/analytics/inventory-detail", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
+def dealer_inventory_analytics(days: int = Query(30, ge=7, le=365)) -> dict:
+    from app.services.database_service import get_dealer_stock_movements_summary
+    try:
+        return get_dealer_stock_movements_summary(days=days)
+    except DatabaseError as exc:
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
+
+
+@router.get("/analytics/fulfillment-detail", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
+def dealer_fulfillment_analytics(days: int = Query(30, ge=7, le=365)) -> dict:
+    from app.services.database_service import get_dealer_fulfillment_analytics
+    try:
+        return get_dealer_fulfillment_analytics(days=days)
+    except DatabaseError as exc:
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
+
+
+@router.get("/analytics/partners-detail", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
+def dealer_partner_analytics() -> dict:
+    from app.services.database_service import get_dealer_partner_analytics
+    try:
+        return get_dealer_partner_analytics()
+    except DatabaseError as exc:
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
+
+
+@router.get("/analytics/financial-detail", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
+def dealer_financial_analytics(days: int = Query(90, ge=7, le=365)) -> dict:
+    from app.services.database_service import get_dealer_financial_analytics
+    try:
+        return get_dealer_financial_analytics(days=days)
+    except DatabaseError as exc:
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
+
+
+@router.get("/analytics/alerts-detail", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
+def dealer_alerts_analytics() -> dict:
+    from app.services.database_service import get_dealer_alerts_analytics
+    try:
+        return get_dealer_alerts_analytics()
+    except DatabaseError as exc:
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
+
+
+@router.get("/analytics/disputes-detail", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
+def dealer_disputes_analytics() -> dict:
+    from app.services.database_service import get_dealer_disputes_analytics
+    try:
+        return get_dealer_disputes_analytics()
+    except DatabaseError as exc:
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
+
+
+@router.get("/analytics/batches-detail", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
+def dealer_batch_analytics() -> dict:
+    from app.services.database_service import get_dealer_batch_analytics
+    try:
+        return get_dealer_batch_analytics()
+    except DatabaseError as exc:
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
+

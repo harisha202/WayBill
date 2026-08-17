@@ -4039,3 +4039,891 @@ def record_ledger_entry(
             }
     except SQLAlchemyError as exc:
         raise DatabaseError("Failed to record ledger entry") from exc
+
+
+# ─── DEALER ANALYTICS FUNCTIONS ───────────────────────────────────────────────
+
+def get_dealer_pipeline_funnel() -> list[dict]:
+    """Order count grouped by current_stage for dealer pipeline funnel."""
+    stage_order = {
+        "retail_ordered": 0, "dealer_confirmed": 1,
+        "dealer_ordered_manufacturer": 2, "batch_created": 3,
+        "dispatched": 4, "dealer_received": 5, "retail_received": 6,
+    }
+    try:
+        with _engine().connect() as conn:
+            rows = conn.execute(
+                select(orders_table.c.current_stage, func.count().label("count"))
+                .group_by(orders_table.c.current_stage)
+            ).fetchall()
+        data = [
+            {
+                "stage": str(r[0] or "unknown"),
+                "label": str(r[0] or "unknown").replace("_", " ").title(),
+                "count": int(r[1]),
+                "order": stage_order.get(str(r[0] or ""), 99),
+            }
+            for r in rows
+        ]
+        data.sort(key=lambda x: x["order"])
+        return data if data else []
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to get dealer pipeline funnel") from exc
+
+
+def get_dealer_order_volume_trend(days: int = 30) -> list[dict]:
+    """Daily order counts for the past N days."""
+    since = _utc_now() - timedelta(days=max(days, 1))
+    try:
+        with _engine().connect() as conn:
+            rows = conn.execute(
+                text("""
+                    SELECT strftime('%Y-%m-%d', created_at) as day,
+                           COUNT(*) as orders,
+                           SUM(quantity) as total_qty
+                    FROM orders
+                    WHERE created_at >= :since
+                    GROUP BY day
+                    ORDER BY day ASC
+                """),
+                {"since": since.isoformat()},
+            ).fetchall()
+        return [
+            {"day": str(r[0]), "orders": int(r[1]), "quantity": int(r[2] or 0)}
+            for r in rows if r[0]
+        ]
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to get dealer order volume trend") from exc
+
+
+def get_dealer_order_value_scatter() -> list[dict]:
+    """Order value (price × qty) vs age in days, for scatter chart."""
+    now = _utc_now()
+    try:
+        with _engine().connect() as conn:
+            rows = conn.execute(
+                text("""
+                    SELECT o.order_code, o.quantity, o.status, o.current_stage,
+                           p.price, o.created_at, o.retailer_name
+                    FROM orders o
+                    JOIN products p ON o.product_sku = p.sku
+                    ORDER BY o.created_at DESC
+                    LIMIT 120
+                """)
+            ).fetchall()
+        result = []
+        for r in rows:
+            created = r[5]
+            if isinstance(created, str):
+                try:
+                    created = datetime.fromisoformat(created.replace("Z", "+00:00"))
+                except Exception:
+                    created = now
+            if created and created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            age_days = max(0, (now - created).days) if created else 0
+            value = float(r[4] or 0) * int(r[1] or 0)
+            result.append({
+                "orderCode": str(r[0] or ""),
+                "value": round(value, 2),
+                "ageDays": age_days,
+                "quantity": int(r[1] or 0),
+                "status": str(r[2] or ""),
+                "retailer": str(r[6] or ""),
+            })
+        return result
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to get dealer order value scatter") from exc
+
+
+def get_dealer_stock_movements_summary(days: int = 30) -> dict:
+    """Stock movements grouped by week (stacked bar) + low-stock lollipop data."""
+    since = _utc_now() - timedelta(days=max(days, 1))
+    try:
+        with _engine().connect() as conn:
+            mov_rows = conn.execute(
+                select(
+                    stock_movements_table.c.movement_type,
+                    func.strftime("%Y-W%W", stock_movements_table.c.created_at).label("week"),
+                    func.sum(stock_movements_table.c.quantity).label("qty"),
+                )
+                .where(stock_movements_table.c.created_at >= since)
+                .group_by(
+                    func.strftime("%Y-W%W", stock_movements_table.c.created_at),
+                    stock_movements_table.c.movement_type,
+                )
+                .order_by(func.strftime("%Y-W%W", stock_movements_table.c.created_at).asc())
+            ).fetchall()
+
+            weekly: dict[str, dict] = {}
+            for r in mov_rows:
+                mtype = str(r[0] or "").lower()
+                week = str(r[1] or "")
+                qty = int(r[2] or 0)
+                if week not in weekly:
+                    weekly[week] = {"week": week, "stockIn": 0, "stockOut": 0, "adjustment": 0}
+                if any(k in mtype for k in ("receive", "in", "purchase", "restock")):
+                    weekly[week]["stockIn"] += qty
+                elif any(k in mtype for k in ("dispatch", "out", "sale", "issue")):
+                    weekly[week]["stockOut"] += qty
+                else:
+                    weekly[week]["adjustment"] += qty
+            trend = sorted(weekly.values(), key=lambda x: x["week"])
+
+            prod_rows = conn.execute(
+                select(
+                    products_table.c.sku,
+                    products_table.c.name,
+                    products_table.c.quantity,
+                    products_table.c.reorder_point,
+                    products_table.c.safety_stock_qty,
+                    products_table.c.available_stock,
+                )
+                .order_by(products_table.c.quantity.asc())
+                .limit(15)
+            ).fetchall()
+            low_stock = [
+                {
+                    "sku": str(r[0] or ""),
+                    "name": str(r[1] or r[0] or "")[:28],
+                    "currentStock": int(r[2] or 0),
+                    "reorderPoint": int(r[3] or 0),
+                    "safetyStock": int(r[4] or 0),
+                    "availableStock": int(r[5] or 0),
+                    "isLow": int(r[2] or 0) <= int(r[3] or 0),
+                    "isCritical": int(r[2] or 0) <= int(r[4] or 0),
+                }
+                for r in prod_rows
+            ]
+        return {"trend": trend, "lowStock": low_stock}
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to get dealer stock movements") from exc
+
+
+def get_dealer_fulfillment_analytics(days: int = 30) -> dict:
+    """Fulfillment funnel + daily performance + rate."""
+    since = _utc_now() - timedelta(days=max(days, 1))
+    stage_order = [
+        ("retail_ordered", "Retail Ordered"),
+        ("dealer_confirmed", "Dealer Confirmed"),
+        ("dealer_ordered_manufacturer", "Forwarded to Mfg"),
+        ("batch_created", "Batch Created"),
+        ("dispatched", "Dispatched"),
+        ("dealer_received", "Dealer Received"),
+        ("retail_received", "Retail Received"),
+    ]
+    try:
+        with _engine().connect() as conn:
+            stage_rows = conn.execute(
+                select(orders_table.c.current_stage, func.count().label("count"))
+                .group_by(orders_table.c.current_stage)
+            ).fetchall()
+            stage_map = {str(r[0] or ""): int(r[1]) for r in stage_rows}
+            funnel = [
+                {"stage": key, "label": label, "count": stage_map.get(key, 0)}
+                for key, label in stage_order
+                if stage_map.get(key, 0) > 0
+            ]
+
+            perf_rows = conn.execute(
+                text("""
+                    SELECT strftime('%Y-%m-%d', created_at) as day,
+                           COUNT(*) as total,
+                           SUM(CASE WHEN dealer_received_at IS NOT NULL THEN 1 ELSE 0 END) as fulfilled,
+                           AVG(CASE WHEN dealer_received_at IS NOT NULL
+                               THEN CAST((julianday(dealer_received_at) - julianday(created_at)) AS REAL)
+                               ELSE NULL END) as avg_days
+                    FROM orders
+                    WHERE created_at >= :since
+                    GROUP BY day
+                    ORDER BY day ASC
+                """),
+                {"since": since.isoformat()},
+            ).fetchall()
+            performance = [
+                {
+                    "day": str(r[0]),
+                    "total": int(r[1]),
+                    "fulfilled": int(r[2]),
+                    "avgDays": round(float(r[3]), 1) if r[3] is not None else None,
+                }
+                for r in perf_rows if r[0]
+            ]
+
+            total = conn.execute(select(func.count()).select_from(orders_table)).scalar() or 0
+            fulfilled = conn.execute(
+                select(func.count()).select_from(orders_table)
+                .where(orders_table.c.dealer_received_at.isnot(None))
+            ).scalar() or 0
+            rate = round(int(fulfilled) / max(int(total), 1) * 100, 1)
+
+        return {
+            "funnel": funnel,
+            "performance": performance,
+            "fulfillmentRate": rate,
+            "totalOrders": int(total),
+            "fulfilledOrders": int(fulfilled),
+        }
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to get dealer fulfillment analytics") from exc
+
+
+def get_dealer_partner_analytics() -> dict:
+    """Partner network: retailer ranking, manufacturer/transporter links, flow."""
+    try:
+        with _engine().connect() as conn:
+            ret_rows = conn.execute(
+                select(
+                    orders_table.c.retailer_name,
+                    func.count().label("orderCount"),
+                    func.sum(orders_table.c.quantity).label("totalQty"),
+                )
+                .where(orders_table.c.retailer_name.isnot(None))
+                .group_by(orders_table.c.retailer_name)
+                .order_by(desc(func.count()))
+                .limit(10)
+            ).fetchall()
+            retailers = [
+                {"name": str(r[0]), "orderCount": int(r[1]), "totalQuantity": int(r[2] or 0)}
+                for r in ret_rows
+            ]
+
+            mfg_rows = conn.execute(
+                select(orders_table.c.manufacturer_id, func.count().label("orderCount"))
+                .where(orders_table.c.manufacturer_id.isnot(None))
+                .group_by(orders_table.c.manufacturer_id)
+                .limit(5)
+            ).fetchall()
+            manufacturers = [{"id": str(r[0]), "orderCount": int(r[1])} for r in mfg_rows]
+
+            trans_rows = conn.execute(
+                select(orders_table.c.transporter_id, func.count().label("orderCount"))
+                .where(orders_table.c.transporter_id.isnot(None))
+                .group_by(orders_table.c.transporter_id)
+                .limit(5)
+            ).fetchall()
+            transporters = [{"id": str(r[0]), "orderCount": int(r[1])} for r in trans_rows]
+
+            links = [
+                {"source": "Dealer", "target": str(r[0]), "value": int(r[1]), "type": "retailer"}
+                for r in ret_rows
+            ]
+            for r in mfg_rows:
+                links.append({"source": str(r[0]).replace("_", " ").title(), "target": "Dealer", "value": int(r[1]), "type": "manufacturer"})
+            for r in trans_rows:
+                links.append({"source": str(r[0]).replace("_", " ").title(), "target": "Dealer", "value": int(r[1]), "type": "transporter"})
+
+        return {"retailers": retailers, "manufacturers": manufacturers, "transporters": transporters, "links": links}
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to get dealer partner analytics") from exc
+
+
+def get_dealer_financial_analytics(days: int = 90) -> dict:
+    """Revenue trend, waterfall, category breakdown for dealer."""
+    since = _utc_now() - timedelta(days=max(days, 1))
+    try:
+        with _engine().connect() as conn:
+            rev_rows = conn.execute(
+                text("""
+                    SELECT strftime('%Y-%m', o.created_at) as month,
+                           SUM(p.price * o.quantity) as revenue,
+                           COUNT(*) as order_count
+                    FROM orders o
+                    JOIN products p ON o.product_sku = p.sku
+                    WHERE o.created_at >= :since
+                    GROUP BY month
+                    ORDER BY month ASC
+                """),
+                {"since": since.isoformat()},
+            ).fetchall()
+            revenue_trend = [
+                {"month": str(r[0]), "revenue": round(float(r[1] or 0), 2), "orders": int(r[2] or 0)}
+                for r in rev_rows if r[0]
+            ]
+
+            cat_rows = conn.execute(
+                select(ledger_records_table.c.event_stage, func.count().label("count"))
+                .group_by(ledger_records_table.c.event_stage)
+                .order_by(desc(func.count()))
+                .limit(8)
+            ).fetchall()
+            categories = [
+                {"label": str(r[0] or "").replace("_", " ").title(), "value": int(r[1])}
+                for r in cat_rows
+            ]
+
+            wf_rows = conn.execute(
+                select(
+                    financial_ledger_table.c.transaction_type,
+                    func.sum(financial_ledger_table.c.base_amount_inr).label("total"),
+                )
+                .where(financial_ledger_table.c.entity_type == "dealer")
+                .group_by(financial_ledger_table.c.transaction_type)
+            ).fetchall()
+            waterfall = [
+                {"label": str(r[0] or "").replace("_", " ").title(), "amount": round(float(r[1] or 0), 2)}
+                for r in wf_rows
+            ]
+
+            total_rev = sum(r["revenue"] for r in revenue_trend)
+        return {
+            "revenueTrend": revenue_trend,
+            "categories": categories,
+            "waterfall": waterfall,
+            "totalRevenue": round(total_rev, 2),
+            "hasLedgerData": len(waterfall) > 0,
+        }
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to get dealer financial analytics") from exc
+
+
+def get_dealer_alerts_analytics() -> dict:
+    """Anomalies + notifications analytics for dealer scope."""
+    try:
+        with _engine().connect() as conn:
+            sev_rows = conn.execute(
+                select(anomalies_table.c.severity, func.count().label("count"))
+                .where(anomalies_table.c.entity_type.in_(["order", "shipment", "inventory", "dealer"]))
+                .group_by(anomalies_table.c.severity)
+            ).fetchall()
+            if not sev_rows:
+                sev_rows = conn.execute(
+                    select(anomalies_table.c.severity, func.count().label("count"))
+                    .group_by(anomalies_table.c.severity)
+                ).fetchall()
+
+            rag_map = {"critical": "RED", "high": "AMBER", "medium": "AMBER", "low": "GREEN", "info": "GREEN"}
+            rag_counts: dict[str, int] = {"GREEN": 0, "AMBER": 0, "RED": 0}
+            for r in sev_rows:
+                sev = str(r[0] or "info").lower()
+                rag = rag_map.get(sev, "AMBER")
+                rag_counts[rag] += int(r[1])
+
+            severity_bar = [
+                {"label": "GREEN — Healthy", "rag": "GREEN", "count": rag_counts["GREEN"], "color": "#059669"},
+                {"label": "AMBER — Attention", "rag": "AMBER", "count": rag_counts["AMBER"], "color": "#F59E0B"},
+                {"label": "RED — Critical", "rag": "RED", "count": rag_counts["RED"], "color": "#DC2626"},
+            ]
+
+            status_rows = conn.execute(
+                select(anomalies_table.c.status, func.count().label("count"))
+                .group_by(anomalies_table.c.status)
+            ).fetchall()
+            status_donut = [
+                {"label": str(r[0] or "Unknown").title(), "value": int(r[1])}
+                for r in status_rows
+            ]
+
+            trend_rows = conn.execute(
+                text("""
+                    SELECT strftime('%Y-%m-%d', created_at) as day, COUNT(*) as count
+                    FROM anomalies GROUP BY day ORDER BY day DESC LIMIT 14
+                """)
+            ).fetchall()
+            trend = [{"day": str(r[0]), "count": int(r[1])} for r in reversed(trend_rows) if r[0]]
+
+            recent_rows = conn.execute(
+                select(anomalies_table).order_by(desc(anomalies_table.c.created_at)).limit(20)
+            ).fetchall()
+            recent = [_row_to_dict(r) for r in recent_rows]
+
+        return {
+            "severityBar": severity_bar,
+            "statusDonut": status_donut,
+            "trend": trend,
+            "recent": recent,
+            "totalAlerts": sum(r["count"] for r in severity_bar),
+        }
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to get dealer alerts analytics") from exc
+
+
+def get_dealer_disputes_analytics() -> dict:
+    """Disputes analytics: by mismatch_type, trend, lifecycle funnel."""
+    lifecycle_order = ["OPEN", "UNDER_REVIEW", "RESOLVED", "CLOSED"]
+    try:
+        with _engine().connect() as conn:
+            type_rows = conn.execute(
+                select(disputes_table.c.mismatch_type, func.count().label("count"))
+                .group_by(disputes_table.c.mismatch_type)
+                .order_by(desc(func.count()))
+            ).fetchall()
+            by_type = [
+                {"label": str(r[0] or "Unknown").replace("_", " ").title(), "count": int(r[1])}
+                for r in type_rows
+            ]
+
+            disc_rows = conn.execute(
+                select(
+                    discrepancies_table.c.sku,
+                    func.count().label("count"),
+                    func.sum(discrepancies_table.c.missing_quantity).label("totalMissing"),
+                )
+                .group_by(discrepancies_table.c.sku)
+                .order_by(desc(func.count()))
+                .limit(8)
+            ).fetchall()
+            by_product = [
+                {"sku": str(r[0]), "count": int(r[1]), "missingQty": int(r[2] or 0)}
+                for r in disc_rows
+            ]
+
+            status_rows = conn.execute(
+                select(disputes_table.c.status, func.count().label("count"))
+                .group_by(disputes_table.c.status)
+            ).fetchall()
+            status_map = {str(r[0] or "").upper(): int(r[1]) for r in status_rows}
+            funnel = [
+                {"stage": s, "label": s.replace("_", " ").title(), "count": status_map.get(s, 0)}
+                for s in lifecycle_order
+                if status_map.get(s, 0) > 0
+            ]
+
+            trend_rows = conn.execute(
+                text("""
+                    SELECT strftime('%Y-%m-%d', created_at) as day, COUNT(*) as count
+                    FROM disputes GROUP BY day ORDER BY day DESC LIMIT 14
+                """)
+            ).fetchall()
+            trend = [{"day": str(r[0]), "count": int(r[1])} for r in reversed(trend_rows) if r[0]]
+
+            recent_rows = conn.execute(
+                select(disputes_table).order_by(desc(disputes_table.c.created_at)).limit(20)
+            ).fetchall()
+            recent = [_row_to_dict(r) for r in recent_rows]
+
+        return {
+            "byType": by_type,
+            "byProduct": by_product,
+            "lifecycle": funnel,
+            "trend": trend,
+            "recent": recent,
+            "totalDisputes": sum(r["count"] for r in funnel) if funnel else len(by_type),
+        }
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to get dealer disputes analytics") from exc
+
+
+def get_dealer_batch_analytics() -> dict:
+    """Batch traceability: flow links, custody timeline, status distribution."""
+    try:
+        with _engine().connect() as conn:
+            status_rows = conn.execute(
+                select(batches_table.c.status, func.count().label("count"))
+                .group_by(batches_table.c.status)
+            ).fetchall()
+            status_dist = [
+                {"status": str(r[0] or "Unknown").replace("_", " ").title(), "count": int(r[1])}
+                for r in status_rows
+            ]
+
+            batch_rows = conn.execute(
+                text("""
+                    SELECT b.batch_id, b.product_sku, b.quantity, b.status, b.order_code,
+                           o.retailer_name, o.manufacturer_id, o.transporter_id
+                    FROM batches b
+                    LEFT JOIN orders o ON b.order_code = o.order_code
+                    ORDER BY b.created_at DESC
+                    LIMIT 40
+                """)
+            ).fetchall()
+
+            links: list[dict] = []
+            seen: set[str] = set()
+            for r in batch_rows:
+                mfg = str(r[6] or "Manufacturer").replace("_", " ").title()
+                trans = str(r[7] or "").replace("_", " ").title()
+                retailer = str(r[5] or "Retailer")
+                qty = int(r[2] or 1)
+                pairs = (
+                    [(mfg, trans, qty), (trans, "Dealer", qty), ("Dealer", retailer, qty)]
+                    if r[7]
+                    else [(mfg, "Dealer", qty), ("Dealer", retailer, qty)]
+                )
+                for src, tgt, val in pairs:
+                    key = f"{src}|{tgt}"
+                    if key not in seen:
+                        seen.add(key)
+                        links.append({"source": src, "target": tgt, "value": val, "type": "flow"})
+
+            custody_rows = conn.execute(
+                text("""
+                    SELECT ce.waybill_id, ce.event_type, ce.from_custodian, ce.to_custodian,
+                           ce.actor_role, ce.created_at, wd.sku, wd.order_id
+                    FROM custody_events ce
+                    LEFT JOIN waybill_documents wd ON ce.waybill_id = wd.waybill_id
+                    ORDER BY ce.created_at DESC
+                    LIMIT 30
+                """)
+            ).fetchall()
+            custody_events = [
+                {
+                    "waybillId": str(r[0] or ""),
+                    "eventType": str(r[1] or "").replace("_", " ").title(),
+                    "from": str(r[2] or "—"),
+                    "to": str(r[3] or "—"),
+                    "role": str(r[4] or ""),
+                    "timestamp": str(r[5] or ""),
+                    "sku": str(r[6] or ""),
+                    "orderId": str(r[7] or ""),
+                }
+                for r in custody_rows
+            ]
+
+        return {
+            "statusDistribution": status_dist,
+            "flowLinks": links,
+            "custodyEvents": custody_events,
+            "totalBatches": sum(r["count"] for r in status_dist),
+        }
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to get dealer batch analytics") from exc
+
+
+# ─── RETAIL SHOP ANALYTICS ────────────────────────────────────────────────────────
+
+def get_retail_dashboard_overview(retailer_name: str, days: int = 30) -> dict:
+    """1. Dashboard / Overview"""
+    with _engine().begin() as conn:
+        since = _utc_now() - timedelta(days=days)
+        # Sales + Revenue Line/Area (Daily)
+        stmt1 = (
+            select(
+                func.date(sales_history_table.c.sold_at).label('day'),
+                func.sum(sales_history_table.c.units_sold).label('sales'),
+                func.sum(sales_history_table.c.sale_amount).label('revenue')
+            )
+            .where(sales_history_table.c.retailer_name == retailer_name)
+            .where(sales_history_table.c.sold_at >= since)
+            .group_by('day')
+            .order_by('day')
+        )
+        trend = [dict(r) for r in conn.execute(stmt1).mappings().all()]
+        
+        # Product Sales Column & Revenue Donut
+        stmt2 = (
+            select(
+                sales_history_table.c.sku,
+                func.sum(sales_history_table.c.units_sold).label('sales'),
+                func.sum(sales_history_table.c.sale_amount).label('revenue')
+            )
+            .where(sales_history_table.c.retailer_name == retailer_name)
+            .where(sales_history_table.c.sold_at >= since)
+            .group_by(sales_history_table.c.sku)
+            .order_by(desc('revenue'))
+            .limit(10)
+        )
+        product_perf = [dict(r) for r in conn.execute(stmt2).mappings().all()]
+        
+        return {
+            "trend": trend,
+            "productSales": [{"sku": p["sku"], "sales": p["sales"]} for p in product_perf],
+            "productRevenue": [{"sku": p["sku"], "revenue": p["revenue"]} for p in product_perf],
+            "totalRevenue": sum(p["revenue"] for p in product_perf)
+        }
+
+def get_retail_sales_pos_analytics(retailer_name: str, days: int = 180) -> dict:
+    """2. Sales / POS"""
+    with _engine().begin() as conn:
+        since = _utc_now() - timedelta(days=days)
+        # Monthly Volume (Main)
+        stmt1 = (
+            select(
+                func.strftime('%Y-%m', sales_history_table.c.sold_at).label('month'),
+                func.sum(sales_history_table.c.units_sold).label('volume'),
+                func.sum(sales_history_table.c.sale_amount).label('revenue')
+            )
+            .where(sales_history_table.c.retailer_name == retailer_name)
+            .where(sales_history_table.c.sold_at >= since)
+            .group_by('month')
+            .order_by('month')
+        )
+        monthly = [dict(r) for r in conn.execute(stmt1).mappings().all()]
+        
+        # Quantity over time (Supp 1)
+        stmt2 = (
+            select(
+                func.date(sales_history_table.c.sold_at).label('day'),
+                func.sum(sales_history_table.c.units_sold).label('qty')
+            )
+            .where(sales_history_table.c.retailer_name == retailer_name)
+            .where(sales_history_table.c.sold_at >= since)
+            .group_by('day')
+            .order_by('day')
+        )
+        daily_qty = [dict(r) for r in conn.execute(stmt2).mappings().all()]
+        
+        # Scatter (Qty vs Revenue per transaction) (Supp 2)
+        stmt3 = (
+            select(sales_history_table.c.units_sold, sales_history_table.c.sale_amount, sales_history_table.c.sku)
+            .where(sales_history_table.c.retailer_name == retailer_name)
+            .where(sales_history_table.c.sold_at >= since)
+            .limit(300)
+        )
+        scatter = [{"qty": r[0], "revenue": r[1], "sku": r[2]} for r in conn.execute(stmt3).fetchall()]
+        
+        return {"monthly": monthly, "dailyQty": daily_qty, "scatter": scatter}
+
+def get_retail_inventory_analytics(retailer_name: str, days: int = 30) -> dict:
+    """3. Inventory"""
+    with _engine().begin() as conn:
+        since = _utc_now() - timedelta(days=days)
+        # Stock In vs Out Stacked (Main) - we infer 'retailer' from actor role or we just show global for now
+        # Realistically retail inventory is global in our simple schema. We filter by role if available, or just global movements.
+        stmt1 = (
+            select(
+                func.date(stock_movements_table.c.created_at).label('day'),
+                func.sum(case((stock_movements_table.c.movement_type.in_(['IN', 'RECEIVE']), stock_movements_table.c.quantity), else_=0)).label('stockIn'),
+                func.sum(case((stock_movements_table.c.movement_type.in_(['OUT', 'SALE', 'SALE_RETAIL']), func.abs(stock_movements_table.c.quantity)), else_=0)).label('stockOut')
+            )
+            .where(stock_movements_table.c.created_at >= since)
+            .group_by('day')
+            .order_by('day')
+        )
+        in_out = [dict(r) for r in conn.execute(stmt1).mappings().all()]
+        
+        # Inventory Level over time (Supp 1) - approximate from movements
+        stmt2 = (
+            select(
+                func.date(stock_movements_table.c.created_at).label('day'),
+                func.avg(stock_movements_table.c.new_quantity).label('level')
+            )
+            .where(stock_movements_table.c.created_at >= since)
+            .group_by('day')
+            .order_by('day')
+        )
+        level_trend = [dict(r) for r in conn.execute(stmt2).mappings().all()]
+        
+        # Low Stock (Supp 2)
+        stmt3 = (
+            select(products_table.c.sku, products_table.c.available_stock, products_table.c.reorder_point, products_table.c.safety_stock_qty)
+            .where(products_table.c.available_stock <= products_table.c.reorder_point)
+            .limit(20)
+        )
+        low_stock = [{"sku": r[0], "current": r[1], "reorder": r[2], "safety": r[3] or 0} for r in conn.execute(stmt3).fetchall()]
+        
+        return {"inOut": in_out, "levelTrend": level_trend, "lowStock": low_stock}
+
+def get_retail_replenishment_analytics(retailer_name: str, days: int = 90) -> dict:
+    """4. Replenishment / Orders"""
+    with _engine().begin() as conn:
+        since = _utc_now() - timedelta(days=days)
+        # Demand Trend (Main)
+        stmt1 = (
+            select(
+                func.date(sales_history_table.c.sold_at).label('day'),
+                func.sum(sales_history_table.c.units_sold).label('demand')
+            )
+            .where(sales_history_table.c.retailer_name == retailer_name)
+            .where(sales_history_table.c.sold_at >= since)
+            .group_by('day')
+            .order_by('day')
+        )
+        demand = [dict(r) for r in conn.execute(stmt1).mappings().all()]
+        
+        # Reorder required (Supp 1)
+        stmt2 = (
+            select(products_table.c.sku, products_table.c.available_stock, products_table.c.reorder_point)
+            .where(products_table.c.available_stock <= products_table.c.reorder_point)
+            .limit(15)
+        )
+        reorders = [{"sku": r[0], "stock": r[1], "reorderPoint": r[2]} for r in conn.execute(stmt2).fetchall()]
+        
+        return {"demand": demand, "reorders": reorders}
+
+def get_retail_waybill_shipments(retailer_name: str, days: int = 90) -> dict:
+    """5. Waybills / Shipments"""
+    with _engine().begin() as conn:
+        since = _utc_now() - timedelta(days=days)
+        # Shipment Lifecycle (Main) - Orders destined for Retail
+        stmt1 = (
+            select(orders_table.c.current_stage, func.count().label('count'))
+            .where(orders_table.c.retailer_name == retailer_name)
+            .where(orders_table.c.created_at >= since)
+            .group_by(orders_table.c.current_stage)
+        )
+        stages = dict(conn.execute(stmt1).fetchall())
+        pipeline = [
+            {"stage": "Created", "count": stages.get("retail_ordered", 0)},
+            {"stage": "Confirmed", "count": stages.get("dealer_confirmed", 0)},
+            {"stage": "Dispatched", "count": stages.get("dispatched", 0)},
+            {"stage": "In Transit", "count": stages.get("in_transit", 0)},
+            {"stage": "Delivered", "count": stages.get("dealer_received", 0)},
+            {"stage": "Received", "count": stages.get("retail_received", 0)},
+        ]
+        
+        # Incoming Volume (Supp 1)
+        stmt2 = (
+            select(func.date(orders_table.c.created_at).label('day'), func.count().label('vol'))
+            .where(orders_table.c.retailer_name == retailer_name)
+            .where(orders_table.c.created_at >= since)
+            .group_by('day')
+            .order_by('day')
+        )
+        incoming = [dict(r) for r in conn.execute(stmt2).mappings().all()]
+        
+        # Risk / Status (Supp 2) - Join orders with shipments
+        stmt3 = (
+            select(shipments_table.c.status, func.count().label('count'))
+            .select_from(orders_table.join(shipments_table, orders_table.c.shipment_id == shipments_table.c.shipment_id))
+            .where(orders_table.c.retailer_name == retailer_name)
+            .group_by(shipments_table.c.status)
+        )
+        risk_dist = [dict(r) for r in conn.execute(stmt3).mappings().all()]
+        
+        return {"lifecycle": pipeline, "incoming": incoming, "riskDist": risk_dist}
+
+def get_retail_qr_traceability(retailer_name: str) -> dict:
+    """6. QR / Traceability"""
+    with _engine().begin() as conn:
+        # Sankey Trace (Main) - Orders -> Batches -> Waybills
+        stmt1 = (
+            select(orders_table.c.manufacturer_id, orders_table.c.transporter_id, orders_table.c.retailer_name, orders_table.c.quantity)
+            .where(orders_table.c.retailer_name == retailer_name)
+            .where(orders_table.c.manufacturer_id.isnot(None))
+            .limit(100)
+        )
+        raw_links = conn.execute(stmt1).fetchall()
+        links = []
+        for r in raw_links:
+            mfg, trans, ret, qty = r[0], r[1] or "Transporter", r[2], r[3]
+            links.append({"source": str(mfg), "target": "Batch", "value": qty, "type": "mfg"})
+            links.append({"source": "Batch", "target": "Waybill", "value": qty, "type": "batch"})
+            links.append({"source": "Waybill", "target": str(trans), "value": qty, "type": "trans"})
+            links.append({"source": str(trans), "target": "Dealer", "value": qty, "type": "trans"})
+            links.append({"source": "Dealer", "target": str(ret), "value": qty, "type": "ret"})
+            
+        # Custody Timeline (Supp 1)
+        stmt2 = (
+            select(custody_events_table)
+            .order_by(desc(custody_events_table.c.created_at))
+            .limit(20)
+        )
+        timeline = []
+        for r in conn.execute(stmt2).mappings().all():
+            d = dict(r)
+            d['created_at'] = d['created_at'].isoformat() if d['created_at'] else None
+            timeline.append(d)
+        
+        # Batch Status (Supp 2)
+        stmt3 = select(batches_table.c.status, func.count().label('count')).group_by(batches_table.c.status)
+        batch_status = [dict(r) for r in conn.execute(stmt3).mappings().all()]
+        
+        return {"sankey": links, "timeline": timeline, "batchStatus": batch_status}
+
+def get_retail_receiving_analytics(retailer_name: str, days: int = 90) -> dict:
+    """7. Receiving"""
+    with _engine().begin() as conn:
+        since = _utc_now() - timedelta(days=days)
+        # Ordered vs Received (Main)
+        stmt1 = (
+            select(
+                orders_table.c.order_code,
+                orders_table.c.ordered_quantity,
+                orders_table.c.received_quantity
+            )
+            .where(orders_table.c.retailer_name == retailer_name)
+            .where(orders_table.c.status.in_(['DELIVERED', 'PARTIALLY_DELIVERED', 'RECEIVED', 'RETAIL_RECEIVED']))
+            .where(orders_table.c.updated_at >= since)
+            .limit(30)
+        )
+        ord_vs_rec = [dict(r) for r in conn.execute(stmt1).mappings().all()]
+        
+        # Variance Waterfall (Supp 1)
+        variance = []
+        for row in ord_vs_rec:
+            diff = row['received_quantity'] - row['ordered_quantity']
+            variance.append({"order": row['order_code'], "variance": diff})
+            
+        # Receiving Status Donut (Supp 2)
+        stmt3 = (
+            select(orders_table.c.status, func.count().label('count'))
+            .where(orders_table.c.retailer_name == retailer_name)
+            .where(orders_table.c.status.in_(['DELIVERED', 'PARTIALLY_DELIVERED', 'RECEIVED', 'RETAIL_RECEIVED']))
+            .group_by(orders_table.c.status)
+        )
+        status_dist = [dict(r) for r in conn.execute(stmt3).mappings().all()]
+        
+        return {"ordVsRec": ord_vs_rec, "variance": variance, "statusDist": status_dist}
+
+def get_retail_alerts_rag(retailer_name: str, days: int = 30) -> dict:
+    """8. Alerts / RAG"""
+    with _engine().begin() as conn:
+        since = _utc_now() - timedelta(days=days)
+        # Severity Bar (Main)
+        stmt1 = (
+            select(anomalies_table.c.severity, func.count().label('count'))
+            .where(anomalies_table.c.created_at >= since)
+            .group_by(anomalies_table.c.severity)
+        )
+        severity = [dict(r) for r in conn.execute(stmt1).mappings().all()]
+        
+        # Alerts over time (Supp 1)
+        stmt2 = (
+            select(func.date(anomalies_table.c.created_at).label('day'), func.count().label('count'))
+            .where(anomalies_table.c.created_at >= since)
+            .group_by('day')
+            .order_by('day')
+        )
+        trend = [dict(r) for r in conn.execute(stmt2).mappings().all()]
+        
+        # Status Donut (Supp 2)
+        stmt3 = (
+            select(anomalies_table.c.status, func.count().label('count'))
+            .where(anomalies_table.c.created_at >= since)
+            .group_by(anomalies_table.c.status)
+        )
+        status = [dict(r) for r in conn.execute(stmt3).mappings().all()]
+        
+        return {"severity": severity, "trend": trend, "status": status}
+
+def get_retail_reports_analytics(retailer_name: str, days: int = 180) -> dict:
+    """9. Reports / Analytics"""
+    with _engine().begin() as conn:
+        since = _utc_now() - timedelta(days=days)
+        # Inv + Sales (Main) - Join products with sales to get sku, sales (volume), and inventory (available_stock)
+        stmt1 = (
+            select(
+                products_table.c.sku.label('sku'),
+                func.coalesce(func.sum(sales_history_table.c.units_sold), 0).label('sales'),
+                products_table.c.available_stock.label('inventory')
+            )
+            .outerjoin(
+                sales_history_table,
+                and_(
+                    sales_history_table.c.sku == products_table.c.sku,
+                    sales_history_table.c.retailer_name == retailer_name,
+                    sales_history_table.c.sold_at >= since
+                )
+            )
+            .group_by(products_table.c.sku, products_table.c.available_stock)
+            .order_by(desc('sales'))
+            .limit(20)
+        )
+        perf = [dict(r) for r in conn.execute(stmt1).mappings().all()]
+        
+        # Revenue trend (Supp 1)
+        stmt2 = (
+            select(
+                func.date(sales_history_table.c.sold_at).label('day'),
+                func.sum(sales_history_table.c.sale_amount).label('revenue')
+            )
+            .where(sales_history_table.c.retailer_name == retailer_name)
+            .where(sales_history_table.c.sold_at >= since)
+            .group_by('day')
+            .order_by('day')
+        )
+        rev_trend = [dict(r) for r in conn.execute(stmt2).mappings().all()]
+        
+        # Product Perf Bar (Supp 2)
+        stmt3 = (
+            select(sales_history_table.c.sku, func.sum(sales_history_table.c.sale_amount).label('revenue'))
+            .where(sales_history_table.c.retailer_name == retailer_name)
+            .where(sales_history_table.c.sold_at >= since)
+            .group_by(sales_history_table.c.sku)
+            .order_by(desc('revenue'))
+            .limit(15)
+        )
+        prod_perf = [dict(r) for r in conn.execute(stmt3).mappings().all()]
+        
+        return {"perf": perf, "revTrend": rev_trend, "prodPerf": prod_perf}

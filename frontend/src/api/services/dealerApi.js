@@ -1,6 +1,7 @@
 import apiClient from '../axiosInstance';
 
 export const dealerApi = {
+    // ─── Existing CRUD ───────────────────────────────────────────────────────
     getInventory: async () => {
         const response = await apiClient.get('/dealer/inventory');
         return response.data;
@@ -38,5 +39,46 @@ export const dealerApi = {
             manufacturer_id: manufacturerId
         });
         return response.data;
-    }
+    },
+
+    // ─── Analytics Endpoints ──────────────────────────────────────────────────
+    getDashboardAnalytics: async (days = 30) => {
+        const response = await apiClient.get(`/dealer/analytics/dashboard?days=${days}`);
+        return response.data;
+    },
+
+    getInventoryAnalytics: async (days = 30) => {
+        const response = await apiClient.get(`/dealer/analytics/inventory-detail?days=${days}`);
+        return response.data;
+    },
+
+    getFulfillmentAnalytics: async (days = 30) => {
+        const response = await apiClient.get(`/dealer/analytics/fulfillment-detail?days=${days}`);
+        return response.data;
+    },
+
+    getPartnerAnalytics: async () => {
+        const response = await apiClient.get('/dealer/analytics/partners-detail');
+        return response.data;
+    },
+
+    getFinancialAnalytics: async (days = 90) => {
+        const response = await apiClient.get(`/dealer/analytics/financial-detail?days=${days}`);
+        return response.data;
+    },
+
+    getAlertsAnalytics: async () => {
+        const response = await apiClient.get('/dealer/analytics/alerts-detail');
+        return response.data;
+    },
+
+    getDisputesAnalytics: async () => {
+        const response = await apiClient.get('/dealer/analytics/disputes-detail');
+        return response.data;
+    },
+
+    getBatchAnalytics: async () => {
+        const response = await apiClient.get('/dealer/analytics/batches-detail');
+        return response.data;
+    },
 };

@@ -9,8 +9,18 @@ import { AlertCenter } from '../components/dashboard/AlertCenter';
 import { DisputeCenter } from '../components/dashboard/DisputeCenter';
 import { BatchTraceability } from '../components/dashboard/BatchTraceability';
 import { TransporterDashboard, LiveMap, RouteOptimizer, FleetManagement, DriverLogs, MaintenanceAlerts } from '../components/dashboard/TransporterFeatures';
-import { DealerDashboard, Inventory, OrderFulfillment, PartnerNetwork } from '../components/dashboard/DealerFeatures';
-import { RetailDashboard, RetailInventory, POSAnalytics, QRVerification, AutoReorder } from '../components/dashboard/RetailFeatures';
+import { DealerDashboard, Inventory, OrderFulfillment, PartnerNetwork, DealerLedger, DealerAlertCenter, DealerDisputeCenter, DealerBatchTraceability } from '../components/dashboard/DealerFeatures';
+import { 
+    RetailDashboardOverview, 
+    RetailSalesPOS, 
+    RetailInventoryAnalytics, 
+    RetailReplenishmentOrders, 
+    RetailWaybillsShipments, 
+    RetailQRTraceability, 
+    RetailReceiving, 
+    RetailAlertCenter, 
+    RetailReports 
+} from '../components/dashboard/RetailFeatures';
 import { TraceabilityDashboard } from '../components/dashboard/TraceabilityFeatures';
 
 const DefaultDashboardView = ({ role }) => (
@@ -55,14 +65,22 @@ export default function WaybillRouter({ user, role, isGuest, onLogout, onNavigat
         if (currentPath.includes('inventory')) content = <Inventory />;
         else if (currentPath.includes('pipeline')) content = <OrderFulfillment />;
         else if (currentPath.includes('network')) content = <PartnerNetwork />;
-        else if (currentPath.includes('ledger') || currentPath === '/dealer') content = <DealerDashboard />;
+        else if (currentPath.includes('ledger')) content = <DealerLedger />;
+        else if (currentPath.includes('alerts')) content = <DealerAlertCenter />;
+        else if (currentPath.includes('disputes')) content = <DealerDisputeCenter />;
+        else if (currentPath.includes('batch')) content = <DealerBatchTraceability />;
+        else content = <DealerDashboard />;
     }
     else if (role === 'retail_shop' || role === 'RetailShop') {
-        if (currentPath.includes('inventory')) content = <RetailInventory />;
-        else if (currentPath.includes('pos')) content = <POSAnalytics />;
-        else if (currentPath.includes('reorder')) content = <AutoReorder />;
-        else if (currentPath.includes('qr')) content = <QRVerification />;
-        else if (currentPath.includes('ledger') || currentPath === '/retail') content = <RetailDashboard />;
+        if (currentPath.includes('inventory')) content = <RetailInventoryAnalytics />;
+        else if (currentPath.includes('pos')) content = <RetailSalesPOS />;
+        else if (currentPath.includes('reorder')) content = <RetailReplenishmentOrders />;
+        else if (currentPath.includes('qr')) content = <RetailQRTraceability />;
+        else if (currentPath.includes('verify')) content = <RetailWaybillsShipments />;
+        else if (currentPath.includes('batch')) content = <RetailReceiving />;
+        else if (currentPath.includes('alerts')) content = <RetailAlertCenter />;
+        else if (currentPath.includes('ledger')) content = <RetailReports />;
+        else content = <RetailDashboardOverview />;
     }
     else if (role === 'Traceability') {
         content = <TraceabilityDashboard />;

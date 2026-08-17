@@ -188,3 +188,221 @@ export function getMfgStatusColor(status) {
   };
   return map[status?.toUpperCase?.()] || SEMANTIC.neutral;
 }
+
+// ─── DEALER COLOR PALETTES ────────────────────────────────────────────────────
+
+// 1. Dealer Dashboard / Orders — Blue / Indigo
+export const DEALER_ORDERS = {
+  primary:    '#2563EB', // Blue-600
+  secondary:  '#4F46E5', // Indigo-600
+  tertiary:   '#60A5FA', // Blue-400
+  light:      '#93C5FD', // Blue-300
+  pending:    '#F59E0B', // Amber
+  confirmed:  '#2563EB', // Blue
+  processing: '#4F46E5', // Indigo
+  dispatched: '#06B6D4', // Cyan
+  delivered:  '#059669', // Green
+  cancelled:  '#DC2626', // Red
+  stages: ['#1D4ED8','#2563EB','#4F46E5','#6366F1','#06B6D4','#38BDF8','#059669'],
+};
+
+// 2. Inventory — Teal / Cyan
+export const DEALER_INVENTORY = {
+  primary:    '#0D9488', // Teal-600
+  secondary:  '#06B6D4', // Cyan-500
+  tertiary:   '#38BDF8', // Sky-400
+  stockIn:    '#0D9488', // Teal
+  stockOut:   '#2563EB', // Blue
+  adjustment: '#94A3B8', // Slate
+  healthy:    '#059669', // Green
+  low:        '#F59E0B', // Amber
+  critical:   '#DC2626', // Red
+  reorder:    '#F97316', // Orange
+  safety:     '#DC2626', // Red
+};
+
+// 3. Partner Network — Purple / Indigo
+export const DEALER_PARTNERS = {
+  primary:      '#7C3AED', // Violet-600
+  secondary:    '#4F46E5', // Indigo-600
+  tertiary:     '#A78BFA', // Violet-400
+  dealer:       '#2563EB', // Blue (self)
+  retailer:     '#06B6D4', // Cyan
+  manufacturer: '#4F46E5', // Indigo
+  transporter:  '#8B5CF6', // Violet
+  top:          '#7C3AED',
+};
+
+// 4. Financial — Blue + Green
+export const DEALER_FINANCIAL = {
+  revenue:    '#16A34A', // Green-600
+  cost:       '#64748B', // Slate
+  profit:     '#059669', // Emerald
+  inflow:     '#16A34A', // Green
+  outflow:    '#DC2626', // Red (outflow is clearly distinct)
+  neutral:    '#94A3B8', // Gray
+  category:   ['#2563EB','#4F46E5','#0D9488','#16A34A','#F59E0B','#F97316','#7C3AED','#06B6D4'],
+};
+
+// 5. Disputes — Amber / Red
+export const DEALER_DISPUTES = {
+  primary:     '#F59E0B', // Amber
+  secondary:   '#EA580C', // Orange
+  critical:    '#DC2626', // Red
+  OPEN:        '#2563EB',
+  UNDER_REVIEW:'#F59E0B',
+  RESOLVED:    '#059669',
+  CLOSED:      '#64748B',
+};
+
+// 6. Batch Traceability — Purple
+export const DEALER_BATCH = {
+  primary:      '#7C3AED', // Violet-600
+  secondary:    '#4F46E5', // Indigo-600
+  manufacturer: '#4F46E5',
+  transporter:  '#8B5CF6',
+  dealer:       '#2563EB',
+  retailer:     '#06B6D4',
+  CREATED:      '#F59E0B',
+  DISPATCHED:   '#2563EB',
+  COMPLETED:    '#059669',
+  RECEIVED:     '#0D9488',
+  statusColors: ['#F59E0B','#2563EB','#0D9488','#059669','#DC2626','#94A3B8'],
+};
+
+// ─── DEALER HELPER: get status color ─────────────────────────────────────────
+export function getDealerStatusColor(status) {
+  const map = {
+    // Order stages
+    RETAIL_ORDERED: '#F59E0B',
+    DEALER_CONFIRMED: '#2563EB',
+    DEALER_ORDERED_MANUFACTURER: '#4F46E5',
+    BATCH_CREATED: '#06B6D4',
+    DISPATCHED: '#0D9488',
+    DEALER_RECEIVED: '#059669',
+    RETAIL_RECEIVED: '#16A34A',
+    // Generic
+    PENDING: '#F59E0B',
+    CONFIRMED: '#2563EB',
+    PROCESSING: '#4F46E5',
+    IN_TRANSIT: '#06B6D4',
+    DELIVERED: '#059669',
+    CANCELLED: '#DC2626',
+    FAILED: '#DC2626',
+    // Dispute lifecycle
+    OPEN: '#2563EB',
+    UNDER_REVIEW: '#F59E0B',
+    RESOLVED: '#059669',
+    CLOSED: '#64748B',
+    // Batch
+    CREATED: '#F59E0B',
+    COMPLETED: '#059669',
+    RECEIVED: '#0D9488',
+    // Alert RAG
+    GREEN: '#059669',
+    AMBER: '#F59E0B',
+    RED: '#DC2626',
+    // Stock
+    'IN STOCK': '#059669',
+    'LOW STOCK': '#F59E0B',
+    'OUT OF STOCK': '#DC2626',
+  };
+  return map[String(status || '').toUpperCase().replace(/ /g, '_')] || SEMANTIC.neutral;
+}
+
+// ─── RETAIL SHOP COLOR PALETTES ─────────────────────────────────────────────
+
+export const RETAIL_SALES = {
+  primary: '#2563EB', // Blue
+  secondary: '#4F46E5', // Indigo
+  tertiary: '#6366F1', // Violet
+  revenue: '#16A34A', // Green
+  qty: '#38BDF8', // Sky
+  trend: '#2563EB'
+};
+
+export const RETAIL_INVENTORY = {
+  primary: '#0D9488', // Teal
+  secondary: '#06B6D4', // Cyan
+  stockIn: '#0D9488',
+  stockOut: '#2563EB',
+  level: '#06B6D4',
+  lowStock: '#F59E0B' // Amber
+};
+
+export const RETAIL_REVENUE = {
+  primary: '#2563EB', // Blue
+  secondary: '#059669', // Green
+  trend: '#0D9488', // Teal
+  bar: '#3B82F6'
+};
+
+export const RETAIL_REPLENISHMENT = {
+  primary: '#F59E0B', // Amber
+  secondary: '#F97316', // Orange
+  demand: '#F59E0B',
+  reorder: '#DC2626', // Red
+  stock: '#0D9488'
+};
+
+export const RETAIL_WAYBILL = {
+  primary: '#4F46E5', // Indigo
+  secondary: '#2563EB', // Blue
+  stages: ['#1D4ED8','#2563EB','#4F46E5','#6366F1','#06B6D4','#059669']
+};
+
+export const RETAIL_TRACEABILITY = {
+  primary: '#7C3AED', // Purple
+  secondary: '#8B5CF6',
+  manufacturer: '#7C3AED',
+  batch: '#A78BFA',
+  waybill: '#4F46E5',
+  transporter: '#8B5CF6',
+  dealer: '#2563EB',
+  retail: '#06B6D4'
+};
+
+export const RETAIL_RECEIVING = {
+  primary: '#0D9488', // Teal
+  secondary: '#2563EB', // Blue
+  ordered: '#94A3B8', // Slate
+  received: '#0D9488',
+  discrepancy: '#DC2626',
+  partial: '#F59E0B'
+};
+
+export const RETAIL_RISK = {
+  GREEN: '#059669',
+  AMBER: '#F59E0B',
+  RED: '#DC2626',
+  NEUTRAL: '#94A3B8'
+};
+
+export function getRetailStatusColor(status) {
+  const map = {
+    // Inventory
+    'HEALTHY': '#059669',
+    'LOW STOCK': '#F59E0B',
+    'CRITICAL': '#DC2626',
+    'REORDER': '#F97316',
+    // Receiving
+    'RECEIVED': '#059669',
+    'PARTIALLY_DELIVERED': '#F59E0B',
+    'DELIVERED': '#0D9488',
+    'DISCREPANCY': '#DC2626',
+    // Pipeline
+    'CREATED': '#1D4ED8',
+    'CONFIRMED': '#2563EB',
+    'DISPATCHED': '#6366F1',
+    'IN TRANSIT': '#06B6D4',
+    // Risk
+    'HIGH': '#DC2626',
+    'MEDIUM': '#F59E0B',
+    'LOW': '#059669',
+    // Anomalies
+    'OPEN': '#DC2626',
+    'ACKNOWLEDGED': '#F59E0B',
+    'RESOLVED': '#059669'
+  };
+  return map[String(status || '').toUpperCase().replace(/ /g, '_')] || '#94A3B8';
+}
