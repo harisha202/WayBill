@@ -308,7 +308,7 @@ function DashboardLayout({
         </main>
       </section>
       <AlertsDrawer open={alertsOpen} items={notificationItems} onClose={() => setAlertsOpen(false)} />
-      {(role === 'admin' || role === 'Admin') && <AskWaybillPanel />}
+      <AskWaybillPanel />
       <Toaster position="top-right" />
     </div>
   )

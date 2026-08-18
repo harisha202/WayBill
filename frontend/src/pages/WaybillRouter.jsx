@@ -22,7 +22,7 @@ import {
     RetailReports 
 } from '../components/dashboard/RetailFeatures';
 import { TraceabilityDashboard } from '../components/dashboard/TraceabilityFeatures';
-
+import SealVerificationCenter from '../components/dashboard/SealVerificationCenter';
 const DefaultDashboardView = ({ role }) => (
     <div className="card">
         <h2 className="card-title">{role} Dashboard Overview</h2>
@@ -40,6 +40,8 @@ export default function WaybillRouter({ user, role, isGuest, onLogout, onNavigat
         else if (currentPath.includes('ledger')) content = <AdminLedger />;
         else if (currentPath.includes('users')) content = <UserManagement />;
         else if (currentPath.includes('settings')) content = <AdminSettings />;
+        else if (currentPath.includes('seal')) content = <SealVerificationCenter />;
+        else if (currentPath.includes('traceability')) content = <TraceabilityDashboard />;
         else content = <ControlTower />;
     }
     else if (role === 'manufacturer' || role === 'Manufacturer') {
@@ -69,6 +71,8 @@ export default function WaybillRouter({ user, role, isGuest, onLogout, onNavigat
         else if (currentPath.includes('alerts')) content = <DealerAlertCenter />;
         else if (currentPath.includes('disputes')) content = <DealerDisputeCenter />;
         else if (currentPath.includes('batch')) content = <DealerBatchTraceability />;
+        else if (currentPath.includes('seal')) content = <SealVerificationCenter />;
+        else if (currentPath.includes('traceability')) content = <TraceabilityDashboard />;
         else content = <DealerDashboard />;
     }
     else if (role === 'retail_shop' || role === 'RetailShop') {
@@ -80,11 +84,10 @@ export default function WaybillRouter({ user, role, isGuest, onLogout, onNavigat
         else if (currentPath.includes('batch')) content = <RetailReceiving />;
         else if (currentPath.includes('alerts')) content = <RetailAlertCenter />;
         else if (currentPath.includes('ledger')) content = <RetailReports />;
+        else if (currentPath.includes('traceability')) content = <TraceabilityDashboard />;
         else content = <RetailDashboardOverview />;
     }
-    else if (role === 'Traceability') {
-        content = <TraceabilityDashboard />;
-    }
+
 
     return (
         <DashboardLayout role={role} userName={user?.name} onLogout={onLogout} onNavigate={onNavigate} currentPath={currentPath}>

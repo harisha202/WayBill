@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import { useApi } from '../../api/hooks/useApi';
 import { retailApi } from '../../api/services/retailApi';
 import { DataTable } from '../ui/DataTable';
@@ -189,6 +190,29 @@ export function RetailSalesPOS() {
 export function RetailInventoryAnalytics() {
     const { data: inventory, loading: invLoading } = useApi('/retail/inventory');
     const { data: analytics, loading } = useApi('/retail/analytics/inventory-detail');
+    const [downloading, setDownloading] = useState(false);
+    const [downloadError, setDownloadError] = useState(null);
+
+    const downloadCSV = async (type) => {
+        setDownloading(true);
+        setDownloadError(null);
+        try {
+            const response = await axios.get(`/api/retail_shop/reports/export?type=${type}`, {
+                responseType: 'blob',
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            });
+            const url = URL.createObjectURL(response.data);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `waybill_${type}_${Date.now()}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            setDownloadError('Download failed');
+        } finally {
+            setDownloading(false);
+        }
+    };
 
     const columns = [
         { key: 'sku', header: 'SKU', render: val => <strong>{val}</strong> },
@@ -201,7 +225,15 @@ export function RetailInventoryAnalytics() {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '1.5rem', color: 'var(--dashboard-heading)' }}>Store Inventory</h2>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0, color: 'var(--dashboard-heading)' }}>Store Inventory</h2>
+                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                        {downloadError && <span style={{ color: 'red', fontSize: '0.8rem' }}>{downloadError}</span>}
+                        <button onClick={() => downloadCSV('inventory')} disabled={downloading} style={{ padding: '0.45rem 1rem', border: '1px solid var(--primary)', borderRadius: 6, background: 'var(--primary)', color: 'white', cursor: 'pointer', fontSize: '0.85rem' }}>
+                            {downloading ? 'Downloading...' : '⬇ Download CSV'}
+                        </button>
+                    </div>
+                </div>
                 <DataTable data={inventory || []} columns={columns} loading={invLoading} emptyMessage="No inventory data available." />
             </div>
 

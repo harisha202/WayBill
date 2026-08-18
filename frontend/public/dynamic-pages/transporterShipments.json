@@ -1,5 +1,0 @@
-{
-  "type": "LegacyComponent",
-  "props": { "componentKey": "TransporterDashboard", "initialView": "shipments" }
-}
-

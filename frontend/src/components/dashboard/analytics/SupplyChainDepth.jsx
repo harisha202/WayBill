@@ -24,7 +24,9 @@ function ChartTooltip({ active, payload, label }) {
   return null;
 }
 
-function ForceNetwork({ nodes = [], edges = [], onNodeClick }) {
+function ForceNetwork({ data, onNodeClick }) {
+  const nodes = data?.nodes || [];
+  const edges = data?.edges || [];
   
   const [positions, setPositions] = useState({});
   const [selectedNode, setSelectedNode] = useState(null);
@@ -58,7 +60,7 @@ function ForceNetwork({ nodes = [], edges = [], onNodeClick }) {
       });
     });
     setPositions(pos);
-  }, [nodes]);
+  }, [data]);
 
   // Run simple spring simulation
   useEffect(() => {
@@ -119,7 +121,7 @@ function ForceNetwork({ nodes = [], edges = [], onNodeClick }) {
     }
     animRef.current = requestAnimationFrame(tick);
     return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
-  }, [nodes.length, edges.length]);
+  }, [data, positions]);
 
   if (!nodes.length) return <div style={{color:'var(--muted)',textAlign:'center',padding:'2rem'}}>No network data</div>;
 
@@ -304,7 +306,7 @@ export function SupplyChainDepth() {
 
       <AnalyticsSection title="Supply Chain Network">
         <AnalyticsCard title="Force-Directed Network" span={12} height={560} loading={loading} error={error} isEmpty={isEmpty}>
-          <ForceNetwork nodes={nodes} edges={edges} />
+          <ForceNetwork data={data} />
         </AnalyticsCard>
       </AnalyticsSection>
 

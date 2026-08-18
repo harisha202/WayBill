@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import axios from 'axios';
 
 import { useAnalytics } from '../../api/hooks/useAnalytics';
 
@@ -162,10 +163,41 @@ export function RouteOptimizer() {
   const { data, loading, error } = useAnalytics('/tracking/analytics/shipments');
   const volumeTrend = data?.volumeTrend || [];
   const transitTrend = data?.transitTrend || [];
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState(null);
+
+  const downloadCSV = async (type) => {
+    setDownloading(true);
+    setDownloadError(null);
+    try {
+      const response = await axios.get(`/api/transporter/reports/export?type=${type}`, {
+        responseType: 'blob',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      const url = URL.createObjectURL(response.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `waybill_${type}_${Date.now()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setDownloadError('Download failed');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
     <div>
-      <h1 style={{ fontSize: '1.75rem', fontWeight: 800, margin: '0 0 1.5rem 0', color: 'var(--dashboard-heading)' }}>Shipment Analytics</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <h1 style={{ fontSize: '1.75rem', fontWeight: 800, margin: 0, color: 'var(--dashboard-heading)' }}>Shipment Analytics</h1>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          {downloadError && <span style={{ color: 'red', fontSize: '0.8rem' }}>{downloadError}</span>}
+          <button onClick={() => downloadCSV('shipments')} disabled={downloading} style={{ padding:'0.45rem 1rem', border:'1px solid var(--primary)', borderRadius:6, background:'var(--primary)', color:'white', cursor:'pointer', fontSize:'0.85rem' }}>
+            {downloading ? 'Downloading...' : '⬇ Download CSV'}
+          </button>
+        </div>
+      </div>
       <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:'1.5rem', marginBottom:'1.5rem' }}>
         {/* Main: Line Volume */}
         <div style={card}>

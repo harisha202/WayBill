@@ -180,9 +180,9 @@ function App() {
       <Login
         role={pendingRole}
         onBack={() => openRoleSelection('login')}
-        onSubmit={async ({ email, password }) => {
+        onSubmit={async ({ username, email, password }) => {
           const data = await authApi.login({
-            email,
+            email: username || email,
             password,
             role: ROLE_TO_API[pendingRole],
           })

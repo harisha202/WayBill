@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import { useApi } from '../../api/hooks/useApi';
 import { useAnalytics } from '../../api/hooks/useAnalytics';
 import { manufacturerApi } from '../../api/services/manufacturerApi';
@@ -208,6 +209,30 @@ export function Production() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const { data: analyticsData, loading: analyticsLoading, error: analyticsError, refetch: refetchAnalytics } = useAnalytics('/manufacturer/analytics/production', { dateFrom, dateTo });
+  
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState(null);
+
+  const downloadCSV = async (type) => {
+    setDownloading(true);
+    setDownloadError(null);
+    try {
+      const response = await axios.get(`/api/manufacturer/reports/export?type=${type}`, {
+        responseType: 'blob',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      const url = URL.createObjectURL(response.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `waybill_${type}_${Date.now()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setDownloadError('Download failed');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const handleStart = async (orderId) => {
     if (!window.confirm("Commence production sequence?")) return;
@@ -273,7 +298,15 @@ export function Production() {
 
   return (
     <div>
-      <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '1.5rem', color: 'var(--dashboard-heading)' }}>Production Floor</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0, color: 'var(--dashboard-heading)' }}>Production Floor</h2>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          {downloadError && <span style={{ color: 'red', fontSize: '0.8rem' }}>{downloadError}</span>}
+          <button onClick={() => downloadCSV('production')} disabled={downloading} style={{ padding: '0.45rem 1rem', border: '1px solid var(--primary)', borderRadius: 6, background: 'var(--primary)', color: 'white', cursor: 'pointer', fontSize: '0.85rem' }}>
+            {downloading ? 'Downloading...' : '⬇ Download CSV'}
+          </button>
+        </div>
+      </div>
       
       <FilterBar dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo} refetchAnalytics={refetchAnalytics} />
 

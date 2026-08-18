@@ -23,7 +23,7 @@ export const AskWaybillPanel = () => {
 
         try {
             const token = localStorage.getItem('waybill_token');
-            const response = await fetch(`http://localhost:8000/api/ai/chat/stream`, {
+            const response = await fetch(`http://localhost:8000/api/ai/query`, {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',

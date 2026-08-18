@@ -79,7 +79,7 @@ function ViolinChart({ scores = [], selectedScore, color }) {
 }
 
 export function SupplierRiskTab() {
-  const [filters] = useState({ supplierId: '' });
+  const [filters, setFilters] = useState({ supplierId: '' });
   const [selectedIdx, setSelectedIdx] = useState(0);
   const analytics = useAnalytics('/admin/analytics/supplier-risk', filters);
   const data = analytics.data || {};

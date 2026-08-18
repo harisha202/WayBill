@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import { useApi } from '../../api/hooks/useApi';
 import { useAnalytics } from '../../api/hooks/useAnalytics';
 import { dealerApi } from '../../api/services/dealerApi';
@@ -400,6 +401,29 @@ export function DealerDashboard() {
 export function Inventory() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState(null);
+
+  const downloadCSV = async (type) => {
+    setDownloading(true);
+    setDownloadError(null);
+    try {
+      const response = await axios.get(`/api/dealer/reports/export?type=${type}`, {
+        responseType: 'blob',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      const url = URL.createObjectURL(response.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `waybill_${type}_${Date.now()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setDownloadError('Download failed');
+    } finally {
+      setDownloading(false);
+    }
+  };
   const { data: analyticsData, loading: aLoading, error: aError, refetch } = useAnalytics('/dealer/analytics/inventory-detail', { dateFrom, dateTo });
   const { data: inventory, loading: iLoading, error: iError } = useApi('/dealer/inventory');
 
@@ -421,7 +445,13 @@ export function Inventory() {
     <div>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.5rem' }}>
         <h1 style={{ fontSize:'1.6rem', fontWeight:800, margin:0, color:'var(--dashboard-heading)' }}>Warehouse Inventory</h1>
-        <button onClick={refetch} style={{ padding:'0.45rem 1rem', border:'1px solid var(--border)', borderRadius:6, background:'var(--surface)', cursor:'pointer', fontSize:'0.85rem' }}>↻ Refresh</button>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          {downloadError && <span style={{ color: 'red', fontSize: '0.8rem' }}>{downloadError}</span>}
+          <button onClick={() => downloadCSV('inventory')} disabled={downloading} style={{ padding:'0.45rem 1rem', border:'1px solid var(--primary)', borderRadius:6, background:'var(--primary)', color:'white', cursor:'pointer', fontSize:'0.85rem' }}>
+            {downloading ? 'Downloading...' : '⬇ Download CSV'}
+          </button>
+          <button onClick={refetch} style={{ padding:'0.45rem 1rem', border:'1px solid var(--border)', borderRadius:6, background:'var(--surface)', cursor:'pointer', fontSize:'0.85rem' }}>↻ Refresh</button>
+        </div>
       </div>
       <FilterBar dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo} onApply={refetch} onClear={() => { setDateFrom(''); setDateTo(''); }} />
 

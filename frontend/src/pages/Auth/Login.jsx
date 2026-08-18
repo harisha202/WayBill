@@ -67,8 +67,8 @@ function Login({ role, onSubmit, onBack }) {
           )}
 
           <div className="standard-auth-form-group">
-            <label className="standard-auth-label">Email Address</label>
-            <input ref={emailInputRef} type="email" className="standard-auth-input" placeholder="you@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            <label className="standard-auth-label">Email Address / Username</label>
+            <input ref={emailInputRef} type="text" className="standard-auth-input" placeholder="you@example.com or username" required value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
 
           <div className="standard-auth-form-group">

@@ -1,5 +1,0 @@
-{
-  "type": "LegacyComponent",
-  "props": { "componentKey": "ManufacturerDashboard", "initialView": "inventory" }
-}
-
