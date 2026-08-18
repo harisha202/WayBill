@@ -10,6 +10,12 @@ from app.services.database_service import _engine, shipments_table, trucks_table
 from app.schemas.base import APIResponse
 from sqlalchemy import select
 from app.api.websocket import manager
+from app.services.transporter_analytics import (
+    get_transporter_overview_analytics,
+    get_shipment_analytics,
+    get_fleet_analytics,
+    get_driver_analytics
+)
 
 router = APIRouter(prefix="/tracking", tags=["tracking"])
 
@@ -105,3 +111,21 @@ def get_drivers():
     with _engine().begin() as conn:
         drivers = conn.execute(select(drivers_table)).fetchall()
         return APIResponse(success=True, data=[dict(d._mapping) for d in drivers])
+
+# ─── TRANSPORTER ANALYTICS ENDPOINTS ──────────────────────────────────────────
+
+@router.get("/analytics/overview", dependencies=[Depends(require_roles(UserRole.admin, UserRole.transporter))])
+def transporter_overview_analytics(days: int = Query(30, ge=7, le=365)):
+    return APIResponse(success=True, data=get_transporter_overview_analytics(days))
+
+@router.get("/analytics/shipments", dependencies=[Depends(require_roles(UserRole.admin, UserRole.transporter))])
+def transporter_shipment_analytics(days: int = Query(30, ge=7, le=365)):
+    return APIResponse(success=True, data=get_shipment_analytics(days))
+
+@router.get("/analytics/fleet", dependencies=[Depends(require_roles(UserRole.admin, UserRole.transporter))])
+def transporter_fleet_analytics():
+    return APIResponse(success=True, data=get_fleet_analytics())
+
+@router.get("/analytics/drivers", dependencies=[Depends(require_roles(UserRole.admin, UserRole.transporter))])
+def transporter_driver_analytics():
+    return APIResponse(success=True, data=get_driver_analytics())

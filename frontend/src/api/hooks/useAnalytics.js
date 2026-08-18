@@ -52,7 +52,6 @@ export function useAnalytics(endpoint, filters = {}, dependencies = []) {
   useEffect(() => {
     fetchData();
     return () => { if (abortRef.current) abortRef.current.abort(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endpoint, filters.dateFrom, filters.dateTo, filters.status, filters.entityType, filters.supplierId, filters.sku, filters.severity, ...dependencies]);
 
   return { ...state, refetch: fetchData };

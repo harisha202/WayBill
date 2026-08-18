@@ -30,7 +30,7 @@ function ChartTooltip({ active, payload, label }) {
   );
 }
 
-function RangeBullet({ data: shipmentRisk, rawData }) {
+function RangeBullet({ data: shipmentRisk }) {
   const totalShipments = (shipmentRisk || []).reduce((s,r)=>s+r.count,0);
   const criticalCount = (shipmentRisk || []).find(r=>r.level==='Critical')?.count || 0;
   const delayedCount = (shipmentRisk || []).find(r=>r.level==='Delayed')?.count || 0;

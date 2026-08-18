@@ -30,12 +30,11 @@ function ChartTooltip({ active, payload, label }) {
 function WaterfallChart({ waterfall }) {
   if (!waterfall?.length) return <div style={{color:'var(--muted)',textAlign:'center',padding:'2rem'}}>No waterfall data</div>;
   
-  let running = 0;
-  const wfData = waterfall.map(item => {
-    const base = item.type === 'revenue' ? 0 : Math.min(running, running + item.value);
+  const { wfData } = waterfall.reduce((acc, item) => {
+    const base = item.type === 'revenue' ? 0 : Math.min(acc.running, acc.running + item.value);
     const barVal = Math.abs(item.value);
-    if (item.type !== 'profit' && item.type !== 'negative') running += item.value;
-    return {
+    const nextRunning = (item.type !== 'profit' && item.type !== 'negative') ? acc.running + item.value : acc.running;
+    acc.wfData.push({
       name: item.name,
       base: Math.max(0, base),
       value: barVal,
@@ -44,8 +43,10 @@ function WaterfallChart({ waterfall }) {
            : item.type === 'profit' ? FINANCIAL.profit
            : item.type === 'negative' ? SEMANTIC.critical
            : FINANCIAL.cost
-    };
-  });
+    });
+    acc.running = nextRunning;
+    return acc;
+  }, { running: 0, wfData: [] });
   
   return (
     <ResponsiveContainer width="100%" height={280}>
@@ -96,7 +97,7 @@ function CostMekko({ monthly, costColors }) {
         {monthly.slice(-6).map((m, mi) => {
           const monthTotal = totals[monthly.indexOf(m)] || 1;
           const colWidth = (monthTotal / grandTotal) * 800;
-          const xStart = monthly.slice(-6).slice(0,mi).reduce((s,mm,mmi) => {
+          const xStart = monthly.slice(-6).slice(0,mi).reduce((s,mm) => {
             const idx = monthly.indexOf(mm);
             return s + ((totals[idx]||0) / grandTotal) * 800;
           }, 0);

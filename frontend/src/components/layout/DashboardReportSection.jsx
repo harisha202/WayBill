@@ -69,7 +69,7 @@ function DashboardReportSection({ role, stats = [] }) {
   }, [role, stats]);
 
   const series = buildMonthlySeries(role, stats)
-  const donutData = series.map((item, index) => ({
+  const _donutData = series.map((item, index) => ({
     label: item.label,
     value: item.value,
     color: MONTH_COLORS[index % MONTH_COLORS.length],

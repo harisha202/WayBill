@@ -25,7 +25,7 @@ function ChartTooltip({ active, payload, label }) {
 }
 
 function ForceNetwork({ nodes = [], edges = [], onNodeClick }) {
-  const svgRef = useRef(null);
+  
   const [positions, setPositions] = useState({});
   const [selectedNode, setSelectedNode] = useState(null);
   const animRef = useRef(null);
@@ -65,7 +65,7 @@ function ForceNetwork({ nodes = [], edges = [], onNodeClick }) {
     if (!Object.keys(positions).length || !nodes.length) return;
     let pos = {...positions};
     let frames = 0;
-    const edgeSet = new Set(edges.map(e => `${e.source}-${e.target}`));
+    const _edgeSet = new Set(edges.map(e => `${e.source}-${e.target}`));
 
     function tick() {
       const W = 800, H = 480;
@@ -276,7 +276,7 @@ function SparklineCard({ entityId, chartData, index }) {
 }
 
 export function SupplyChainDepth() {
-  const [filters, setFilters] = useState({});
+  const [filters] = useState({});
   const analytics = useAnalytics('/admin/analytics/supply-chain', filters);
   const data = analytics.data || {};
   const { loading, error, isEmpty } = analytics;

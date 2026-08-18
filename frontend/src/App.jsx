@@ -174,14 +174,6 @@ function App() {
     )
   }
   
-  if (false) {
-    return (
-      <main
- style={{ padding: 24, fontFamily: 'system-ui, sans-serif' }}>
-        Loading page...
-      </main>
-    )
-  }
 
   if (screen === 'login') {
     return (

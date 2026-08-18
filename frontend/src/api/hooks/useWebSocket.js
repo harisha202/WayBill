@@ -4,56 +4,56 @@ export function useWebSocket(url, onMessageCallback) {
     const [status, setStatus] = useState('CONNECTING');
     const ws = useRef(null);
 
-    const connect = useCallback(() => {
-        setStatus('CONNECTING');
-        try {
-            ws.current = new WebSocket(url);
-            
-            ws.current.onopen = () => {
-                setStatus('CONNECTED');
-            };
-            
-            ws.current.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                // First event might be {"status": "CONNECTED"} from the backend manager
-                if (data.status === 'CONNECTED') {
-                    setStatus('LIVE');
-                    return;
-                }
-                
-                if (onMessageCallback) {
-                    onMessageCallback(data);
-                }
-            };
-            
-            ws.current.onclose = () => {
-                setStatus('DISCONNECTED');
-                // Reconnect logic
-                setTimeout(() => {
-                    setStatus('RECONNECTING');
-                    connect();
-                }, 3000);
-            };
-            
-            ws.current.onerror = (err) => {
-                console.error("WebSocket Error:", err);
-                setStatus('ERROR');
-            };
-        } catch (e) {
-            setStatus('ERROR');
-        }
-    }, [url, onMessageCallback]);
+    const onMessageCallbackRef = useRef(onMessageCallback);
+    useEffect(() => {
+        onMessageCallbackRef.current = onMessageCallback;
+    }, [onMessageCallback]);
 
     useEffect(() => {
+        let isMounted = true;
+        
+        function connect() {
+            setStatus('CONNECTING');
+            try {
+                ws.current = new WebSocket(url);
+                ws.current.onopen = () => { if (isMounted) setStatus('CONNECTED'); };
+                ws.current.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    if (data.status === 'CONNECTED') {
+                        if (isMounted) setStatus('LIVE');
+                        return;
+                    }
+                    if (onMessageCallbackRef.current) onMessageCallbackRef.current(data);
+                };
+                ws.current.onclose = () => {
+                    if (isMounted) setStatus('DISCONNECTED');
+                    setTimeout(() => {
+                        if (isMounted) {
+                            setStatus('RECONNECTING');
+                            connect();
+                        }
+                    }, 3000);
+                };
+                ws.current.onerror = (err) => {
+                    console.error("WebSocket Error:", err);
+                    if (isMounted) setStatus('ERROR');
+                };
+            } catch (_err) {
+                console.error("WebSocket connection error:", _err);
+                if (isMounted) setStatus('ERROR');
+            }
+        }
+        
         connect();
+        
         return () => {
+            isMounted = false;
             if (ws.current) {
-                // Ensure we don't trigger reconnect loop on unmount
                 ws.current.onclose = null;
                 ws.current.close();
             }
         };
-    }, [connect]);
+    }, [url]);
 
     const send = useCallback((message) => {
         if (ws.current && ws.current.readyState === WebSocket.OPEN) {

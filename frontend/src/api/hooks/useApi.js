@@ -42,7 +42,6 @@ export function useApi(endpoint, dependencies = []) {
 
     useEffect(() => {
         fetchData();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, dependencies);
 
     return { ...state, refetch: fetchData };
