@@ -29,6 +29,7 @@ from app.services.database_service import (
 from app.services.ai_service import predict_low_stock
 from app.core.config import get_settings
 from app.services.notification_service import notification_service
+from app.services.domain_events import emit_event_sync
 
 router = APIRouter(prefix="/dealer", tags=["dealer"])
 
@@ -173,7 +174,7 @@ def create_retail_order(data: OrderCreateRequest) -> APIResponse[dict]:
 
 
 @router.patch("/orders/{order_code}/confirm", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
-def confirm_retail_order(order_code: str) -> dict:
+def confirm_retail_order(order_code: str):
     order = get_order(order_code)
     if order is None:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -193,11 +194,21 @@ def confirm_retail_order(order_code: str) -> dict:
         message=f"{order_code} confirmed by dealer.",
         metadata={"orderCode": order_code, "txHash": tx_hash},
     )
+    
+    emit_event_sync(
+        "ORDER_CONFIRMED",
+        {"order_code": order_code},
+        notify_users=["manufacturer"],
+        notify_roles=["admin"],
+        notify_title="Retail Order Confirmed",
+        notify_message=f"Order {order_code} confirmed by dealer."
+    )
+    
     return {"order": updated, "txHash": tx_hash}
 
 
 @router.patch("/orders/{order_code}/dealer-order", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
-def forward_order_to_manufacturer(order_code: str, data: DealerOrderForwardRequest) -> dict:
+def forward_order_to_manufacturer(order_code: str, data: DealerOrderForwardRequest):
     order = get_order(order_code)
     if order is None:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -222,6 +233,15 @@ def forward_order_to_manufacturer(order_code: str, data: DealerOrderForwardReque
         message=f"{order_code} requires batch creation.",
         metadata={"orderCode": order_code, "txHash": tx_hash},
     )
+    
+    emit_event_sync(
+        "ORDER_ACCEPTED",
+        {"order_code": order_code, "manufacturer_id": data.manufacturer_id},
+        notify_users=[data.manufacturer_id],
+        notify_title="Order Accepted",
+        notify_message=f"Order {order_code} assigned to {data.manufacturer_id}."
+    )
+    
     return {"order": updated, "txHash": tx_hash}
 
 
@@ -271,7 +291,7 @@ def receive_order(
 
 
 @router.patch("/orders/{order_code}/retail-receive", dependencies=[Depends(require_roles(UserRole.admin, UserRole.retail_shop, UserRole.dealer))])
-def retail_receive(order_code: str) -> dict:
+def retail_receive(order_code: str):
     order = get_order(order_code)
     if order is None:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -306,12 +326,12 @@ def retail_receive(order_code: str) -> dict:
 
 
 @router.get("/orders/pipeline", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer, UserRole.manufacturer, UserRole.transporter, UserRole.retail_shop))])
-def pipeline_orders(limit: int = Query(100, ge=1, le=500)) -> dict:
+def pipeline_orders(limit: int = Query(100, ge=1, le=500)):
     return {"items": _pipeline_rows(limit=limit)}
 
 
 @router.get("/orders/recent", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
-def recent_orders() -> dict:
+def recent_orders():
     rows = _pipeline_rows(limit=20)
     orders = [
         {
@@ -329,7 +349,7 @@ def recent_orders() -> dict:
 
 
 @router.get("/orders/trends", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
-def order_trends() -> dict:
+def order_trends():
     rows = _pipeline_rows(limit=200)
     base = max(len(rows), 1) * 2
     trends = [max(0, base + ((index % 3) - 1) * 2 + (index // 2)) for index in range(7)]
@@ -337,18 +357,18 @@ def order_trends() -> dict:
 
 
 @router.get("/low-stock", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
-def low_stock_alerts() -> dict:
+def low_stock_alerts():
     items = [item for item in _inventory_items() if item["stockStatus"] != "In Stock"]
     return {"items": items}
 
 
 @router.get("/inventory", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
-def inventory() -> dict:
+def inventory():
     return {"items": _inventory_items()}
 
 
 @router.get("/arrivals", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
-def arrivals() -> dict:
+def arrivals():
     try:
         return {"shipments": list_dealer_arrivals()}
     except DatabaseError as exc:
@@ -356,7 +376,7 @@ def arrivals() -> dict:
 
 
 @router.get("/reorder-recommendations", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
-def ai_reorder_recommendations(days: int = Query(30, ge=7, le=120)) -> dict:
+def ai_reorder_recommendations(days: int = Query(30, ge=7, le=120)):
     try:
         items = reorder_recommendations(days=days)
         api_key = get_settings().anthropic_api_key
@@ -368,7 +388,7 @@ def ai_reorder_recommendations(days: int = Query(30, ge=7, le=120)) -> dict:
 
 
 @router.get("/analytics", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
-def analytics(time_range: str = Query("30d", alias="range")) -> dict:
+def analytics(time_range: str = Query("30d", alias="range")):
     rows = _pipeline_rows(limit=500)
     delivered_count = sum(1 for item in rows if "deliver" in str(item.get("status")).lower() or "receive" in str(item.get("status")).lower())
     in_transit_count = sum(1 for item in rows if "transit" in str(item.get("status")).lower())
@@ -407,7 +427,7 @@ def analytics(time_range: str = Query("30d", alias="range")) -> dict:
 
 
 @router.get("/orders/backorders", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
-def backorders(limit: int = Query(100, ge=1, le=500)) -> dict:
+def backorders(limit: int = Query(100, ge=1, le=500)):
     from app.services.database_service import list_backorders
     return {"items": list_backorders(limit=limit)}
 
@@ -424,10 +444,78 @@ def get_margin(payload: dict = Depends(require_roles(UserRole.admin, UserRole.de
     return APIResponse(success=True, data=data)
 
 
+@router.patch("/disputes/{dispute_id}/resolve", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
+def resolve_dispute(dispute_id: str, payload: dict = Depends(require_roles(UserRole.admin, UserRole.dealer))):
+    from app.services.database_service import _engine
+    from sqlalchemy import select, update, Table, MetaData
+    from app.services.audit_service import audit_service
+    
+    actor_id = payload.get("sub", "unknown")
+    actor_role = payload.get("role", "dealer")
+    timestamp = datetime.now(timezone.utc)
+    
+    with _engine().begin() as conn:
+        metadata = MetaData()
+        disputes_table = Table("disputes", metadata, autoload_with=conn)
+        dispute = conn.execute(select(disputes_table).where(disputes_table.c.dispute_id == dispute_id)).first()
+        if not dispute:
+            raise HTTPException(status_code=404, detail="Dispute not found")
+        if dispute.status == "RESOLVED":
+            raise HTTPException(status_code=400, detail="Dispute already resolved")
+            
+        conn.execute(
+            update(disputes_table)
+            .where(disputes_table.c.dispute_id == dispute_id)
+            .values(status="RESOLVED", resolved_at=timestamp)
+        )
+        
+    audit_service.log_action(actor_id, actor_role, "DISPUTE_RESOLVED", "DISPUTE", dispute_id)
+    
+    emit_event_sync(
+        "DISPUTE_RESOLVED",
+        {"dispute_id": dispute_id, "status": "RESOLVED"},
+        notify_roles=["admin", "dealer"],
+        notify_title="Dispute Resolved",
+        notify_message=f"Dispute {dispute_id} has been resolved."
+    )
+    
+    return {"dispute_id": dispute_id, "status": "RESOLVED", "resolved_at": timestamp.isoformat()}
+
+
 # ─── DEALER ANALYTICS ENDPOINTS ───────────────────────────────────────────────
 
+@router.get("/reports/export", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
+def export_dealer_report(type: str = Query("orders", regex="^(orders|inventory|discrepancies)$")):
+    from app.services.database_service import _engine, orders_table, products_table, discrepancies_table
+    from sqlalchemy import select
+    import csv, io
+    from fastapi.responses import Response
+    
+    stream = io.StringIO()
+    writer = csv.writer(stream)
+    
+    with _engine().begin() as conn:
+        if type == "orders":
+            records = conn.execute(select(orders_table)).mappings().all()
+        elif type == "inventory":
+            records = conn.execute(select(products_table)).mappings().all()
+        elif type == "discrepancies":
+            records = conn.execute(select(discrepancies_table)).mappings().all()
+        else:
+            records = []
+            
+    if records:
+        writer.writerow(records[0].keys())
+        for row in records:
+            writer.writerow(row.values())
+    else:
+        writer.writerow(["No data"])
+        
+    return Response(content=stream.getvalue().encode("utf-8"), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="dealer_{type}.csv"'})
+
+
 @router.get("/analytics/dashboard", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
-def dealer_dashboard_analytics(days: int = Query(30, ge=7, le=365)) -> dict:
+def dealer_dashboard_analytics(days: int = Query(30, ge=7, le=365)):
     from app.services.database_service import (
         get_dealer_pipeline_funnel,
         get_dealer_order_volume_trend,
@@ -459,7 +547,7 @@ def dealer_dashboard_analytics(days: int = Query(30, ge=7, le=365)) -> dict:
 
 
 @router.get("/analytics/inventory-detail", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
-def dealer_inventory_analytics(days: int = Query(30, ge=7, le=365)) -> dict:
+def dealer_inventory_analytics(days: int = Query(30, ge=7, le=365)):
     from app.services.database_service import get_dealer_stock_movements_summary
     try:
         return get_dealer_stock_movements_summary(days=days)
@@ -468,7 +556,7 @@ def dealer_inventory_analytics(days: int = Query(30, ge=7, le=365)) -> dict:
 
 
 @router.get("/analytics/fulfillment-detail", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
-def dealer_fulfillment_analytics(days: int = Query(30, ge=7, le=365)) -> dict:
+def dealer_fulfillment_analytics(days: int = Query(30, ge=7, le=365)):
     from app.services.database_service import get_dealer_fulfillment_analytics
     try:
         return get_dealer_fulfillment_analytics(days=days)
@@ -477,7 +565,7 @@ def dealer_fulfillment_analytics(days: int = Query(30, ge=7, le=365)) -> dict:
 
 
 @router.get("/analytics/partners-detail", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
-def dealer_partner_analytics() -> dict:
+def dealer_partner_analytics():
     from app.services.database_service import get_dealer_partner_analytics
     try:
         return get_dealer_partner_analytics()
@@ -486,7 +574,7 @@ def dealer_partner_analytics() -> dict:
 
 
 @router.get("/analytics/financial-detail", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
-def dealer_financial_analytics(days: int = Query(90, ge=7, le=365)) -> dict:
+def dealer_financial_analytics(days: int = Query(90, ge=7, le=365)):
     from app.services.database_service import get_dealer_financial_analytics
     try:
         return get_dealer_financial_analytics(days=days)
@@ -495,7 +583,7 @@ def dealer_financial_analytics(days: int = Query(90, ge=7, le=365)) -> dict:
 
 
 @router.get("/analytics/alerts-detail", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
-def dealer_alerts_analytics() -> dict:
+def dealer_alerts_analytics():
     from app.services.database_service import get_dealer_alerts_analytics
     try:
         return get_dealer_alerts_analytics()
@@ -504,7 +592,7 @@ def dealer_alerts_analytics() -> dict:
 
 
 @router.get("/analytics/disputes-detail", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
-def dealer_disputes_analytics() -> dict:
+def dealer_disputes_analytics():
     from app.services.database_service import get_dealer_disputes_analytics
     try:
         return get_dealer_disputes_analytics()
@@ -513,7 +601,7 @@ def dealer_disputes_analytics() -> dict:
 
 
 @router.get("/analytics/batches-detail", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
-def dealer_batch_analytics() -> dict:
+def dealer_batch_analytics():
     from app.services.database_service import get_dealer_batch_analytics
     try:
         return get_dealer_batch_analytics()

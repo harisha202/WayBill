@@ -13,6 +13,7 @@ from app.services.database_service import (
     discrepancies_table
 )
 from app.services.audit_service import audit_service
+from app.services.domain_events import emit_event_sync
 
 class InventoryService:
     @staticmethod
@@ -141,6 +142,27 @@ class InventoryService:
                 entity="ORDER",
                 entity_id=order_code,
                 new_value={"missing_quantity": discrepancy, "sku": sku}
+            )
+
+        emit_event_sync(
+            "RECEIVING_COMPLETED",
+            {"order_code": order_code, "received": received_quantity},
+            notify_title="Receiving Completed",
+            notify_message=f"Order {order_code} received {received_quantity} items."
+        )
+
+        if has_discrepancy:
+            emit_event_sync(
+                "DISCREPANCY_CREATED",
+                {"order_code": order_code, "sku": sku, "missing_quantity": discrepancy},
+                notify_roles=["dealer", "admin"],
+                notify_severity="warning",
+                notify_title="Discrepancy Detected",
+                notify_message=f"Order {order_code} is missing {discrepancy} items of {sku}."
+            )
+            emit_event_sync(
+                "BACKORDER_CREATED",
+                {"order_code": order_code, "sku": sku, "missing_quantity": discrepancy}
             )
 
         return {

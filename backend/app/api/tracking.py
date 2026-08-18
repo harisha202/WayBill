@@ -114,6 +114,36 @@ def get_drivers():
 
 # ─── TRANSPORTER ANALYTICS ENDPOINTS ──────────────────────────────────────────
 
+@router.get("/reports/export", dependencies=[Depends(require_roles(UserRole.admin, UserRole.transporter))])
+def export_tracking_report(type: str = Query("shipments", regex="^(shipments|fleet|drivers)$")):
+    from app.services.database_service import _engine, shipments_table, trucks_table, drivers_table
+    from sqlalchemy import select
+    import csv, io
+    from fastapi.responses import Response
+    
+    stream = io.StringIO()
+    writer = csv.writer(stream)
+    
+    with _engine().begin() as conn:
+        if type == "shipments":
+            records = conn.execute(select(shipments_table)).mappings().all()
+        elif type == "fleet":
+            records = conn.execute(select(trucks_table)).mappings().all()
+        elif type == "drivers":
+            records = conn.execute(select(drivers_table)).mappings().all()
+        else:
+            records = []
+            
+    if records:
+        writer.writerow(records[0].keys())
+        for row in records:
+            writer.writerow(row.values())
+    else:
+        writer.writerow(["No data"])
+        
+    return Response(content=stream.getvalue().encode("utf-8"), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="tracking_{type}.csv"'})
+
+
 @router.get("/analytics/overview", dependencies=[Depends(require_roles(UserRole.admin, UserRole.transporter))])
 def transporter_overview_analytics(days: int = Query(30, ge=7, le=365)):
     return APIResponse(success=True, data=get_transporter_overview_analytics(days))

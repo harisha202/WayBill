@@ -913,9 +913,16 @@ def check_database_connection() -> dict:
 
 def get_user_by_email(email: str) -> dict | None:
     try:
+        from sqlalchemy import or_
         with _engine().connect() as conn:
+            email_lower = str(email).strip().lower()
             row = conn.execute(
-                select(users_table).where(users_table.c.email == str(email).strip().lower())
+                select(users_table).where(
+                    or_(
+                        users_table.c.email == email_lower,
+                        users_table.c.username == email_lower
+                    )
+                )
             ).first()
             return _row_to_dict(row) if row else None
     except SQLAlchemyError as exc:

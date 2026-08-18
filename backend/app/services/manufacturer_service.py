@@ -16,6 +16,7 @@ from app.services.database_service import (
 )
 from app.services.audit_service import audit_service
 from app.services.waybill_service import waybill_service
+from app.services.domain_events import emit_event_sync
 
 class ManufacturerService:
     @staticmethod
@@ -41,6 +42,13 @@ class ManufacturerService:
             )
 
         audit_service.log_action(actor_id, actor_role, "PRODUCTION_CREATED", "PRODUCTION_ORDER", order_id, new_value={"quantity": quantity, "sku": sku})
+        emit_event_sync(
+            "PRODUCTION_CREATED",
+            {"order_id": order_id, "batch_id": batch_id, "sku": sku, "quantity": quantity},
+            notify_roles=["dealer", "admin"],
+            notify_title="Production Order Created",
+            notify_message=f"Production order {order_id} created for {quantity} of {sku}.",
+        )
         return {"order_id": order_id, "batch_id": batch_id, "status": "CREATED"}
 
     def start_production(self, order_id: str, actor_id: str, actor_role: str) -> Dict[str, Any]:
@@ -67,6 +75,10 @@ class ManufacturerService:
             )
 
         audit_service.log_action(actor_id, actor_role, "PRODUCTION_STARTED", "PRODUCTION_ORDER", order_id)
+        emit_event_sync(
+            "QA_STARTED",
+            {"order_id": order_id, "status": "STARTED"},
+        )
         return {"order_id": order_id, "status": "STARTED"}
 
     def submit_qa(self, order_id: str, passed: int, failed: int, defect_type: str, notes: str, actor_id: str, actor_role: str) -> Dict[str, Any]:
@@ -104,6 +116,20 @@ class ManufacturerService:
             )
 
         audit_service.log_action(actor_id, actor_role, f"QA_{status}", "PRODUCTION_ORDER", order_id, new_value={"passed": passed, "failed": failed})
+        
+        event_type = "QA_FAILED" if status == "FAILED" else "QA_PASSED"
+        notify_roles = ["admin", "manufacturer"] if status == "FAILED" else None
+        severity = "critical" if status == "FAILED" else "info"
+
+        emit_event_sync(
+            event_type,
+            {"inspection_id": inspection_id, "order_id": order_id, "status": status, "passed": passed, "failed": failed},
+            notify_roles=notify_roles,
+            notify_severity=severity,
+            notify_title=f"QA {status}",
+            notify_message=f"QA for order {order_id} {status}."
+        )
+        
         return {"inspection_id": inspection_id, "status": status}
 
     def complete_production(self, order_id: str, actor_id: str, actor_role: str) -> Dict[str, Any]:

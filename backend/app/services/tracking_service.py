@@ -6,6 +6,7 @@ from typing import Dict, Any, List
 
 from app.services.database_service import _engine, shipments_table, trucks_table, drivers_table, waybill_documents_table, gps_events_table, interventions_table
 from app.services.audit_service import audit_service
+from app.services.domain_events import emit_event_sync
 
 class TrackingService:
     @staticmethod
@@ -110,6 +111,14 @@ class TrackingService:
                 entity_id=shipment_id,
                 new_value={"risk_score": risk_score, "route_deviation": route_deviation}
             )
+            emit_event_sync(
+                "RISK_CHANGED",
+                payload={"shipment_id": shipment_id, "risk_score": risk_score, "route_deviation": route_deviation},
+                notify_roles=["admin", "transporter"],
+                notify_severity="critical",
+                notify_title="High Risk Detected",
+                notify_message=f"Shipment {shipment_id} has a high risk score of {risk_score}."
+            )
             
         payload = {
             "shipment_id": shipment_id,
@@ -125,6 +134,12 @@ class TrackingService:
             "route_deviation": route_deviation,
             "timestamp": timestamp.isoformat()
         }
+
+        emit_event_sync(
+            "GPS_UPDATED",
+            payload=payload,
+            ws_roles=["transporter", "admin"]
+        )
 
         return payload
 
@@ -151,6 +166,13 @@ class TrackingService:
             )
 
         audit_service.log_action(actor_id, actor_role, "VEHICLE_ASSIGNED", "SHIPMENT", shipment_id, new_value={"truck_id": truck_id, "driver_id": driver_id})
+        emit_event_sync(
+            "SHIPMENT_ASSIGNED",
+            payload={"shipment_id": shipment_id, "truck_id": truck_id, "driver_id": driver_id},
+            notify_roles=["dealer", "admin"],
+            notify_title="Vehicle Assigned",
+            notify_message=f"Vehicle {truck_id} assigned to shipment {shipment_id}."
+        )
         return {"shipment_id": shipment_id, "truck_id": truck_id, "driver_id": driver_id, "status": "ASSIGNED"}
 
     def log_intervention(self, shipment_id: str, action_type: str, reason: str, severity: str, actor_id: str, actor_role: str) -> Dict[str, Any]:

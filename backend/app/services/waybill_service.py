@@ -7,6 +7,7 @@ from typing import Optional, Dict, Any
 
 from app.services.database_service import _engine, waybill_documents_table, custody_events_table
 from app.services.audit_service import audit_service
+from app.services.domain_events import emit_event_sync
 
 class WaybillService:
     @staticmethod
@@ -66,6 +67,14 @@ class WaybillService:
             new_value={"status": "CREATED", "custodian": initial_custodian}
         )
             
+        emit_event_sync(
+            "WAYBILL_CREATED",
+            {"waybill_id": waybill_id, "status": "CREATED", "current_custodian": initial_custodian},
+            notify_roles=["transporter", "dealer", "admin"],
+            notify_title="Waybill Created",
+            notify_message=f"Waybill {waybill_id} has been created."
+        )
+
         return {
             "waybill_id": waybill_id,
             "status": "CREATED",
@@ -108,7 +117,12 @@ class WaybillService:
             old_value={"status": row.status},
             new_value={"status": "SEALED", "seal_hash": seal_hash}
         )
-            
+        
+        emit_event_sync(
+            "WAYBILL_SEALED",
+            {"waybill_id": waybill_id, "status": "SEALED"}
+        )
+
         return {
             "waybill_id": waybill_id,
             "status": "SEALED",

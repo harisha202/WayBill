@@ -25,6 +25,46 @@ class ChatRequest(BaseModel):
     context_data: Optional[dict] = None
     allow_data_tools: bool = False
 
+@router.post("/query", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer, UserRole.dealer, UserRole.retail_shop, UserRole.transporter))])
+async def ai_query(req: ChatRequest, payload: dict = Depends(require_roles(UserRole.admin, UserRole.manufacturer, UserRole.dealer, UserRole.retail_shop, UserRole.transporter))):
+    role = payload.get("role", "")
+    username = payload.get("username", "")
+    context_data = {}
+    
+    from app.services.database_service import (
+        get_control_tower_analytics,
+        get_mfg_dashboard_analytics,
+        get_dealer_pipeline_funnel,
+        get_dealer_alerts_analytics,
+        get_retail_dashboard_overview,
+        get_fleet_utilization,
+        get_delay_risk_distribution
+    )
+    
+    if role == "admin":
+        context_data = get_control_tower_analytics()
+    elif role == "manufacturer":
+        context_data = get_mfg_dashboard_analytics()
+    elif role == "dealer":
+        context_data = {
+            "funnel": get_dealer_pipeline_funnel(),
+            "alerts": get_dealer_alerts_analytics()
+        }
+    elif role == "retail_shop":
+        retailer = username if role != "admin" else "retail"
+        context_data = get_retail_dashboard_overview(retailer_name=retailer, days=30)
+    elif role == "transporter":
+        context_data = {
+            "fleet_utilization": get_fleet_utilization(),
+            "delay_risk_distribution": get_delay_risk_distribution()
+        }
+        
+    async def event_generator():
+        async for chunk in astream_chat_response(req.question, context_data):
+            yield f"data: {chunk}\n\n"
+            
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
 @router.post("/chat/stream", dependencies=[Depends(require_roles(UserRole.admin))])
 async def chat_stream(payload: dict):
     question = payload.get("question", "")

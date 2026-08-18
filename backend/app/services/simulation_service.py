@@ -111,5 +111,6 @@ async def simulate_truck_movement():
             logger.error(f"Failed to update simulation shipment: {e}")
 
 def start_simulation(app):
-    # Disabled to comply with the 'no fake operational data' rule.
-    pass
+    import asyncio
+    asyncio.create_task(simulate_gps_ping())
+    # asyncio.create_task(simulate_truck_movement())

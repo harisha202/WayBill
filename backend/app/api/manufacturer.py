@@ -6,8 +6,9 @@ from app.core.middleware import require_roles
 from app.models.user import UserRole
 from app.services.manufacturer_service import manufacturer_service
 from app.schemas.base import APIResponse
-from app.services.database_service import _engine, production_orders_table, quality_inspections_table, issues_table, products_table, waybill_documents_table, suppliers_table, supplier_risk_scores_table, orders_table
+from app.services.database_service import _engine, production_orders_table, quality_inspections_table, issues_table, products_table, waybill_documents_table, suppliers_table, supplier_risk_scores_table, orders_table, get_order, update_order_stage
 from sqlalchemy import select
+from app.services.domain_events import emit_event_sync
 
 router = APIRouter(prefix="/manufacturer", tags=["manufacturer"])
 
@@ -53,12 +54,54 @@ def get_orders():
         return APIResponse(success=True, data=[dict(o._mapping) for o in orders])
 
 @router.get("/orders/{order_id}", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer))])
-def get_order(order_id: str):
+def get_order_endpoint(order_id: str):
     with _engine().begin() as conn:
         order = conn.execute(select(production_orders_table).where(production_orders_table.c.order_id == order_id)).first()
         if not order:
             raise HTTPException(status_code=404, detail="Order not found")
         return APIResponse(success=True, data=dict(order._mapping))
+
+@router.get("/orders/pending", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer))])
+def get_pending_orders():
+    with _engine().begin() as conn:
+        all_orders = conn.execute(select(orders_table)).fetchall()
+        pending = [dict(o._mapping) for o in all_orders if o.current_stage == "dealer_ordered_manufacturer"]
+        return APIResponse(success=True, data=pending)
+
+@router.post("/orders/{order_code}/accept", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer))])
+def accept_order(order_code: str, payload: dict = Depends(require_roles(UserRole.admin, UserRole.manufacturer))):
+    actor_id = payload.get("sub", "unknown")
+    actor_role = payload.get("role", "unknown")
+    
+    order = get_order(order_code)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+        
+    if order["current_stage"] != "dealer_ordered_manufacturer":
+        raise HTTPException(status_code=400, detail="Order is not in the correct stage to be accepted")
+        
+    try:
+        res = manufacturer_service.create_production_order(order["product_sku"], order["quantity"], actor_id, actor_role)
+        
+        update_order_stage(
+            order_code,
+            stage="manufacturer_accepted",
+            status="manufacturer_accepted",
+            manufacturer_id=actor_id,
+            batch_id=res["batch_id"]
+        )
+        
+        emit_event_sync(
+            "ORDER_ACCEPTED",
+            {"order_code": order_code, "production_order": res},
+            notify_roles=["dealer", "admin"],
+            notify_title="Manufacturer Accepted Order",
+            notify_message=f"Manufacturer accepted order {order_code}."
+        )
+        
+        return APIResponse(success=True, data=res)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/orders", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer))])
 def create_production_order(data: ProductionOrderRequest, payload: dict = Depends(require_roles(UserRole.admin, UserRole.manufacturer))):

@@ -38,7 +38,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 @router.get("/stats", dependencies=[Depends(require_roles(UserRole.admin))])
-def get_global_stats() -> dict:
+def get_global_stats():
     try:
         metrics = summarize_global_metrics()
         return {
@@ -64,7 +64,7 @@ def get_global_stats() -> dict:
 def get_ai_forecast(
     history: str = Query(""),
     horizon: int = Query(3, ge=1, le=12),
-) -> dict:
+):
     values = [float(value.strip()) for value in history.split(",") if value.strip()]
     if not values:
         sales = get_sales_history(days=90)
@@ -86,12 +86,12 @@ def get_ai_forecast(
 
 
 @router.get("/notifications", dependencies=[Depends(require_roles(UserRole.admin))])
-def get_notifications(limit: int = Query(20, ge=1, le=100), user_id: Optional[str] = None) -> dict:
+def get_notifications(limit: int = Query(20, ge=1, le=100), user_id: Optional[str] = None):
     return {"items": notification_service.list_recent(limit=limit, user_id=user_id)}
 
 
 @router.get("/analytics", dependencies=[Depends(require_roles(UserRole.admin))])
-def analytics(time_range: str = Query("30d", alias="range")) -> dict:
+def analytics(time_range: str = Query("30d", alias="range")):
     points = 7 if time_range == "7d" else 365 if time_range == "1y" else 90 if time_range == "90d" else 30
 
     metrics = summarize_global_metrics()
@@ -153,12 +153,12 @@ def analytics(time_range: str = Query("30d", alias="range")) -> dict:
 
 
 @router.get("/blockchain/transactions", dependencies=[Depends(require_roles(UserRole.admin))])
-def blockchain_transactions() -> dict:
+def blockchain_transactions():
     return build_admin_blockchain_transactions()
 
 
 @router.post("/blockchain/verify", dependencies=[Depends(require_roles(UserRole.admin))])
-def verify_blockchain_transaction(payload: dict) -> dict:
+def verify_blockchain_transaction(payload: dict):
     tx_hash = str(payload.get("txHash", "")).strip()
     if not tx_hash:
         return {"success": False, "txHash": "", "message": "txHash required"}
@@ -168,63 +168,49 @@ def verify_blockchain_transaction(payload: dict) -> dict:
     }
 
 
-@router.post("/reports/generate", dependencies=[Depends(require_roles(UserRole.admin))])
-def generate_report(payload: dict) -> Response:
-    report_type = str(payload.get("type", "revenue")).strip() or "revenue"
-    start_date = str(payload.get("startDate", "2026-01-01"))
-    end_date = str(payload.get("endDate", "2026-01-31"))
-    report_format = str(payload.get("format", "pdf")).strip().lower()
-
-    metrics = summarize_global_metrics()
-    total_users = count_users()
-    total_orders = len(list_orders(limit=1000))
-    if report_format == "csv":
-        stream = io.StringIO()
-        writer = csv.writer(stream)
-        writer.writerow(["metric", "value"])
-        writer.writerow(["report_type", report_type])
-        writer.writerow(["start_date", start_date])
-        writer.writerow(["end_date", end_date])
-        writer.writerow(["total_users", total_users])
-        writer.writerow(["total_orders", total_orders])
-        writer.writerow(["total_products", metrics["total_products"]])
-        writer.writerow(["total_batches", metrics["total_batches"]])
-        writer.writerow(["active_shipments", metrics["active_shipments"]])
-        writer.writerow(["revenue", metrics["revenue"]])
-        content = stream.getvalue().encode("utf-8")
-        media_type = "text/csv"
-        suffix = "csv"
+@router.get("/reports/generate", dependencies=[Depends(require_roles(UserRole.admin))])
+def generate_report(type: str = Query("orders", regex="^(orders|waybills|shipments|inventory|audit)$")) -> Response:
+    from app.services.database_service import _engine, orders_table, waybill_documents_table, shipments_table, products_table, audit_logs_table
+    from sqlalchemy import select
+    
+    stream = io.StringIO()
+    writer = csv.writer(stream)
+    
+    with _engine().begin() as conn:
+        if type == "orders":
+            records = conn.execute(select(orders_table)).mappings().all()
+        elif type == "waybills":
+            records = conn.execute(select(waybill_documents_table)).mappings().all()
+        elif type == "shipments":
+            records = conn.execute(select(shipments_table)).mappings().all()
+        elif type == "inventory":
+            records = conn.execute(select(products_table)).mappings().all()
+        elif type == "audit":
+            records = conn.execute(select(audit_logs_table)).mappings().all()
+        else:
+            records = []
+            
+    if records:
+        writer.writerow(records[0].keys())
+        for row in records:
+            writer.writerow(row.values())
     else:
-        lines = [
-            "Global Supply Chain Report",
-            f"type: {report_type}",
-            f"period: {start_date} to {end_date}",
-            f"total_users: {total_users}",
-            f"total_orders: {total_orders}",
-            f"total_products: {metrics['total_products']}",
-            f"total_batches: {metrics['total_batches']}",
-            f"active_shipments: {metrics['active_shipments']}",
-            f"revenue: {metrics['revenue']}",
-            f"generated_at_utc: {datetime.now(timezone.utc).isoformat()}",
-        ]
-        content = "\n".join(lines).encode("utf-8")
-        media_type = "text/plain"
-        suffix = "txt" if report_format == "pdf" else report_format
-
-    filename = f"{report_type}_report_{start_date}_to_{end_date}.{suffix}"
+        writer.writerow(["No data"])
+        
+    content = stream.getvalue().encode("utf-8")
     return Response(
         content=content,
-        media_type=media_type,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="report.csv"'},
     )
 
 @router.get("/activity-logs", dependencies=[Depends(require_roles(UserRole.admin))])
-def get_activity_logs_route(limit: int = 100) -> dict:
+def get_activity_logs_route(limit: int = 100):
     from app.services.database_service import get_activity_logs
     return {"logs": get_activity_logs(limit)}
 
 @router.get("/activity", dependencies=[Depends(require_roles(UserRole.admin))])
-def get_audit_logs(limit: int = Query(100, ge=1, le=1000)) -> dict:
+def get_audit_logs(limit: int = Query(100, ge=1, le=1000)):
     from app.services.database_service import list_audit_logs
     return {"logs": list_audit_logs(limit=limit)}
 
@@ -248,7 +234,7 @@ def get_control_tower(
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
     status: Optional[str] = Query(None)
-) -> dict:
+):
     from app.services.database_service import get_control_tower_analytics
     from app.schemas.base import APIResponse
     data = get_control_tower_analytics(date_from=date_from, date_to=date_to, status_filter=status)
@@ -259,7 +245,7 @@ def get_control_tower(
 def get_supply_chain(
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None)
-) -> dict:
+):
     from app.services.database_service import get_supply_chain_analytics
     from app.schemas.base import APIResponse
     data = get_supply_chain_analytics(date_from=date_from, date_to=date_to)
@@ -271,7 +257,7 @@ def get_supplier_risk_admin(
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
     supplier_id: Optional[str] = Query(None)
-) -> dict:
+):
     from app.services.database_service import get_supplier_risk_analytics
     from app.schemas.base import APIResponse
     data = get_supplier_risk_analytics(date_from=date_from, date_to=date_to, supplier_id_filter=supplier_id)
@@ -283,7 +269,7 @@ def get_financial(
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
     entity_type: Optional[str] = Query(None)
-) -> dict:
+):
     from app.services.database_service import get_financial_analytics
     from app.schemas.base import APIResponse
     data = get_financial_analytics(date_from=date_from, date_to=date_to, entity_type_filter=entity_type)

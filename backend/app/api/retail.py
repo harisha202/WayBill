@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from typing import List, Dict, Any
 from pydantic import BaseModel, Field
 
@@ -6,8 +6,10 @@ from app.api.auth import get_current_payload, require_roles
 from app.models.user import UserRole
 from app.schemas.base import APIResponse
 from app.services.inventory_service import inventory_service
-from app.services.database_service import _engine, products_table, stock_movements_table
-from sqlalchemy import select, desc
+from app.services.database_service import _engine, products_table, stock_movements_table, create_order, reorder_events_table, get_product_by_sku
+from sqlalchemy import select, desc, insert
+from app.services.domain_events import emit_event_sync
+from datetime import datetime, timezone
 
 router = APIRouter(prefix="/retail", tags=["retail"])
 
@@ -90,16 +92,54 @@ def approve_reorder(
 ):
     from app.services.audit_service import audit_service
     actor_id = payload.get("sub", "unknown")
+    retailer_name = payload.get("username", "retail")
+    retailer_email = payload.get("email", "")
     
+    product = get_product_by_sku(req.sku)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+        
+    order = create_order(
+        retailer_name=retailer_name,
+        retailer_email=retailer_email,
+        dealer_id="dealer",
+        product_sku=req.sku,
+        quantity=req.quantity,
+        origin="Retail Reorder",
+        destination="Dealer Warehouse"
+    )
+    
+    with _engine().begin() as conn:
+        res = conn.execute(
+            insert(reorder_events_table).values(
+                sku=req.sku,
+                recommended_quantity=req.quantity,
+                justification="Retailer approved reorder",
+                status="APPROVED",
+                created_at=datetime.now(timezone.utc)
+            )
+        )
+        reorder_event_id = res.lastrowid
+
     audit_service.log_action(
         user=actor_id,
         role=payload.get("role", "retail_shop"),
         action="APPROVE_REORDER",
         entity="PRODUCT",
         entity_id=req.sku,
-        new_value={"approved_quantity": req.quantity}
+        new_value={"approved_quantity": req.quantity, "order_code": order["order_code"]}
     )
-    return APIResponse(success=True, data={"sku": req.sku, "status": "APPROVED"})
+    
+    emit_event_sync(
+        "REORDER_CREATED",
+        {"order_code": order["order_code"], "sku": req.sku, "quantity": req.quantity},
+        notify_users=["dealer"],
+        notify_roles=["admin"],
+        notify_title="Reorder Approved",
+        notify_message=f"Reorder approved for {req.quantity} of {req.sku}."
+    )
+    
+    return APIResponse(success=True, data={"sku": req.sku, "status": "APPROVED", "order_code": order["order_code"], "reorder_event_id": reorder_event_id})
 
 # ─── RETAIL ANALYTICS ENDPOINTS ───────────────────────────────────────────────────
 
@@ -114,6 +154,36 @@ from app.services.database_service import (
     get_retail_alerts_rag,
     get_retail_reports_analytics
 )
+
+@router.get("/reports/export", dependencies=[Depends(require_roles(UserRole.admin, UserRole.retail_shop))])
+def export_retail_report(type: str = Query("sales", regex="^(sales|inventory|reorders)$")):
+    from app.services.database_service import _engine, stock_movements_table, products_table, reorder_events_table
+    from sqlalchemy import select
+    import csv, io
+    from fastapi.responses import Response
+    
+    stream = io.StringIO()
+    writer = csv.writer(stream)
+    
+    with _engine().begin() as conn:
+        if type == "sales":
+            records = conn.execute(select(stock_movements_table).where(stock_movements_table.c.movement_type == "SALE")).mappings().all()
+        elif type == "inventory":
+            records = conn.execute(select(products_table)).mappings().all()
+        elif type == "reorders":
+            records = conn.execute(select(reorder_events_table)).mappings().all()
+        else:
+            records = []
+            
+    if records:
+        writer.writerow(records[0].keys())
+        for row in records:
+            writer.writerow(row.values())
+    else:
+        writer.writerow(["No data"])
+        
+    return Response(content=stream.getvalue().encode("utf-8"), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="retail_{type}.csv"'})
+
 
 @router.get("/analytics/dashboard")
 def api_retail_dashboard(

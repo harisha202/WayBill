@@ -133,7 +133,7 @@ def create_refresh_token(subject: str, role: UserRole) -> str:
     return jwt.encode(payload, settings.secret_key, algorithm=settings.jwt_algorithm)
 
 
-def _build_otp_response(data: SendOTPRequest) -> dict:
+def _build_otp_response(data: SendOTPRequest):
     email = normalize_email(data.email)
     try:
         existing_user = get_user_by_email(email)
@@ -184,7 +184,7 @@ def _build_otp_response(data: SendOTPRequest) -> dict:
 
 @router.post("/send-otp")
 @limiter.limit(lambda: os.getenv("RATE_LIMIT_AUTH", "5/minute"))
-async def send_otp(request: Request) -> dict:
+async def send_otp(request: Request):
     try:
         body = await request.json()
         data = SendOTPRequest(**body)
@@ -195,7 +195,7 @@ async def send_otp(request: Request) -> dict:
 
 
 @router.post("/verify-otp")
-async def verify_otp(request: Request) -> dict:
+async def verify_otp(request: Request):
     try:
         body = await request.json()
         data = VerifyOTPRequest(**body)
@@ -214,7 +214,7 @@ async def verify_otp(request: Request) -> dict:
 
 @router.post("/resend-otp")
 @limiter.limit(lambda: os.getenv("RATE_LIMIT_AUTH", "5/minute"))
-async def resend_otp(request: Request) -> dict:
+async def resend_otp(request: Request):
     try:
         body = await request.json()
         data = SendOTPRequest(**body)
@@ -353,7 +353,7 @@ def assign_role(
 
 
 @router.get("/me")
-def me(payload: dict = Depends(get_current_payload)) -> dict:
+def me(payload: dict = Depends(get_current_payload)):
     email = payload.get("sub")
     if not email:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")

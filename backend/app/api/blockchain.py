@@ -43,7 +43,7 @@ class VerifyRequest(BaseModel):
 
 
 @router.post("/hash", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer))])
-def create_hash(data: HashRequest) -> dict:
+def create_hash(data: HashRequest):
     digest = generate_product_hash(
         product_id=data.product_id,
         batch_id=data.batch_id,
@@ -80,7 +80,7 @@ def create_hash(data: HashRequest) -> dict:
 
 
 @router.post("/verify", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer, UserRole.dealer, UserRole.retail_shop))])
-def verify_hash(data: VerifyRequest) -> dict:
+def verify_hash(data: VerifyRequest):
     is_valid = verify_product_hash(
         product_id=data.product_id,
         batch_id=data.batch_id,
@@ -94,7 +94,7 @@ def verify_hash(data: VerifyRequest) -> dict:
 
 
 @router.get("/record/{product_id}/{batch_id}", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer, UserRole.dealer, UserRole.retail_shop))])
-def get_ledger(product_id: str, batch_id: str) -> dict:
+def get_ledger(product_id: str, batch_id: str):
     record = get_ledger_record(product_id=product_id, batch_id=batch_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Ledger record not found")
@@ -102,7 +102,7 @@ def get_ledger(product_id: str, batch_id: str) -> dict:
 
 
 @router.get("/journey/{product_sku}", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer, UserRole.dealer, UserRole.retail_shop))])
-def product_journey(product_sku: str) -> dict:
+def product_journey(product_sku: str):
     try:
         journey = get_product_journey(product_sku=product_sku)
     except DatabaseError as exc:
@@ -111,7 +111,7 @@ def product_journey(product_sku: str) -> dict:
 
 
 @router.get("/journey-summary/{product_sku}", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer, UserRole.dealer, UserRole.retail_shop))])
-def product_journey_summary(product_sku: str) -> dict:
+def product_journey_summary(product_sku: str):
     try:
         journey = get_product_journey(product_sku=product_sku)
     except DatabaseError as exc:
@@ -122,7 +122,7 @@ def product_journey_summary(product_sku: str) -> dict:
 
 
 @router.get("/qr/{product_sku}", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer, UserRole.dealer, UserRole.retail_shop))])
-def product_qr(product_sku: str, request: Request) -> dict:
+def product_qr(product_sku: str, request: Request):
     try:
         journey = get_product_journey(product_sku=product_sku)
     except DatabaseError as exc:
@@ -189,7 +189,7 @@ def product_qr(product_sku: str, request: Request) -> dict:
     }
 
 @router.get("/waybill/{waybill_id}", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer, UserRole.dealer, UserRole.transporter, UserRole.retail_shop))])
-def get_waybill_document(waybill_id: str) -> dict:
+def get_waybill_document(waybill_id: str):
     from app.services.database_service import get_waybill
     doc = get_waybill(waybill_id)
     if not doc:
@@ -197,7 +197,7 @@ def get_waybill_document(waybill_id: str) -> dict:
     return doc
 
 @router.get("/waybill/order/{order_id}", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer, UserRole.dealer, UserRole.transporter, UserRole.retail_shop))])
-def get_waybill_by_order(order_id: str) -> dict:
+def get_waybill_by_order(order_id: str):
     from app.services.database_service import _engine
     from sqlalchemy import select, Table, MetaData
     
@@ -211,7 +211,7 @@ def get_waybill_by_order(order_id: str) -> dict:
         return dict(row)
 
 @router.get("/waybills", dependencies=[Depends(require_roles(UserRole.admin))])
-def list_waybills() -> dict:
+def list_waybills():
     from app.services.database_service import _engine
     from sqlalchemy import select, Table, MetaData, desc
     
