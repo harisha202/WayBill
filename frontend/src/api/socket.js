@@ -83,7 +83,9 @@ function getAuthToken() {
   try {
     const raw = window.localStorage.getItem('gsc_auth_state')
     if (raw) return JSON.parse(raw).token || ''
-  } catch {}
+  } catch {
+    // ignore
+  }
   return ''
 }
 
@@ -128,9 +130,6 @@ function getDefaultSocketBase() {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   return `${protocol}//${window.location.host}`
 }
-
-}
-
 function clearNotificationReconnectTimer() {
   if (notificationReconnectTimer) {
     clearTimeout(notificationReconnectTimer)
@@ -164,21 +163,6 @@ function parseSocketMessage(rawData) {
 }
 
 
-  if (Number.isFinite(MAX_RECONNECT_ATTEMPTS) && reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-    reconnectEnabled = false
-    return
-  }
-
-  reconnectAttempts += 1
-  const backoffMultiplier = Math.max(1, reconnectAttempts)
-  const delay = Math.min(RECONNECT_DELAY_MS * backoffMultiplier, MAX_RECONNECT_DELAY_MS)
-
-  reconnectTimer = setTimeout(() => {
-    reconnectTimer = null
-    connectGpsSocket(lastConnectOptions, { isReconnect: true })
-  }, delay)
-}
-
 function scheduleNotificationReconnect() {
   if (!notificationReconnectEnabled || notificationReconnectTimer || !notificationLastConnectOptions) {
     return
@@ -199,54 +183,6 @@ function scheduleNotificationReconnect() {
     if (!options) return
     connectNotificationSocket(options.userId, options.handlers, { isReconnect: true })
   }, delay)
-}
-
-  if (gpsSocket && (gpsSocket.readyState === WebSocket.OPEN || gpsSocket.readyState === WebSocket.CONNECTING)) {
-    return gpsSocket
-  }
-
-  clearReconnectTimer()
-
-  try {
-    gpsSocket = new WebSocket(url)
-  } catch {
-    scheduleReconnect()
-    return null
-  }
-
-  gpsSocket.addEventListener('open', (event) => {
-    clearReconnectTimer()
-    reconnectAttempts = 0
-    if (onOpen) {
-      onOpen(event)
-    }
-  })
-
-  gpsSocket.addEventListener('message', (event) => {
-    if (onMessage) {
-      onMessage(parseSocketMessage(event.data))
-    }
-  })
-
-  gpsSocket.addEventListener('close', (event) => {
-    gpsSocket = null
-    if (onClose) {
-      onClose(event)
-    }
-    scheduleReconnect()
-  })
-
-  gpsSocket.addEventListener('error', () => {
-    try {
-      gpsSocket?.close()
-    } catch {
-      // Ignore socket close errors.
-    }
-  })
-
-  return gpsSocket
-}
-
 }
 
 

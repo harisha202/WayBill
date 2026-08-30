@@ -41,16 +41,14 @@ async def emit_event(
         all_notify_users = set(notify_users) if notify_users else set()
 
         if notify_roles:
-            try:
-                engine = _engine()
-                with engine.connect() as conn:
-                    result = conn.execute(
-                        select(users_table.c.id).where(users_table.c.role.in_(notify_roles))
-                    )
-                    for row in result:
-                        all_notify_users.add(str(row[0]))
-            except Exception as e:
-                logger.error(f"Failed to query users for roles {notify_roles}: {e}")
+            for role in notify_roles:
+                notification_service.publish(
+                    user_id=role,
+                    title=notify_title or event_type,
+                    message=notify_message or f"Event {event_type} occurred",
+                    severity=notify_severity,
+                    metadata=payload
+                )
 
         for user in all_notify_users:
             notification_service.publish(
@@ -60,7 +58,6 @@ async def emit_event(
                 severity=notify_severity,
                 metadata=payload
             )
-
         if ws_roles:
             await manager.broadcast_to_roles(event_type, payload, ws_roles)
         else:

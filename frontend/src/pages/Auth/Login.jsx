@@ -17,7 +17,7 @@ function Login({ role, onSubmit, onBack }) {
     setError('')
     setIsLoading(true)
     try {
-      await onSubmit?.({ username, email, companyName, password, role })
+      await onSubmit?.({ username: username.trim(), email: email.trim(), companyName: companyName.trim(), password, role })
     } catch (err) {
       setError(err?.message ?? 'Login failed')
     } finally {

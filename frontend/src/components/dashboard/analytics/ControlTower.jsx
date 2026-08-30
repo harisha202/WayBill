@@ -177,7 +177,7 @@ export function ControlTower() {
     if (s.includes('completed') || s.includes('delivered')) return SEMANTIC.success;
     if (s.includes('pending') || s.includes('created')) return CONTROL_TOWER.primary;
     if (s.includes('transit') || s.includes('dispatched')) return CONTROL_TOWER.secondary;
-    return CHART_STYLE.colors[3];
+    return SEMANTIC.neutral;
   };
 
   const invBreakdown = data.inventory_health_breakdown || [];

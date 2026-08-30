@@ -260,8 +260,8 @@ async def login(request: Request) -> LoginResponse:
         db_role = normalize_role(db_user["role"])
         
         # Verify all four credentials match
-        is_username_valid = db_user.get("username") == data.username
-        is_company_valid = db_user.get("company_name") == data.company_name
+        is_username_valid = db_user.get("username") == data.username.strip()
+        is_company_valid = db_user.get("company_name") == data.company_name.strip()
         is_password_valid = verify_password(data.password, db_user["password_hash"])
 
         if not (is_username_valid and is_company_valid and is_password_valid):

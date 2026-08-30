@@ -18,12 +18,12 @@ def get_my_notifications(
     payload: dict = Depends(get_current_payload),
 ) -> APIResponse[list]:
     """
-    Return notifications for the currently authenticated user.
-    Uses the JWT `sub` claim (email) as the user_id lookup key.
+    Return notifications for the currently authenticated user's role.
+    Uses the JWT `role` claim as the user_id lookup key.
     """
-    user_id = payload.get("sub", "")
+    user_id = payload.get("role", "")
     if not user_id:
-        raise HTTPException(status_code=401, detail="Invalid token: missing sub claim")
+        raise HTTPException(status_code=401, detail="Invalid token: missing role claim")
     try:
         items = notification_service.list_recent(limit=limit, user_id=user_id)
     except DatabaseError as exc:

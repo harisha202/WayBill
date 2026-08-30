@@ -23,6 +23,7 @@ from sqlalchemy import (
     desc,
     func,
     select,
+    case,
     text,
     text,
 )

@@ -17,6 +17,7 @@ export function UserManagement() {
   const [successMessage, setSuccessMessage] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
+  const [selectedUsers, setSelectedUsers] = useState(new Set());
 
   // Form State
   const [formData, setFormData] = useState({
@@ -117,6 +118,39 @@ export function UserManagement() {
     }
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedUsers.size === 0) return;
+    if (window.confirm(`Are you absolutely sure you want to PERMANENTLY delete ${selectedUsers.size} user(s)? This cannot be undone.`)) {
+      try {
+        for (const userId of selectedUsers) {
+          await adminApi.deleteUser(userId);
+        }
+        setSuccessMessage(`${selectedUsers.size} user(s) deleted successfully.`);
+        setSelectedUsers(new Set());
+        window.dispatchEvent(new Event('activity_log_changed'));
+        fetchUsers();
+      } catch (err) {
+        alert('Failed to delete some users. ' + (err.response?.data?.detail || err.message));
+        fetchUsers();
+      }
+    }
+  };
+
+  const toggleSelectAll = (filteredList) => {
+    if (selectedUsers.size === filteredList.length && filteredList.length > 0) {
+      setSelectedUsers(new Set());
+    } else {
+      setSelectedUsers(new Set(filteredList.map(u => u.id)));
+    }
+  };
+
+  const toggleSelect = (id) => {
+    const newSet = new Set(selectedUsers);
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
+    setSelectedUsers(newSet);
+  };
+
   const handleToggleStatus = async (user) => {
     if (window.confirm(`Are you sure you want to ${user.is_active ? 'deactivate' : 'activate'} this account?`)) {
       try {
@@ -178,27 +212,35 @@ export function UserManagement() {
           <h2 className="card-title">User Management</h2>
           <p className="muted">Manage authorized WayBill operational accounts.</p>
         </div>
-        <button className="primary-btn" onClick={openCreateModal}>+ Create User</button>
+        <div>
+          {selectedUsers.size > 0 && (
+            <button className="primary-btn" style={{ marginRight: '1rem', backgroundColor: '#ef4444' }} onClick={handleBulkDelete}>
+              Delete Selected ({selectedUsers.size})
+            </button>
+          )}
+          <button className="primary-btn" onClick={openCreateModal}>+ Create User</button>
+        </div>
       </div>
 
-      {successMessage && <div style={{ padding: '1rem', backgroundColor: '#d4edda', color: '#155724', borderRadius: '4px', marginBottom: '1rem' }}>{successMessage}</div>}
+      {successMessage && <div style={{ padding: '1rem', backgroundColor: '#d4edda', color: '#155724', borderRadius: '4px', marginBottom: '1rem', border: '1px solid #c3e6cb' }}>{successMessage}</div>}
 
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
         <input 
           type="text" 
+          aria-label="Search users"
           placeholder="Search username, name, company..." 
           value={search} 
           onChange={e => setSearch(e.target.value)} 
           style={{ flex: 1, padding: '0.5rem', borderRadius: '4px', border: '1px solid #444', backgroundColor: 'var(--card-bg)', color: '#fff' }}
         />
-        <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)} style={{ padding: '0.5rem', borderRadius: '4px', backgroundColor: 'var(--card-bg)', color: '#fff' }}>
+        <select aria-label="Filter by role" value={roleFilter} onChange={e => setRoleFilter(e.target.value)} style={{ padding: '0.5rem', borderRadius: '4px', backgroundColor: 'var(--card-bg)', color: '#fff' }}>
           <option value="All">All Roles</option>
           <option value="manufacturer">Manufacturer</option>
           <option value="transporter">Transporter</option>
           <option value="dealer">Dealer</option>
           <option value="retail_shop">Retail</option>
         </select>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: '0.5rem', borderRadius: '4px', backgroundColor: 'var(--card-bg)', color: '#fff' }}>
+        <select aria-label="Filter by status" value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: '0.5rem', borderRadius: '4px', backgroundColor: 'var(--card-bg)', color: '#fff' }}>
           <option value="All">All Statuses</option>
           <option value="Active">Active</option>
           <option value="Inactive">Inactive</option>
@@ -209,7 +251,10 @@ export function UserManagement() {
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid #333' }}>
-              <th style={{ padding: '0.75rem' }}>Name</th>
+              <th style={{ padding: '0.75rem', width: '40px' }}>
+                <input type="checkbox" aria-label="Select all users" checked={selectedUsers.size === filteredUsers.length && filteredUsers.length > 0} onChange={() => toggleSelectAll(filteredUsers)} style={{ cursor: 'pointer' }} />
+              </th>
+              <th>Name</th>
               <th>Username</th>
               <th>Role</th>
               <th>Company</th>
@@ -221,7 +266,10 @@ export function UserManagement() {
           <tbody>
             {[...filteredUsers].reverse().map(user => (
               <tr key={user.id} style={{ borderBottom: '1px solid #222' }}>
-                <td style={{ padding: '0.75rem' }}>{user.name}</td>
+                <td style={{ padding: '0.75rem' }}>
+                  <input type="checkbox" aria-label={`Select user ${user.username}`} checked={selectedUsers.has(user.id)} onChange={() => toggleSelect(user.id)} style={{ cursor: 'pointer' }} />
+                </td>
+                <td>{user.name}</td>
                 <td>{user.username}</td>
                 <td>
                   <span style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', backgroundColor: '#333', color: '#ffffff' }}>

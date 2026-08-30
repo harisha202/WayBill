@@ -25,7 +25,10 @@ from app.services.database_service import (
     reorder_recommendations,
     update_order_stage,
     receive_order_with_discrepancy,
+    _engine,
+    stock_movements_table,
 )
+from sqlalchemy import select, func, desc
 from app.services.ai_service import predict_low_stock
 from app.core.config import get_settings
 from app.services.notification_service import notification_service

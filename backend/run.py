@@ -154,7 +154,7 @@ def create_app() -> FastAPI:
         settings = get_settings()
         try:
             payload = jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
-            if payload.get("sub") != user_id and payload.get("role") != "admin":
+            if payload.get("role") != user_id and payload.get("role") != "admin":
                 await websocket.close(code=4001)
                 return
         except JWTError:
