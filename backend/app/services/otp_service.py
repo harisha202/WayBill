@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import random
+import secrets
 import string
 from datetime import datetime, timedelta, timezone
 
@@ -23,7 +23,8 @@ class OTPService:
 
     @classmethod
     def generate_otp(cls) -> str:
-        return "".join(random.choices(string.digits, k=cls.OTP_LENGTH))
+        # P3-4: OTP Security Hardening (use cryptographically secure rng)
+        return "".join(secrets.choice(string.digits) for _ in range(cls.OTP_LENGTH))
 
     @classmethod
     def create_otp(cls, email: str) -> str:
@@ -62,7 +63,8 @@ class OTPService:
 
         stored_data["attempts"] += 1
 
-        if stored_data["otp"] == otp:
+        # P3-4: Constant-time string comparison to prevent timing attacks
+        if secrets.compare_digest(stored_data["otp"], otp):
             otp_storage.pop(normalized_email, None)
             verified_email_storage[normalized_email] = now + timedelta(
                 minutes=cls.VERIFIED_VALIDITY_MINUTES

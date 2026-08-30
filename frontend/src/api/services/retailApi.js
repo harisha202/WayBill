@@ -3,7 +3,7 @@ import apiClient from '../axiosInstance';
 export const retailApi = {
     getInventory: async () => {
         const response = await apiClient.get('/retail/inventory');
-        return response.data;
+        return response;
     },
 
     createSale: async (sku, quantity) => {
@@ -11,18 +11,18 @@ export const retailApi = {
             sku,
             quantity
         });
-        return response.data;
+        return response;
     },
 
     getStockMovements: async (sku = null) => {
         const url = sku ? `/retail/stock-movements?sku=${encodeURIComponent(sku)}` : '/retail/stock-movements';
         const response = await apiClient.get(url);
-        return response.data;
+        return response;
     },
 
     getReorderRecommendations: async () => {
         const response = await apiClient.get('/retail/reorder/recommendations');
-        return response.data;
+        return response;
     },
 
     approveReorder: async (sku, quantity) => {
@@ -30,56 +30,56 @@ export const retailApi = {
             sku,
             quantity
         });
-        return response.data;
+        return response;
     },
 
     getAnalyticsDashboard: async (days = 30) => {
         const response = await apiClient.get(`/retail/analytics/dashboard?days=${days}`);
-        return response.data;
+        return response;
     },
 
     getAnalyticsSales: async (days = 180) => {
         const response = await apiClient.get(`/retail/analytics/sales?days=${days}`);
-        return response.data;
+        return response;
     },
 
     getAnalyticsInventoryDetail: async (days = 30) => {
         const response = await apiClient.get(`/retail/analytics/inventory-detail?days=${days}`);
-        return response.data;
+        return response;
     },
 
     getAnalyticsReplenishment: async (days = 90) => {
         const response = await apiClient.get(`/retail/analytics/replenishment?days=${days}`);
-        return response.data;
+        return response;
     },
 
     getAnalyticsWaybills: async (days = 90) => {
         const response = await apiClient.get(`/retail/analytics/waybills?days=${days}`);
-        return response.data;
+        return response;
     },
 
     getAnalyticsTraceability: async () => {
         const response = await apiClient.get('/retail/analytics/traceability');
-        return response.data;
+        return response;
     },
 
     getAnalyticsReceiving: async (days = 90) => {
         const response = await apiClient.get(`/retail/analytics/receiving?days=${days}`);
-        return response.data;
+        return response;
     },
 
     getAnalyticsAlerts: async (days = 30) => {
         const response = await apiClient.get(`/retail/analytics/alerts?days=${days}`);
-        return response.data;
+        return response;
     },
 
     getAnalyticsReports: async (days = 180) => {
         const response = await apiClient.get(`/retail/analytics/reports?days=${days}`);
-        return response.data;
+        return response;
     },
 
     verifyWaybillTrust: async (waybillId) => {
         const response = await apiClient.get(`/waybills/${waybillId}/verify`);
-        return response.data;
+        return response;
     }
 };

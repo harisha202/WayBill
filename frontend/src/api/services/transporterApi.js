@@ -3,27 +3,27 @@ import apiClient from '../axiosInstance';
 export const transporterApi = {
     getTransporterOverview: async () => {
         const response = await apiClient.get('/tracking/overview');
-        return response.data;
+        return response;
     },
 
     getShipments: async () => {
         const response = await apiClient.get('/tracking/shipments');
-        return response.data;
+        return response;
     },
 
     getShipment: async (id) => {
         const response = await apiClient.get(`/tracking/shipments/${encodeURIComponent(id)}`);
-        return response.data;
+        return response;
     },
 
     getFleet: async () => {
         const response = await apiClient.get('/tracking/fleet');
-        return response.data;
+        return response;
     },
 
     getDrivers: async () => {
         const response = await apiClient.get('/tracking/drivers');
-        return response.data;
+        return response;
     },
 
     reportIntervention: async (shipmentId, actionType, reason, severity) => {
@@ -32,11 +32,11 @@ export const transporterApi = {
             reason,
             severity
         });
-        return response.data;
+        return response;
     },
 
     getInterventions: async () => {
         const response = await apiClient.get('/tracking/interventions');
-        return response.data;
+        return response;
     }
 };

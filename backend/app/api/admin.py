@@ -30,6 +30,8 @@ from app.services.database_service import (
     DatabaseConflictError
 )
 from app.core.security import hash_password
+from app.services.otp_service import OTPService
+from app.services.email_service import get_email_service
 from app.schemas.user import UserCreateRequest, UserUpdateRequest, UserStatusRequest, UserResetPasswordRequest, UserResponse
 from fastapi import HTTPException, status
 from app.services.notification_service import notification_service
@@ -345,8 +347,44 @@ def change_user_status(user_id: int, status_req: UserStatusRequest, payload: dic
     except DatabaseError as e:
         raise HTTPException(status_code=404, detail="User not found")
 
+@router.post("/users/{user_id}/reset-password/send-otp", dependencies=[Depends(require_roles(UserRole.admin))])
+def send_password_reset_otp(user_id: int, payload: dict = Depends(require_roles(UserRole.admin))):
+    from app.services.database_service import get_user_by_id
+    user = get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    otp_service = OTPService()
+    email_service = get_email_service()
+    
+    otp = otp_service.create_otp(user["email"])
+    
+    success = email_service.send_admin_password_reset_otp(
+        to_email=user["email"],
+        username=user["username"],
+        company=user.get("company_name", "-"),
+        otp=otp,
+        validity_minutes=OTPService.OTP_VALIDITY_MINUTES,
+        name=user["name"]
+    )
+    
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to send OTP to user's registered email.")
+        
+    return {"success": True, "message": "OTP sent to registered email"}
+
 @router.post("/users/{user_id}/reset-password", dependencies=[Depends(require_roles(UserRole.admin))])
 def reset_password(user_id: int, reset_req: UserResetPasswordRequest, payload: dict = Depends(require_roles(UserRole.admin))):
+    from app.services.database_service import get_user_by_id
+    user = get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    otp_service = OTPService()
+    is_valid, message = otp_service.verify_otp(user["email"], reset_req.otp)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=message)
+        
     pwd_hash = hash_password(reset_req.new_password)
     try:
         updated = reset_user_password(user_id, pwd_hash)

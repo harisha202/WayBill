@@ -104,41 +104,41 @@ async def upload_document(file: UploadFile = File(...)):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/supplier-risk")
-async def get_supplier_risk(payload: dict):
+@router.post("/supplier-risk", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer, UserRole.dealer))])
+async def get_supplier_risk(payload: dict, user_payload: dict = Depends(require_roles(UserRole.admin, UserRole.manufacturer))):
     name = payload.get("supplier_name", "")
     data = payload.get("supplier_data", {})
     news = payload.get("news_snippets", [])
-    result = await aanalyse_supplier_risk(name, data, news)
+    result = await aanalyse_supplier_risk(name, data, news, actor_id=user_payload.get("sub"), actor_role=user_payload.get("role"))
     return result
 
-@router.post("/route-optimizer")
-async def optimize_route(payload: dict):
+@router.post("/route-optimizer", dependencies=[Depends(require_roles(UserRole.admin, UserRole.transporter))])
+async def optimize_route(payload: dict, user_payload: dict = Depends(require_roles(UserRole.admin, UserRole.manufacturer, UserRole.dealer, UserRole.retail_shop, UserRole.transporter))):
     warehouse = payload.get("warehouse", "")
     stops = payload.get("stops", [])
     constraints = payload.get("constraints", {})
-    result = await aoptimise_delivery_route(warehouse, stops, constraints)
+    result = await aoptimise_delivery_route(warehouse, stops, constraints, actor_id=user_payload.get("sub"), actor_role=user_payload.get("role"))
     return result
 
-@router.post("/shipment-anomalies")
-async def shipment_anomalies(payload: dict):
+@router.post("/shipment-anomalies", dependencies=[Depends(require_roles(UserRole.admin, UserRole.transporter, UserRole.manufacturer, UserRole.dealer, UserRole.retail_shop))])
+async def shipment_anomalies(payload: dict, user_payload: dict = Depends(require_roles(UserRole.admin, UserRole.manufacturer, UserRole.dealer, UserRole.retail_shop, UserRole.transporter))):
     tid = payload.get("tracking_id", "")
     events = payload.get("tracking_events", [])
     expected = payload.get("expected_delivery", "")
-    result = await adetect_shipment_anomalies(tid, events, expected)
+    result = await adetect_shipment_anomalies(tid, events, expected, actor_id=user_payload.get("sub"), actor_role=user_payload.get("role"))
     return result
 
-@router.post("/dashboard-insights")
-async def dashboard_insights(payload: dict):
+@router.post("/dashboard-insights", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer, UserRole.dealer, UserRole.retail_shop, UserRole.transporter))])
+async def dashboard_insights(payload: dict, user_payload: dict = Depends(require_roles(UserRole.admin, UserRole.manufacturer, UserRole.dealer, UserRole.retail_shop, UserRole.transporter))):
     inv = payload.get("inventory_summary", {})
     shipments = payload.get("recent_shipments", [])
     suppliers = payload.get("top_suppliers", [])
-    result = await aget_dashboard_insights(inv, shipments, suppliers)
+    result = await aget_dashboard_insights(inv, shipments, suppliers, actor_id=user_payload.get("sub"), actor_role=user_payload.get("role"))
     return result
 
-@router.post("/inventory-alerts")
-async def inventory_alerts(payload: dict):
+@router.post("/inventory-alerts", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer, UserRole.dealer, UserRole.retail_shop))])
+async def inventory_alerts(payload: dict, user_payload: dict = Depends(require_roles(UserRole.admin, UserRole.manufacturer, UserRole.dealer, UserRole.retail_shop, UserRole.transporter))):
     items = payload.get("inventory_items", [])
     demand = payload.get("avg_daily_demand", {})
-    result = await acheck_inventory_alerts(items, demand)
+    result = await acheck_inventory_alerts(items, demand, actor_id=user_payload.get("sub"), actor_role=user_payload.get("role"))
     return result

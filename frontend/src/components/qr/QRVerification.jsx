@@ -14,22 +14,38 @@ const QRVerification = ({ onVerificationComplete }) => {
     setScanState('processing');
     setScannedData(data);
     
-    // Simulate verification logic
-    setTimeout(() => {
-      // Mock verification based on data content
-      let status = 'Valid';
-      let message = 'Secure token verified successfully.';
+    try {
+      let waybillId = '';
+      let sealHash = '';
       
-      if (data.includes('tamper')) {
-        status = 'Tampered';
-        message = 'Warning: Security seal may be compromised.';
-      } else if (data.includes('invalid')) {
-        status = 'Invalid';
-        message = 'The scanned token is invalid or expired.';
-      } else if (data.includes('notfound')) {
-        status = 'Not Found';
-        message = 'Waybill information not found in the system.';
+      try {
+        const parsed = JSON.parse(data);
+        waybillId = parsed.waybill_id;
+        sealHash = parsed.seal_hash || '';
+      } catch (e) {
+        waybillId = data;
       }
+
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/waybills/${encodeURIComponent(waybillId.trim())}/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ seal_hash: sealHash }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Verification request failed');
+      }
+
+      const resData = await res.json();
+      const resultData = resData.data || resData;
+      
+      const status = resultData.valid ? 'Valid' : 'Tampered';
+      const message = resultData.reason || (resultData.valid ? 'Secure token verified successfully.' : 'Warning: Security seal may be compromised.');
       
       const result = { status, message, timestamp: new Date().toISOString() };
       setVerificationResult(result);
@@ -38,7 +54,19 @@ const QRVerification = ({ onVerificationComplete }) => {
       if (onVerificationComplete) {
         onVerificationComplete(data, result);
       }
-    }, 1500);
+    } catch (err) {
+      const result = { 
+        status: 'Invalid', 
+        message: err.message || 'The scanned token is invalid or expired.', 
+        timestamp: new Date().toISOString() 
+      };
+      setVerificationResult(result);
+      setScanState('completed');
+      
+      if (onVerificationComplete) {
+        onVerificationComplete(data, result);
+      }
+    }
   };
 
   const resetScan = () => {

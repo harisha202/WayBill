@@ -1,12 +1,7 @@
-let gpsSocket = null
 let notificationSocket = null
-let reconnectTimer = null
 let notificationReconnectTimer = null
 let notificationDisconnectTimer = null
 let notificationPingTimer = null
-let reconnectEnabled = true
-let lastConnectOptions = null
-let reconnectAttempts = 0
 let notificationReconnectEnabled = true
 let notificationLastConnectOptions = null
 let notificationReconnectAttempts = 0
@@ -76,7 +71,7 @@ function getConfiguredSocketBase() {
 function getLocalBackendSocketUrl() {
   const backendTarget = import.meta.env.VITE_DEV_PROXY_TARGET || 'http://127.0.0.1:8000'
   const wsBase = toSocketUrl(backendTarget).replace(/\/+$/, '')
-  return `${wsBase}/ws/gps`
+  return `${wsBase}/ws/gps?token=${getAuthToken()}`
 }
 
 function getLocalBackendSocketBase() {
@@ -84,21 +79,33 @@ function getLocalBackendSocketBase() {
   return toSocketUrl(backendTarget).replace(/\/+$/, '')
 }
 
+function getAuthToken() {
+  try {
+    const raw = window.localStorage.getItem('gsc_auth_state')
+    if (raw) return JSON.parse(raw).token || ''
+  } catch {}
+  return ''
+}
+
 function getDefaultSocketUrl() {
+  const configuredBase = getConfiguredSocketBase()
+  if (configuredBase) {
+    return `${configuredBase}/ws/gps?token=${getAuthToken()}`
+  }
+
   if (typeof window === 'undefined') {
-    return getLocalBackendSocketUrl()
+    return `${getLocalBackendSocketBase()}/ws/gps?token=${getAuthToken()}`
   }
 
   if (import.meta.env.DEV || isLocalhostPage()) {
     const host = window.location.hostname
     if (host === 'localhost' || host === '127.0.0.1') {
-      // In local dev, connect directly to backend to avoid Vite WS proxy spam when backend is down.
-      return getLocalBackendSocketUrl()
+      return `${getLocalBackendSocketBase()}/ws/gps?token=${getAuthToken()}`
     }
   }
 
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  return `${protocol}//${window.location.host}/ws/gps`
+  return `${protocol}//${window.location.host}/ws/gps?token=${getAuthToken()}`
 }
 
 function getDefaultSocketBase() {
@@ -122,11 +129,6 @@ function getDefaultSocketBase() {
   return `${protocol}//${window.location.host}`
 }
 
-function clearReconnectTimer() {
-  if (reconnectTimer) {
-    clearTimeout(reconnectTimer)
-    reconnectTimer = null
-  }
 }
 
 function clearNotificationReconnectTimer() {
@@ -161,10 +163,6 @@ function parseSocketMessage(rawData) {
   }
 }
 
-function scheduleReconnect() {
-  if (!reconnectEnabled || reconnectTimer || !lastConnectOptions) {
-    return
-  }
 
   if (Number.isFinite(MAX_RECONNECT_ATTEMPTS) && reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
     reconnectEnabled = false
@@ -202,20 +200,6 @@ function scheduleNotificationReconnect() {
     connectNotificationSocket(options.userId, options.handlers, { isReconnect: true })
   }, delay)
 }
-
-export function connectGpsSocket({
-  url = (isLocalhostPage() && !import.meta.env.DEV)
-    ? getLocalBackendSocketUrl()
-    : (import.meta.env.VITE_GPS_SOCKET_URL ?? getDefaultSocketUrl()),
-  onMessage,
-  onOpen,
-  onClose,
-} = {}, { isReconnect = false } = {}) {
-  lastConnectOptions = { url, onMessage, onOpen, onClose }
-  reconnectEnabled = true
-  if (!isReconnect) {
-    reconnectAttempts = 0
-  }
 
   if (gpsSocket && (gpsSocket.readyState === WebSocket.OPEN || gpsSocket.readyState === WebSocket.CONNECTING)) {
     return gpsSocket
@@ -263,20 +247,8 @@ export function connectGpsSocket({
   return gpsSocket
 }
 
-export function disconnectGpsSocket() {
-  reconnectEnabled = false
-  lastConnectOptions = null
-  reconnectAttempts = 0
-  clearReconnectTimer()
-  if (gpsSocket) {
-    gpsSocket.close()
-    gpsSocket = null
-  }
 }
 
-export function getGpsSocket() {
-  return gpsSocket
-}
 
 export function connectNotificationSocket(userId, { onMessage, onOpen, onClose } = {}, { isReconnect = false } = {}) {
   const normalizedUser = String(userId || '').trim()
@@ -310,7 +282,7 @@ export function connectNotificationSocket(userId, { onMessage, onOpen, onClose }
     return notificationSocket
   }
 
-  const url = `${getDefaultSocketBase()}/ws/notifications/${encodeURIComponent(normalizedUser)}`
+  const url = `${getDefaultSocketBase()}/ws/notifications/${encodeURIComponent(normalizedUser)}?token=${getAuthToken()}`
   try {
     notificationSocket = new WebSocket(url)
   } catch {

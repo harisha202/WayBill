@@ -236,7 +236,7 @@ def create_sale(data: SaleCreateRequest) -> APIResponse[dict]:
         "saleAmount": sale_amount,
     })
 
-@router.get("/alerts", response_model=APIResponse[dict])
+@router.get("/alerts", dependencies=[Depends(require_roles(UserRole.admin, UserRole.manufacturer, UserRole.dealer, UserRole.retail_shop))], response_model=APIResponse[dict])
 def get_inventory_alerts() -> APIResponse[dict]:
     from app.services.database_service import _engine, products_table
     from sqlalchemy import select

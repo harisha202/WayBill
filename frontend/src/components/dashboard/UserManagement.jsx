@@ -15,6 +15,8 @@ export function UserManagement() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState('');
 
   // Form State
   const [formData, setFormData] = useState({
@@ -77,7 +79,23 @@ export function UserManagement() {
     setModalMode('reset_password');
     setSelectedUser(user);
     setFormData({ ...formData, password: '' });
+    setOtp('');
+    setOtpSent(false);
     setIsModalOpen(true);
+  };
+
+  const handleSendOtp = async () => {
+    setIsSubmitting(true);
+    try {
+      await adminApi.sendPasswordResetOtp(selectedUser.id);
+      setOtpSent(true);
+      setSuccessMessage('OTP sent to registered email.');
+    } catch(err) {
+      alert(err.response?.data?.detail || err.message || 'Failed to send OTP.');
+    } finally {
+      setIsSubmitting(false);
+      setTimeout(() => setSuccessMessage(''), 3000);
+    }
   };
 
   const openViewModal = (user) => {
@@ -112,7 +130,7 @@ export function UserManagement() {
   };
 
   const isCompanyRequired = (role) => {
-    return ['manufacturer', 'dealer', 'retail_shop'].includes(role);
+    return true; // All roles require a company name for WayBill Normal Login
   };
 
   const handleSubmit = async (e) => {
@@ -132,7 +150,7 @@ export function UserManagement() {
         await adminApi.updateUser(selectedUser.id, formData);
         setSuccessMessage('User updated successfully.');
       } else if (modalMode === 'reset_password') {
-        await adminApi.resetUserPassword(selectedUser.id, formData.password);
+        await adminApi.resetUserPassword(selectedUser.id, otp, formData.password);
         setSuccessMessage('Password reset successfully.');
       }
       window.dispatchEvent(new Event('activity_log_changed'));
@@ -286,6 +304,7 @@ export function UserManagement() {
                     <input type="email" placeholder="Email" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} style={inputStyle} />
                   )}
                   <select value={formData.role} required onChange={e => setFormData({...formData, role: e.target.value})} style={inputStyle}>
+                    <option value="admin">Admin</option>
                     <option value="manufacturer">Manufacturer</option>
                     <option value="transporter">Transporter</option>
                     <option value="dealer">Dealer</option>
@@ -293,26 +312,43 @@ export function UserManagement() {
                   </select>
                   <input 
                     type="text" 
-                    placeholder={`Company Name ${isCompanyRequired(formData.role) ? '*' : '(Optional)'}`} 
-                    required={isCompanyRequired(formData.role)} 
+                    placeholder="Company Name *" 
+                    required 
                     value={formData.company_name} 
                     onChange={e => setFormData({...formData, company_name: e.target.value})} 
                     style={inputStyle} 
                   />
-                  {isCompanyRequired(formData.role) && <span style={{ fontSize: '0.75rem', color: '#ffb74d' }}>Company name is required for {formData.role} accounts.</span>}
                   <input type="text" placeholder="Phone (Optional)" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} style={inputStyle} />
                 </>
               )}
 
-              {(modalMode === 'create' || modalMode === 'reset_password') && (
+              {modalMode === 'create' && (
                 <input type="password" placeholder="Password (min 6 chars)" required minLength={6} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} style={inputStyle} />
+              )}
+              
+              {modalMode === 'reset_password' && (
+                <>
+                  <p style={{ fontSize: '0.9rem', marginBottom: '0.5rem' }}>Initiate a password reset for <strong>{selectedUser?.email}</strong>. An OTP will be sent to this registered email.</p>
+                  {!otpSent ? (
+                    <button type="button" className="primary-btn" onClick={handleSendOtp} disabled={isSubmitting}>
+                      {isSubmitting ? 'Sending...' : 'Send OTP'}
+                    </button>
+                  ) : (
+                    <>
+                      <input type="text" placeholder="Enter 6-digit OTP" required minLength={6} maxLength={6} value={otp} onChange={e => setOtp(e.target.value)} style={inputStyle} />
+                      <input type="password" placeholder="New Password (min 6 chars)" required minLength={6} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} style={inputStyle} />
+                    </>
+                  )}
+                </>
               )}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1rem' }}>
                 <button type="button" className="secondary-btn" onClick={() => setIsModalOpen(false)}>Cancel</button>
-                <button type="submit" className="primary-btn" disabled={isSubmitting}>
-                  {isSubmitting ? 'Saving...' : 'Save'}
-                </button>
+                {(modalMode !== 'reset_password' || otpSent) && (
+                  <button type="submit" className="primary-btn" disabled={isSubmitting}>
+                    {isSubmitting ? 'Saving...' : 'Save'}
+                  </button>
+                )}
               </div>
             </form>
             )}

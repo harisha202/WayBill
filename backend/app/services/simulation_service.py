@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from app.services.database_service import create_or_update_shipment, update_shipment_location
 from app.services.tracking_service import tracking_service
-from app.api.websocket import manager
+from app.services.websocket_manager import manager
 from app.models.tracking import GPSEvent
 
 logger = logging.getLogger(__name__)
@@ -59,10 +59,10 @@ async def simulate_gps_ping():
                 actor_id="system_sim",
                 actor_role="system"
             )
-            await manager.broadcast({
-                "event": "shipment.location.updated",
-                "data": state_update
-            })
+            await manager.broadcast_event(
+                "shipment.location.updated",
+                state_update
+            )
             # logger.info(f"Broadcasted GPS ping for {vehicle_id}")
         except Exception as e:
             logger.error(f"Failed to process/broadcast GPS ping: {e}")
@@ -111,6 +111,10 @@ async def simulate_truck_movement():
             logger.error(f"Failed to update simulation shipment: {e}")
 
 def start_simulation(app):
-    import asyncio
-    asyncio.create_task(simulate_gps_ping())
-    # asyncio.create_task(simulate_truck_movement())
+    import os
+    if os.getenv("ENABLE_GPS_SIMULATION", "false").lower() == "true":
+        import asyncio
+        asyncio.create_task(simulate_gps_ping())
+        # asyncio.create_task(simulate_truck_movement())
+    else:
+        logger.info("GPS simulation is disabled (set ENABLE_GPS_SIMULATION=true to enable).")

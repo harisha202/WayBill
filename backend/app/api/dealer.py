@@ -66,40 +66,50 @@ def _write_stage_event(order: dict, stage: str, payload: dict) -> str:
 
 def _inventory_items() -> list[dict]:
     items: list[dict] = []
-    for index, product in enumerate(list_products(), start=1):
-        quantity = int(product.get("quantity", 0))
-        min_stock = max(25, int(quantity * 0.3))
-        max_stock = max(quantity, min_stock + 100)
-        if quantity <= max(10, int(min_stock * 0.4)):
-            stock_status = "Out of Stock" if quantity == 0 else "Low Stock"
-        elif quantity <= min_stock:
-            stock_status = "Low Stock"
-        else:
-            stock_status = "In Stock"
+    with _engine().begin() as conn:
+        for index, product in enumerate(list_products(), start=1):
+            sku = product.get("sku", f"SKU-{index:03d}")
+            quantity = int(product.get("quantity", 0))
+            min_stock = max(25, int(quantity * 0.3))
+            max_stock = max(quantity, min_stock + 100)
+            if quantity <= max(10, int(min_stock * 0.4)):
+                stock_status = "Out of Stock" if quantity == 0 else "Low Stock"
+            elif quantity <= min_stock:
+                stock_status = "Low Stock"
+            else:
+                stock_status = "In Stock"
 
-        category = (
-            "Medicines"
-            if "IV" in str(product.get("sku", ""))
-            else "Surgical Supplies"
-            if "KIT" in str(product.get("sku", ""))
-            else "Medical Devices"
-        )
+            category = (
+                "Medicines"
+                if "IV" in str(product.get("sku", ""))
+                else "Surgical Supplies"
+                if "KIT" in str(product.get("sku", ""))
+                else "Medical Devices"
+            )
 
-        items.append(
-            {
-                "id": int(product.get("id", index)),
-                "sku": product.get("sku", f"SKU-{index:03d}"),
-                "productName": product.get("name", f"Product {index}"),
-                "category": category,
-                "manufacturer": "Global Supply Manufacturer",
-                "currentStock": quantity,
-                "minStock": min_stock,
-                "maxStock": max_stock,
-                "unitPrice": float(product.get("price", 0.0)),
-                "stockStatus": stock_status,
-                "lastRestocked": datetime.now(timezone.utc).date().isoformat(),
-            }
-        )
+            # P4-3: Query actual last restocked date
+            stmt = select(stock_movements_table.c.created_at).where(
+                stock_movements_table.c.sku == sku,
+                stock_movements_table.c.movement_type == 'RECEIVE'
+            ).order_by(stock_movements_table.c.created_at.desc()).limit(1)
+            last_mov = conn.execute(stmt).scalar()
+            last_restocked = last_mov.date().isoformat() if last_mov else datetime.now(timezone.utc).date().isoformat()
+
+            items.append(
+                {
+                    "id": int(product.get("id", index)),
+                    "sku": sku,
+                    "productName": product.get("name", f"Product {index}"),
+                    "category": category,
+                    "manufacturer": "Global Supply Manufacturer",
+                    "currentStock": quantity,
+                    "minStock": min_stock,
+                    "maxStock": max_stock,
+                    "unitPrice": float(product.get("price", 0.0)),
+                    "stockStatus": stock_status,
+                    "lastRestocked": last_restocked,
+                }
+            )
     return items
 
 
@@ -164,8 +174,16 @@ def create_retail_order(data: OrderCreateRequest) -> APIResponse[dict]:
     except DatabaseError as exc:
         raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
 
+    emit_event_sync(
+        "ORDER_CREATED",
+        payload={"order_code": order["order_code"], "retailer": data.retailer_name, "quantity": data.quantity},
+        notify_roles=["dealer"],
+        notify_title="New retail order",
+        notify_message=f"{order['order_code']} placed by {data.retailer_name}."
+    )
+    
     notification_service.publish(
-        user_id="dealer",
+        user_id=str(order.get("dealer_id", "dealer")),
         title="New retail order",
         message=f"{order['order_code']} placed by {data.retailer_name}.",
         metadata={"orderCode": order["order_code"], "txHash": tx_hash},
@@ -178,6 +196,8 @@ def confirm_retail_order(order_code: str):
     order = get_order(order_code)
     if order is None:
         raise HTTPException(status_code=404, detail="Order not found")
+    if order.get("current_stage") != "retail_ordered":
+        raise HTTPException(status_code=400, detail=f"Order cannot be confirmed from stage {order.get('current_stage')}")
     try:
         updated = update_order_stage(order_code, stage="dealer_confirmed", status="dealer_confirmed")
         tx_hash = _write_stage_event(
@@ -189,7 +209,7 @@ def confirm_retail_order(order_code: str):
         raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
 
     notification_service.publish(
-        user_id="retail_shop",
+        user_id=str(order.get("retailer_email", "retail_shop")),
         title="Order confirmed",
         message=f"{order_code} confirmed by dealer.",
         metadata={"orderCode": order_code, "txHash": tx_hash},
@@ -247,13 +267,13 @@ def forward_order_to_manufacturer(order_code: str, data: DealerOrderForwardReque
 
 @router.patch("/orders/{order_code}/receive", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))], response_model=APIResponse[dict])
 def receive_order(
-    order_code: str, 
+    order_code: str,
     data: ReceiptRequest,
     payload: dict = Depends(require_roles(UserRole.admin, UserRole.dealer))
 ) -> APIResponse[dict]:
     actor_id = payload.get("sub", "unknown")
     actor_role = payload.get("role", "dealer")
-    
+
     try:
         from app.services.inventory_service import inventory_service
         result = inventory_service.receive_order(
@@ -262,39 +282,65 @@ def receive_order(
             actor_id=actor_id,
             actor_role=actor_role
         )
-        
-        # Optionally update Waybill Custody if associated
-        from app.services.database_service import _engine, update_waybill_custody
-        from sqlalchemy import select, Table, MetaData
-        
+        from app.services.database_service import update_order_stage
+        update_order_stage(
+            order_code=order_code,
+            stage="dealer_received",
+            status="dealer_received",
+            dealer_received=True
+        )
+
+        # Update Waybill Custody to Dealer if a waybill is associated
+        from app.services.database_service import _engine, update_waybill_custody, waybill_documents_table
+
         with _engine().begin() as conn:
-            metadata = MetaData()
-            waybill_table = Table("waybill_documents", metadata, autoload_with=conn)
-            stmt = select(waybill_table).where(waybill_table.c.order_id == order_code)
-            row = conn.execute(stmt).mappings().first()
+            row = conn.execute(
+                waybill_documents_table.select().where(waybill_documents_table.c.order_id == order_code)
+            ).mappings().first()
             if row:
-                update_waybill_custody(row["waybill_id"], actor_id, actor_role, "receive")
+                # Correct signature: waybill_id, new_custodian, actor_id, actor_role, quantity, location, event_type
+                update_waybill_custody(
+                    row["waybill_id"],
+                    actor_id,
+                    actor_id,
+                    actor_role,
+                    data.received_quantity,
+                    None,
+                    "receive"
+                )
 
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
 
-    notification_service.publish(
-        user_id="retail_shop",
-        title="Order ready for retail",
-        message=f"{order_code} received by dealer and ready for retail handoff.",
-        metadata={"orderCode": order_code, "discrepancy": result.get("discrepancy", 0)}
-    )
-    
+    # Notify the retailer who placed the order (use order retailer_email as user_id)
+    order_record = get_order(order_code)
+    if order_record:
+        notification_service.publish(
+            user_id=str(order_record.get("retailer_email", "retail_shop")),
+            title="Order ready for retail",
+            message=f"{order_code} received by dealer and ready for retail handoff.",
+            metadata={"orderCode": order_code, "discrepancy": result.get("discrepancy", 0)}
+        )
+
     return APIResponse(success=True, data=result, message="Order received successfully")
 
 
+
+
 @router.patch("/orders/{order_code}/retail-receive", dependencies=[Depends(require_roles(UserRole.admin, UserRole.retail_shop, UserRole.dealer))])
-def retail_receive(order_code: str):
+def retail_receive(order_code: str, payload: dict = Depends(require_roles(UserRole.admin, UserRole.retail_shop, UserRole.dealer))):
+    actor_id = payload.get("sub", "unknown")
+    actor_role = payload.get("role", "retail_shop")
     order = get_order(order_code)
     if order is None:
         raise HTTPException(status_code=404, detail="Order not found")
+    if order.get("current_stage") == "retail_received":
+        raise HTTPException(status_code=400, detail="Order is already received by retail shop")
+    if order.get("current_stage") != "dealer_received":
+        raise HTTPException(status_code=400, detail="Order not in correct stage to be received by retail shop")
+        
     try:
         updated = update_order_stage(
             order_code,
@@ -307,22 +353,42 @@ def retail_receive(order_code: str):
             stage="retail_received",
             payload={"orderCode": order_code, "receivedBy": "retail_shop"},
         )
-        
-        # Update Waybill Custody to Retail
-        from app.services.database_service import _engine, update_waybill_custody
-        from sqlalchemy import select, Table, MetaData
-        
+
+        # Update Waybill Custody to Retail with correct signature
+        from app.services.database_service import _engine, update_waybill_custody, waybill_documents_table
+
         with _engine().begin() as conn:
-            metadata = MetaData()
-            waybill_table = Table("waybill_documents", metadata, autoload_with=conn)
-            stmt = select(waybill_table).where(waybill_table.c.order_id == order_code)
-            row = conn.execute(stmt).mappings().first()
+            row = conn.execute(
+                waybill_documents_table.select().where(waybill_documents_table.c.order_id == order_code)
+            ).mappings().first()
             if row:
-                update_waybill_custody(row["waybill_id"], "Retail Storefront", "Retailer", "verified")
+                # Correct call: waybill_id, new_custodian, actor_id, actor_role, quantity, location, event_type
+                update_waybill_custody(
+                    row["waybill_id"],
+                    actor_id,
+                    actor_id,
+                    actor_role,
+                    int(order.get("received_quantity") or order.get("quantity") or 0),
+                    None,
+                    "receive"
+                )
 
     except DatabaseError as exc:
         raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
+
+    emit_event_sync(
+        "RECEIVING_COMPLETED",
+        {"order_code": order_code, "received_by": "retail_shop"},
+        notify_roles=["dealer", "admin"],
+        notify_title="Retail Received Order",
+        notify_message=f"Retail shop received order {order_code}.",
+    )
+    emit_event_sync(
+        "RETAIL_RECEIVED",
+        {"order_code": order_code},
+    )
     return {"order": updated, "txHash": tx_hash}
+
 
 
 @router.get("/orders/pipeline", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer, UserRole.manufacturer, UserRole.transporter, UserRole.retail_shop))])
@@ -442,44 +508,6 @@ def get_margin(payload: dict = Depends(require_roles(UserRole.admin, UserRole.de
     from app.services.database_service import get_profit_margins
     data = get_profit_margins()
     return APIResponse(success=True, data=data)
-
-
-@router.patch("/disputes/{dispute_id}/resolve", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
-def resolve_dispute(dispute_id: str, payload: dict = Depends(require_roles(UserRole.admin, UserRole.dealer))):
-    from app.services.database_service import _engine
-    from sqlalchemy import select, update, Table, MetaData
-    from app.services.audit_service import audit_service
-    
-    actor_id = payload.get("sub", "unknown")
-    actor_role = payload.get("role", "dealer")
-    timestamp = datetime.now(timezone.utc)
-    
-    with _engine().begin() as conn:
-        metadata = MetaData()
-        disputes_table = Table("disputes", metadata, autoload_with=conn)
-        dispute = conn.execute(select(disputes_table).where(disputes_table.c.dispute_id == dispute_id)).first()
-        if not dispute:
-            raise HTTPException(status_code=404, detail="Dispute not found")
-        if dispute.status == "RESOLVED":
-            raise HTTPException(status_code=400, detail="Dispute already resolved")
-            
-        conn.execute(
-            update(disputes_table)
-            .where(disputes_table.c.dispute_id == dispute_id)
-            .values(status="RESOLVED", resolved_at=timestamp)
-        )
-        
-    audit_service.log_action(actor_id, actor_role, "DISPUTE_RESOLVED", "DISPUTE", dispute_id)
-    
-    emit_event_sync(
-        "DISPUTE_RESOLVED",
-        {"dispute_id": dispute_id, "status": "RESOLVED"},
-        notify_roles=["admin", "dealer"],
-        notify_title="Dispute Resolved",
-        notify_message=f"Dispute {dispute_id} has been resolved."
-    )
-    
-    return {"dispute_id": dispute_id, "status": "RESOLVED", "resolved_at": timestamp.isoformat()}
 
 
 # ─── DEALER ANALYTICS ENDPOINTS ───────────────────────────────────────────────

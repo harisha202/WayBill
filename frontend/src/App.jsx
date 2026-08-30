@@ -180,11 +180,12 @@ function App() {
       <Login
         role={pendingRole}
         onBack={() => openRoleSelection('login')}
-        onSubmit={async ({ username, email, password }) => {
+        onSubmit={async ({ username, email, companyName, password }) => {
           const data = await authApi.login({
-            email: username || email,
+            username,
+            email,
+            company_name: companyName,
             password,
-            role: ROLE_TO_API[pendingRole],
           })
 
           const normalizedRole = normalizeRole(data.role)

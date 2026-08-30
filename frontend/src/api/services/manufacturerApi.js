@@ -3,42 +3,42 @@ import apiClient from '../axiosInstance';
 export const manufacturerApi = {
     getOverview: async () => {
         const response = await apiClient.get('/manufacturer/overview');
-        return response.data;
+        return response;
     },
 
     getProductionOrders: async () => {
         const response = await apiClient.get('/manufacturer/orders');
-        return response.data;
+        return response;
     },
 
     getProductionOrder: async (id) => {
         const response = await apiClient.get(`/manufacturer/orders/${encodeURIComponent(id)}`);
-        return response.data;
+        return response;
     },
 
     createProductionOrder: async (sku, quantity) => {
         const response = await apiClient.post('/manufacturer/orders', { sku, quantity });
-        return response.data;
+        return response;
     },
 
     startProduction: async (id) => {
         const response = await apiClient.post(`/manufacturer/orders/${encodeURIComponent(id)}/start`);
-        return response.data;
+        return response;
     },
 
     completeProduction: async (id) => {
         const response = await apiClient.post(`/manufacturer/orders/${encodeURIComponent(id)}/complete`);
-        return response.data;
+        return response;
     },
 
     getRawMaterials: async () => {
         const response = await apiClient.get('/manufacturer/inventory');
-        return response.data;
+        return response;
     },
 
     getQualityRecords: async () => {
         const response = await apiClient.get('/manufacturer/quality');
-        return response.data;
+        return response;
     },
 
     createQualityInspection: async (orderId, passed, failed, defectType, notes) => {
@@ -48,12 +48,12 @@ export const manufacturerApi = {
             defect_type: defectType,
             notes
         });
-        return response.data;
+        return response;
     },
 
     getProductionIssues: async () => {
         const response = await apiClient.get('/manufacturer/issues');
-        return response.data;
+        return response;
     },
 
     reportProductionIssue: async (entityType, entityId, issueType, severity, description) => {
@@ -64,28 +64,28 @@ export const manufacturerApi = {
             severity,
             description
         });
-        return response.data;
+        return response;
     },
 
     getManufacturerWaybills: async () => {
         const response = await apiClient.get('/manufacturer/waybills');
-        return response.data;
+        return response;
     },
 
     dispatchManufacturedGoods: async (orderId, destination) => {
         const response = await apiClient.post(`/manufacturer/orders/${encodeURIComponent(orderId)}/dispatch`, {
             destination
         });
-        return response.data;
+        return response;
     },
 
     getDemand: async () => {
         const response = await apiClient.get('/manufacturer/demand');
-        return response.data;
+        return response;
     },
 
     getSuppliers: async () => {
         const response = await apiClient.get('/manufacturer/suppliers');
-        return response.data;
+        return response;
     }
 };

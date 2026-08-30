@@ -31,7 +31,7 @@ def create_waybill_endpoint(
     req: WaybillCreateRequest,
     payload: dict = Depends(require_roles(UserRole.manufacturer, UserRole.admin))
 ):
-    if not check_and_record_idempotency_key(req.idempotency_key):
+    if check_and_record_idempotency_key(req.idempotency_key):
         return APIResponse(success=True, message="Already processed (idempotent)")
     
     actor_id = payload.get("sub")
@@ -56,7 +56,7 @@ def transfer_waybill_custody(
     req: WaybillTransferRequest,
     payload: dict = Depends(require_roles(UserRole.admin, UserRole.manufacturer, UserRole.dealer, UserRole.transporter, UserRole.retail_shop))
 ):
-    if not check_and_record_idempotency_key(req.idempotency_key):
+    if check_and_record_idempotency_key(req.idempotency_key):
         return APIResponse(success=True, message="Already processed (idempotent)")
         
     actor_id = payload.get("sub")
@@ -81,7 +81,7 @@ def receive_waybill_custody(
     req: WaybillReceiveRequest,
     payload: dict = Depends(require_roles(UserRole.admin, UserRole.manufacturer, UserRole.dealer, UserRole.transporter, UserRole.retail_shop))
 ):
-    if not check_and_record_idempotency_key(req.idempotency_key):
+    if check_and_record_idempotency_key(req.idempotency_key):
         return APIResponse(success=True, message="Already processed (idempotent)")
         
     actor_id = payload.get("sub")
@@ -109,16 +109,31 @@ def verify_waybill_endpoint(
     request: Request,
     payload: dict = Depends(require_roles(UserRole.admin, UserRole.manufacturer, UserRole.dealer, UserRole.transporter, UserRole.retail_shop))
 ):
-    if not check_and_record_idempotency_key(req.idempotency_key):
+    if check_and_record_idempotency_key(req.idempotency_key):
         return APIResponse(success=True, message="Already processed (idempotent)")
-        
+
+    actor_id = payload.get("sub", "anonymous")
     verification = waybill_service.verify_waybill(waybill_id, req.seal_hash)
-    
+
+    # Record QR verification event for audit trail
+    try:
+        from app.services.database_service import record_qr_verification_event
+        record_qr_verification_event(
+            waybill_id=waybill_id,
+            result="VALID" if verification.get("valid") else "INVALID",
+            scanner_user_id=actor_id,
+            reason=verification.get("reason"),
+        )
+    except Exception:
+        pass  # Don't fail the response if event recording fails
+
     return APIResponse(
         success=True,
         data=WaybillVerifyResponse(**verification),
         message="Verification completed"
     )
+
+
 
 @router.get("/{waybill_id}/verify", response_model=APIResponse[dict])
 @limiter.limit(lambda: os.getenv("RATE_LIMIT_WAYBILL_VERIFY", "10/minute"))
@@ -135,6 +150,13 @@ def verify_waybill_trust_endpoint(
         message="Trust verification completed"
     )
 
+@router.get("/", response_model=APIResponse[List[Dict]])
+def get_all_waybills_endpoint(
+    payload: dict = Depends(require_roles(UserRole.admin, UserRole.manufacturer, UserRole.dealer))
+):
+    waybills = get_all_waybills()
+    return APIResponse(success=True, data=waybills)
+
 @router.get("/{waybill_id}", response_model=APIResponse[dict])
 def get_waybill_endpoint(
     waybill_id: str,
@@ -145,10 +167,13 @@ def get_waybill_endpoint(
         raise HTTPException(status_code=404, detail="Waybill not found")
         
     return APIResponse(success=True, data=waybill)
+
+@router.get("/{waybill_id}/qr")
+def get_waybill_qr(waybill_id: str):
+    waybill = get_waybill(waybill_id)
+    if not waybill:
+        raise HTTPException(status_code=404, detail="Waybill not found")
     
-@router.get("/", response_model=APIResponse[List[Dict]])
-def get_all_waybills_endpoint(
-    payload: dict = Depends(require_roles(UserRole.admin, UserRole.manufacturer, UserRole.dealer))
-):
-    waybills = get_all_waybills()
-    return APIResponse(success=True, data=waybills)
+    qr_data = waybill.get("qr_code") or waybill_id
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={qr_data}")

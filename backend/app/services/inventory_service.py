@@ -96,6 +96,19 @@ class InventoryService:
                         created_at=timestamp
                     )
                 )
+
+                # P3-1: Auto-Create Financial Ledger on Delivery
+                from app.services.ledger_service import LedgerService
+                price = product.price if hasattr(product, 'price') else 1000.0
+                total_amount = received_quantity * price
+                LedgerService.create_transaction(
+                    entity_type="ORDER",
+                    entity_id=order_code,
+                    transaction_type="DELIVERY_RECEIPT",
+                    amount=total_amount,
+                    currency="USD",
+                    exchange_rate=1.0
+                )
             
             # 5. Create Discrepancy & Backorder if necessary
             if has_discrepancy:

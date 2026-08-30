@@ -6,11 +6,13 @@ from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt  # type: ignore[import-untyped]
+import contextvars
 
 from app.core.config import get_settings
 from app.models.user import UserRole
 
 bearer_scheme = HTTPBearer(auto_error=False)
+current_user_payload = contextvars.ContextVar("current_user_payload", default=None)
 
 
 def get_current_payload(
@@ -27,6 +29,7 @@ def get_current_payload(
 
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
+        current_user_payload.set(payload)
     except JWTError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

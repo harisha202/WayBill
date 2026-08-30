@@ -40,9 +40,10 @@ email_service = get_email_service()
 
 
 class LoginRequest(BaseModel):
+    username: str
     email: str
+    company_name: str
     password: str
-    role: UserRole
 
 
 class SendOTPRequest(BaseModel):
@@ -257,7 +258,13 @@ async def login(request: Request) -> LoginResponse:
 
     if db_user is not None:
         db_role = normalize_role(db_user["role"])
-        if not verify_password(data.password, db_user["password_hash"]):
+        
+        # Verify all four credentials match
+        is_username_valid = db_user.get("username") == data.username
+        is_company_valid = db_user.get("company_name") == data.company_name
+        is_password_valid = verify_password(data.password, db_user["password_hash"])
+
+        if not (is_username_valid and is_company_valid and is_password_valid):
             record_failed_login(db_user["id"])
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -265,12 +272,6 @@ async def login(request: Request) -> LoginResponse:
             )
             
         reset_failed_logins(db_user["id"])
-
-        if db_role != data.role:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Selected role does not match user role",
-            )
 
         token = create_access_token(subject=email, role=db_role)
         refresh = create_refresh_token(subject=email, role=db_role)

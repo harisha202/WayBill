@@ -19,6 +19,30 @@ class TrackingService:
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
         return R * c
 
+    @staticmethod
+    def geocode(location: str) -> tuple[float, float]:
+        if not location:
+            return 20.0, 80.0
+        cities = {
+            "mumbai": (19.0760, 72.8777),
+            "delhi": (28.7041, 77.1025),
+            "bangalore": (12.9716, 77.5946),
+            "chennai": (13.0827, 80.2707),
+            "hyderabad": (17.3850, 78.4867),
+            "kolkata": (22.5726, 88.3639),
+            "pune": (18.5204, 73.8567),
+            "ahmedabad": (23.0225, 72.5714),
+        }
+        loc = str(location).lower()
+        for city, coords in cities.items():
+            if city in loc:
+                return coords
+        import hashlib
+        h = int(hashlib.md5(loc.encode()).hexdigest(), 16)
+        lat = 10.0 + (h % 20000) / 1000.0
+        lng = 70.0 + ((h // 20000) % 20000) / 1000.0
+        return lat, lng
+
     def ingest_gps_ping(
         self,
         shipment_id: str, 
@@ -39,26 +63,10 @@ class TrackingService:
             if not shipment:
                 raise ValueError("Shipment not found")
 
-            # Real calculations
-            # To calculate route deviation, we need destination. We don't have lat/lng of destination natively, 
-            # so we'll just proxy the deviation based on speed anomalies for now, or if we had a planned route 
-            # table we would cross-track. Let's use distance from origin to current vs total.
-            
-            # Simple Eta: distance / speed
-            # Assume destination is roughly at (0, 0) if not provided, just for mathematical structure, 
-            # but ideally we would look up destination warehouse lat/lng.
-            # Here we'll just set a mock destination 100km away for calculation.
-            dest_lat = lat + 1.0 # approx 111km away
-            dest_lng = lng + 1.0
-            
-            distance_to_dest = self.calculate_distance(lat, lng, dest_lat, dest_lng)
-            
-            eta_minutes = 0
-            if speed > 0:
-                eta_minutes = int((distance_to_dest / speed) * 60)
-            else:
-                eta_minutes = 999
-            
+            dest_lat, dest_lng = TrackingService.geocode(shipment.destination)
+            distance_km = TrackingService.calculate_distance(lat, lng, dest_lat, dest_lng)
+            eta_minutes = int((distance_km / max(speed, 20.0)) * 60)
+
             risk_score = 0.0
             if speed > 90:
                 risk_score += 25.0
@@ -94,8 +102,9 @@ class TrackingService:
             conn.execute(
                 insert(gps_events_table).values(
                     shipment_id=shipment_id,
-                    lat=lat,
-                    lng=lng,
+                    vehicle_id=shipment.vehicle_number,
+                    latitude=lat,
+                    longitude=lng,
                     speed=speed,
                     heading=heading,
                     timestamp=timestamp
@@ -128,7 +137,7 @@ class TrackingService:
             "speed": speed,
             "heading": heading,
             "eta_minutes": eta_minutes,
-            "delay_minutes": max(0, eta_minutes - 60),
+            "delay_minutes": max(0, eta_minutes - 60) if eta_minutes is not None else None,
             "risk_score": risk_score,
             "risk_level": risk_level,
             "route_deviation": route_deviation,
@@ -160,6 +169,7 @@ class TrackingService:
                 .values(
                     vehicle_number=truck_id,
                     assignment_status="ASSIGNED",
+                    transporter_id=actor_id if actor_role == "transporter" else None,
                     status="IN_TRANSIT",
                     updated_at=timestamp
                 )

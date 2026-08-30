@@ -9,7 +9,8 @@ from app.services.tracking_service import tracking_service
 from app.services.database_service import _engine, shipments_table, trucks_table, drivers_table, interventions_table
 from app.schemas.base import APIResponse
 from sqlalchemy import select
-from app.api.websocket import manager
+# Use the role-aware WebSocketManager (replaces old api/websocket.py ConnectionManager)
+from app.services.websocket_manager import manager as ws_manager
 from app.services.transporter_analytics import (
     get_transporter_overview_analytics,
     get_shipment_analytics,
@@ -33,7 +34,7 @@ async def ingest_gps(event: GPSEvent, payload: dict = Depends(require_roles(User
     try:
         actor_id = payload.get("sub", "unknown")
         actor_role = payload.get("role", "unknown")
-        
+
         state_update = tracking_service.ingest_gps_ping(
             shipment_id=event.shipment_id,
             lat=event.latitude,
@@ -48,15 +49,40 @@ async def ingest_gps(event: GPSEvent, payload: dict = Depends(require_roles(User
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.websocket("/live")
-async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
+async def websocket_endpoint(websocket: WebSocket, token: Optional[str] = Query(default=None)):
+    """
+    Authenticated WebSocket endpoint for real-time GPS tracking.
+    Client must pass ?token=<JWT> as a query parameter.
+    Only transporter and admin roles are allowed.
+    """
+    from jose import JWTError, jwt
+    from app.core.config import get_settings
+
+    # Validate JWT from query param
+    user_role = "guest"
+    user_id = "anonymous"
+    if token:
+        try:
+            settings = get_settings()
+            payload = jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
+            user_role = payload.get("role", "guest")
+            user_id = payload.get("sub", "anonymous")
+        except JWTError:
+            await websocket.close(code=4001)
+            return
+
+    if user_role not in ("admin", "transporter"):
+        await websocket.close(code=4003)
+        return
+
+    await ws_manager.connect(websocket, role=user_role, user_id=user_id)
     try:
         while True:
             data = await websocket.receive_text()
             if data == "PING":
                 await websocket.send_text("PONG")
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        ws_manager.disconnect(websocket)
 
 @router.get("/overview", dependencies=[Depends(require_roles(UserRole.admin, UserRole.transporter))])
 def get_transporter_overview():

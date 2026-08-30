@@ -168,6 +168,7 @@ shipments_table = Table(
     Column("weight", Float, nullable=True),
     Column("vehicle_number", String(80), nullable=True),
     Column("assignment_status", String(80), nullable=True),
+    Column("transporter_id", String(120), nullable=True),
     Column("delay_risk_score", Float, nullable=True),
     Column("predicted_delay_minutes", Integer, nullable=True),
     Column("planned_eta", String(80), nullable=True),
@@ -428,6 +429,7 @@ reorder_events_table = Table(
     Column("recommended_quantity", Integer, nullable=False),
     Column("justification", String(255), nullable=True),
     Column("status", String(40), nullable=False),
+    Column("order_id", String(80), nullable=True),    # Links to orders.order_code created by reorder
     Column("created_at", DateTime(timezone=True), nullable=False),
 )
 
@@ -564,11 +566,13 @@ production_orders_table = Table(
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("order_id", String(80), nullable=False, unique=True),
+    Column("order_code", String(80), nullable=True),   # Links back to originating orders.order_code
     Column("batch_id", String(80), nullable=False),
     Column("sku", String(80), nullable=False),
     Column("quantity", Integer, nullable=False),
     Column("status", String(40), nullable=False),
     Column("qa_status", String(40), nullable=False, default="PENDING"),
+    Column("shipment_id", String(80), nullable=True),   # Set after dispatch
     Column("start_date", DateTime(timezone=True), nullable=True),
     Column("end_date", DateTime(timezone=True), nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
@@ -780,16 +784,6 @@ def _stage_title(stage: str) -> str:
 def _next_order_code(conn) -> str:
     max_id = conn.execute(select(func.max(orders_table.c.id))).scalar() or 0
     return f"ORD-{int(max_id) + 1:05d}"
-
-
-def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    radius = 6371.0
-    phi1 = math.radians(lat1)
-    phi2 = math.radians(lat2)
-    d_phi = math.radians(lat2 - lat1)
-    d_lambda = math.radians(lon2 - lon1)
-    a = math.sin(d_phi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2) ** 2
-    return round(radius * (2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))), 2)
 
 
 def _format_indian_grouping(number_text: str) -> str:
@@ -1363,27 +1357,31 @@ def create_order(
     now = _utc_now()
     try:
         with _engine().begin() as conn:
-            # Check available stock
+            # Check available stock (read first for error messaging)
             row = conn.execute(select(products_table).where(products_table.c.sku == product_sku).with_for_update()).first()
             if row is None:
                 raise DatabaseError("Product SKU not found")
             
             product = _row_to_dict(row)
             available_stock = int(product.get("available_stock") or 0)
-            reserved_stock = int(product.get("reserved_stock") or 0)
             
             if int(quantity) > available_stock:
                 raise DatabaseConflictError(f"Insufficient available stock. Requested: {quantity}, Available: {available_stock}")
             
-            # Update product stock
-            conn.execute(
+            # Update product stock atomically to prevent race conditions
+            result = conn.execute(
                 products_table.update()
                 .where(products_table.c.sku == product_sku)
+                .where(products_table.c.available_stock >= int(quantity))
                 .values(
-                    available_stock=available_stock - int(quantity),
-                    reserved_stock=reserved_stock + int(quantity)
+                    available_stock=products_table.c.available_stock - int(quantity),
+                    reserved_stock=products_table.c.reserved_stock + int(quantity)
                 )
             )
+            
+            if result.rowcount == 0:
+                raise DatabaseConflictError(f"Insufficient available stock. Requested: {quantity}, Available: {available_stock}")
+
 
             order_code = _next_order_code(conn)
             conn.execute(
@@ -1517,14 +1515,34 @@ def get_order(order_code: str) -> dict | None:
         raise DatabaseError("Failed to fetch order") from exc
 
 
-def list_orders(skip: int = 0, limit: int = 100) -> list[dict]:
+def list_orders(skip: int = 0, limit: int = 100, dealer_id: str | None = None, retailer_email: str | None = None, manufacturer_id: str | None = None, transporter_id: str | None = None) -> list[dict]:
     try:
+        from app.core.middleware import current_user_payload
+        payload = current_user_payload.get()
+        if payload:
+            role = payload.get("role")
+            if role == "dealer" and not dealer_id:
+                dealer_id = payload.get("username")
+            elif role == "retail_shop" and not retailer_email:
+                retailer_email = payload.get("username")
+            elif role == "manufacturer" and not manufacturer_id:
+                manufacturer_id = payload.get("username")
+            elif role == "transporter" and not transporter_id:
+                transporter_id = payload.get("username")
+                
         with _engine().connect() as conn:
+            stmt = select(orders_table).order_by(desc(orders_table.c.updated_at))
+            if dealer_id:
+                stmt = stmt.where(orders_table.c.dealer_id == dealer_id)
+            if retailer_email:
+                stmt = stmt.where(orders_table.c.retailer_email == retailer_email)
+            if manufacturer_id:
+                stmt = stmt.where(orders_table.c.manufacturer_id == manufacturer_id)
+            if transporter_id:
+                stmt = stmt.where(orders_table.c.transporter_id == transporter_id)
+                
             rows = conn.execute(
-                select(orders_table)
-                .order_by(desc(orders_table.c.updated_at))
-                .offset(skip)
-                .limit(int(limit))
+                stmt.offset(skip).limit(int(limit))
             ).fetchall()
             return [_row_to_dict(row) for row in rows]
     except SQLAlchemyError as exc:
@@ -1637,14 +1655,20 @@ def record_gps_ping(*, shipment_id: str, vehicle_id: str | None, lat: float, lng
         raise DatabaseError("Failed to record GPS ping") from exc
 
 
-def list_shipments(skip: int = 0, limit: int = 100) -> dict[str, dict]:
+def list_shipments(skip: int = 0, limit: int = 100, transporter_id: str | None = None) -> dict[str, dict]:
     try:
+        from app.core.middleware import current_user_payload
+        payload = current_user_payload.get()
+        if payload and payload.get("role") == "transporter" and not transporter_id:
+            transporter_id = payload.get("username")
+            
         with _engine().connect() as conn:
+            stmt = select(shipments_table).order_by(shipments_table.c.id.asc())
+            if transporter_id:
+                stmt = stmt.where(shipments_table.c.transporter_id == transporter_id)
+                
             rows = conn.execute(
-                select(shipments_table)
-                .order_by(shipments_table.c.id.asc())
-                .offset(skip)
-                .limit(limit)
+                stmt.offset(skip).limit(limit)
             ).fetchall()
             mapped: dict[str, dict] = {}
             for row in rows:
@@ -1708,7 +1732,8 @@ def list_dealer_arrivals(dealer_lat: float = 12.9716, dealer_lng: float = 77.594
             distance_km = None
             eta_hours = None
             if lat is not None and lng is not None:
-                distance_km = _haversine_km(float(lat), float(lng), float(dealer_lat), float(dealer_lng))
+                from app.services.tracking_service import TrackingService
+                distance_km = TrackingService.calculate_distance(float(lat), float(lng), float(dealer_lat), float(dealer_lng))
                 eta_hours = round(distance_km / 45.0, 1)
 
             status = str(record.get("status") or "in_transit")
@@ -4934,3 +4959,123 @@ def get_retail_reports_analytics(retailer_name: str, days: int = 180) -> dict:
         prod_perf = [dict(r) for r in conn.execute(stmt3).mappings().all()]
         
         return {"perf": perf, "revTrend": rev_trend, "prodPerf": prod_perf}
+
+
+# ─── DISPUTES ──────────────────────────────────────────────────────────────────
+
+def create_dispute(
+    mismatch_type: str,
+    description: str,
+    *,
+    waybill_id: str | None = None,
+    order_id: str | None = None,
+) -> dict:
+    """Create a dispute record. Returns the created row as a dict."""
+    import uuid as _uuid
+    dispute_id = f"DIS-{_uuid.uuid4().hex[:8].upper()}"
+    now = _utc_now()
+    try:
+        with _engine().begin() as conn:
+            conn.execute(
+                disputes_table.insert().values(
+                    dispute_id=dispute_id,
+                    waybill_id=waybill_id,
+                    order_id=order_id,
+                    mismatch_type=mismatch_type,
+                    description=description,
+                    status="OPEN",
+                    created_at=now,
+                )
+            )
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to create dispute") from exc
+    return {
+        "dispute_id": dispute_id,
+        "waybill_id": waybill_id,
+        "order_id": order_id,
+        "mismatch_type": mismatch_type,
+        "description": description,
+        "status": "OPEN",
+        "created_at": now,
+    }
+
+
+def resolve_dispute(dispute_id: str, resolution_note: str | None = None) -> dict | None:
+    """Resolve an open dispute. Returns updated dict or None if not found."""
+    now = _utc_now()
+    try:
+        with _engine().begin() as conn:
+            result = conn.execute(
+                disputes_table.update()
+                .where(disputes_table.c.dispute_id == dispute_id)
+                .values(status="RESOLVED", resolved_at=now)
+            )
+            if result.rowcount == 0:
+                return None
+            row = conn.execute(
+                select(disputes_table).where(disputes_table.c.dispute_id == dispute_id)
+            ).first()
+            return _row_to_dict(row) if row else None
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to resolve dispute") from exc
+
+
+def list_disputes(
+    status: str | None = None,
+    waybill_id: str | None = None,
+    order_id: str | None = None,
+    limit: int = 100,
+) -> list[dict]:
+    """List disputes with optional filters."""
+    try:
+        with _engine().connect() as conn:
+            stmt = select(disputes_table).order_by(desc(disputes_table.c.created_at)).limit(limit)
+            if status:
+                stmt = stmt.where(disputes_table.c.status == status)
+            if waybill_id:
+                stmt = stmt.where(disputes_table.c.waybill_id == waybill_id)
+            if order_id:
+                stmt = stmt.where(disputes_table.c.order_id == order_id)
+            rows = conn.execute(stmt).mappings().all()
+            return [dict(r) for r in rows]
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to list disputes") from exc
+
+
+# ─── PER-ROLE NOTIFICATIONS ────────────────────────────────────────────────────
+
+def list_notifications_for_user(user_id: str, limit: int = 50) -> list[dict]:
+    """List notifications for a specific user (by user_id / email)."""
+    return list_notifications(user_id=user_id, limit=limit)
+
+
+# ─── QR VERIFICATION EVENTS ────────────────────────────────────────────────────
+
+def record_qr_verification_event(
+    waybill_id: str,
+    result: str,
+    scanner_user_id: str | None = None,
+    reason: str | None = None,
+) -> dict:
+    """Record a QR scan verification event in qr_verification_events_table."""
+    now = _utc_now()
+    try:
+        with _engine().begin() as conn:
+            conn.execute(
+                qr_verification_events_table.insert().values(
+                    waybill_id=waybill_id,
+                    result=result,
+                    scanner_user_id=scanner_user_id,
+                    reason=reason,
+                    timestamp=now,
+                )
+            )
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to record QR verification event") from exc
+    return {
+        "waybill_id": waybill_id,
+        "result": result,
+        "scanner_user_id": scanner_user_id,
+        "reason": reason,
+        "timestamp": now,
+    }

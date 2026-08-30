@@ -375,6 +375,95 @@ class EmailService:
         """
         return self.send_email(to_email, subject, html_content, text_content)
 
+    def send_admin_password_reset_otp(self, to_email: str, username: str, company: str, otp: str, validity_minutes: int, name: str) -> bool:
+        subject = "WayBill — Admin-Initiated Password Reset OTP"
+        text_content = (
+            "WAYBILL\n\n"
+            "Password Reset Request\n\n"
+            f"Hello {name},\n\n"
+            "An administrator has initiated a password reset for your WayBill account.\n\n"
+            "Account Information:\n"
+            f"Username: {username}\n"
+            f"Registered Email: {to_email}\n"
+            f"Company: {company}\n\n"
+            "Your password reset OTP is:\n"
+            f"{otp}\n\n"
+            f"This OTP is valid for {validity_minutes} minutes.\n\n"
+            "For your security:\n"
+            "- Do not share this OTP with anyone.\n"
+            "- WayBill support will never ask for your OTP.\n"
+            "- This OTP can only be used for this password reset request.\n"
+            "- If you did not expect this password reset, contact your WayBill administrator/support immediately.\n\n"
+            "This email was sent because a WayBill administrator initiated a password reset for your account.\n\n"
+            "Regards,\n"
+            "WayBill Team\n"
+            "WayBill — B2B Supply Chain Platform"
+        )
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+          <body style="font-family: Georgia, 'Times New Roman', serif; background: linear-gradient(180deg, #eef2ff 0%, #f8fafc 100%); margin: 0; padding: 28px;">
+            <div style="max-width: 620px; margin: 0 auto;">
+              <div style="background: linear-gradient(135deg, #0B1B2E 0%, #0F6E56 100%); border-radius: 18px; padding: 24px 26px; color: #eef2ff; box-shadow: 0 14px 30px rgba(49, 46, 129, 0.22);">
+                <div style="font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; opacity: 0.9;">
+                  WayBill
+                </div>
+                <div style="font-size: 28px; font-weight: 700; margin-top: 10px; line-height: 1.2;">
+                  Password Reset Request
+                </div>
+                <div style="margin-top: 10px; font-size: 15px; line-height: 1.7; color: #c7d2fe;">
+                  An administrator has initiated a password reset for your WayBill account.
+                </div>
+              </div>
+
+              <div style="background: #ffffff; border: 1px solid #d7def7; border-radius: 18px; padding: 26px; margin-top: 16px; box-shadow: 0 10px 24px rgba(99, 102, 241, 0.12);">
+                <p style="margin: 0 0 12px; color: #0f172a; font-size: 18px;">
+                  Hello <strong>{name}</strong>,
+                </p>
+
+                <div style="background: linear-gradient(180deg, #f5f7ff 0%, #eef2ff 100%); border: 1px solid #c7d2fe; border-radius: 14px; padding: 18px 20px; margin: 16px 0;">
+                  <div style="font-weight: 700; color: #312e81; margin-bottom: 10px; font-size: 16px;">Account Information</div>
+                  <div style="color: #1f2937; line-height: 1.9; font-size: 15px;">Username: <strong>{username}</strong></div>
+                  <div style="color: #1f2937; line-height: 1.9; font-size: 15px;">Registered Email: <strong>{to_email}</strong></div>
+                  <div style="color: #1f2937; line-height: 1.9; font-size: 15px;">Company: <strong>{company}</strong></div>
+                </div>
+
+                <div style="margin: 18px 0; text-align: center;">
+                  <div style="font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: #6366f1; margin-bottom: 10px;">
+                    Your password reset OTP is:
+                  </div>
+                  <div style="display: inline-block; background: #eef2ff; border: 1px solid #BA7517; border-radius: 14px; padding: 16px 24px; font-size: 34px; letter-spacing: 8px; font-weight: 700; color: #0F6E56;">
+                    {otp}
+                  </div>
+                </div>
+
+                <div style="background: linear-gradient(180deg, #eff6ff 0%, #f5f7ff 100%); border: 1px solid #bfdbfe; border-radius: 14px; padding: 16px 18px; margin: 16px 0;">
+                  <div style="font-weight: 700; color: #1d4ed8; margin-bottom: 8px; font-size: 16px;">For your security</div>
+                  <ul style="margin: 0; padding-left: 18px; color: #0f172a; line-height: 1.8; font-size: 15px;">
+                    <li>Do not share this OTP with anyone.</li>
+                    <li>WayBill support will never ask for your OTP.</li>
+                    <li>This OTP can only be used for this password reset request.</li>
+                    <li>If you did not expect this password reset, contact your WayBill administrator/support immediately.</li>
+                  </ul>
+                </div>
+
+                <p style="margin: 0; color: #475569; line-height: 1.8; font-size: 15px;">
+                  This OTP is valid for {validity_minutes} minutes.
+                </p>
+
+                <div style="margin-top: 18px; padding-top: 16px; border-top: 1px solid #e2e8f0; color: #0f172a; line-height: 1.8; font-size: 15px;">
+                  This email was sent because a WayBill administrator initiated a password reset for your account.<br/><br/>
+                  Regards,<br/>
+                  <strong>WayBill Team</strong><br/>
+                  WayBill — B2B Supply Chain Platform
+                </div>
+              </div>
+            </div>
+          </body>
+        </html>
+        """
+        return self.send_email(to_email, subject, html_content, text_content)
+
 
 class MockEmailService(EmailService):
     """Development email service that prints instead of sending."""

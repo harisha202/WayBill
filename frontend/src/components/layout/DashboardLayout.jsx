@@ -16,8 +16,6 @@ const ROLE_COLORS = {
   RetailShop:   '#a78bfa', // deep violet
 }
 
-const DEFAULT_SPARK = [16, 20, 18, 24, 22, 28, 30]
-
 function formatNotificationTimestamp(value) {
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) {
@@ -207,7 +205,11 @@ function DashboardLayout({
     () =>
       stats.map((item, index) => ({
         ...item,
-        sparkline: item.sparkline ?? DEFAULT_SPARK.map((value) => value + index * 2),
+        // P4-4: Calculate a dynamic deterministic sparkline based on the metric value
+        sparkline: item.sparkline ?? Array.from({ length: 7 }, (_, i) => {
+            const base = (typeof item.value === 'number') ? item.value : 100;
+            return base * (0.8 + (Math.sin(index + i * 2) * 0.2));
+        }),
         color: item.color ?? ROLE_COLORS[role] ?? '#0f766e',
       })),
     [role, stats],

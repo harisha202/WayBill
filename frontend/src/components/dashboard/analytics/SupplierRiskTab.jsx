@@ -80,10 +80,20 @@ function ViolinChart({ scores = [], selectedScore, color }) {
 
 export function SupplierRiskTab() {
   const [filters, setFilters] = useState({ supplierId: '' });
+  const [filterInput, setFilterInput] = useState('');
   const [selectedIdx, setSelectedIdx] = useState(0);
   const analytics = useAnalytics('/admin/analytics/supplier-risk', filters);
   const data = analytics.data || {};
   const { loading, error, isEmpty } = analytics;
+
+  const handleFilterApply = () => {
+    setFilters({ supplierId: filterInput.trim() });
+  };
+
+  const handleFilterClear = () => {
+    setFilterInput('');
+    setFilters({ supplierId: '' });
+  };
 
   const barData = [...(data.suppliers || [])]
     .sort((a,b) => b.overall_score - a.overall_score)
@@ -121,12 +131,46 @@ export function SupplierRiskTab() {
     name: s.name,
     risk_level: s.risk_level
   }));
-  
+
   const highRiskScatter = scatterData.filter(d => d.risk_level === 'high' || d.risk_level === 'critical');
   const normalScatter = scatterData.filter(d => d.risk_level !== 'high' && d.risk_level !== 'critical');
 
   return (
     <div className="analytics-tab-content">
+      {/* Filter bar */}
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', alignItems: 'center' }}>
+        <input
+          type="text"
+          placeholder="Filter by Supplier ID or name..."
+          value={filterInput}
+          onChange={e => setFilterInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleFilterApply()}
+          style={{
+            flex: 1,
+            background: 'var(--surface)',
+            border: '1px solid var(--border-color)',
+            borderRadius: '6px',
+            padding: '0.5rem 0.75rem',
+            color: 'var(--text-primary)',
+            fontSize: '0.875rem',
+          }}
+        />
+        <button
+          onClick={handleFilterApply}
+          style={{ padding: '0.5rem 1rem', borderRadius: '6px', background: '#0F6E56', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.875rem' }}
+        >
+          Apply
+        </button>
+        {filters.supplierId && (
+          <button
+            onClick={handleFilterClear}
+            style={{ padding: '0.5rem 1rem', borderRadius: '6px', background: 'var(--surface)', color: 'var(--text-secondary)', border: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.875rem' }}
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
       <AnalyticsSection title="Supplier Risk KPIs">
         <KPICard title="Total Suppliers" value={data.kpis?.total_suppliers || 0} />
         <KPICard title="Critical Suppliers" value={data.kpis?.critical_suppliers || 0} />
@@ -136,6 +180,7 @@ export function SupplierRiskTab() {
 
       <AnalyticsSection title="Supplier Risk Overview">
         <AnalyticsCard title="Top At-Risk Suppliers" span={12} height={500} loading={loading} error={error} isEmpty={isEmpty}>
+
           <ResponsiveContainer width="100%" height="100%">
             <BarChart layout="vertical" data={barData} margin={{ top: 20, right: 30, left: 40, bottom: 5 }} isAnimationActive={false}>
               <CartesianGrid strokeDasharray="3 3" stroke={CHART_STYLE?.gridColor || '#334155'} horizontal={false} />

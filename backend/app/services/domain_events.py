@@ -30,10 +30,10 @@ async def emit_event(
     try:
         if audit_action:
             audit_service.log_action(
-                user_id=audit_user,
-                user_role=audit_role,
+                user=audit_user,
+                role=audit_role,
                 action=audit_action,
-                entity_type=audit_entity,
+                entity=audit_entity,
                 entity_id=audit_entity_id,
                 new_value=audit_new_value,
             )

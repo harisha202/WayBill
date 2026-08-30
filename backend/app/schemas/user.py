@@ -33,4 +33,5 @@ class UserStatusRequest(BaseModel):
     is_active: int
 
 class UserResetPasswordRequest(BaseModel):
+    otp: str = Field(..., min_length=6, max_length=6)
     new_password: str = Field(..., min_length=6)

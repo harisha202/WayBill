@@ -16,11 +16,22 @@ async def async_client():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
 
+@pytest.fixture(autouse=True)
+def setup_teardown():
+    from app.services.database_service import _engine
+    from sqlalchemy import text
+    from app.core.security import hash_password
+    with _engine().begin() as conn:
+        pw = hash_password("dealer123")
+        conn.execute(text(f"DELETE FROM users WHERE email='dealer@waybill.com'"))
+        conn.execute(text(f"INSERT INTO users (username, name, email, password_hash, role, company_name, is_active, failed_login_attempts, created_at) VALUES ('dealer', 'Dealer', 'dealer@waybill.com', '{pw}', 'dealer', 'Dealer XYZ', 1, 0, CURRENT_TIMESTAMP)"))
+    yield
+
 @pytest_asyncio.fixture
 async def dealer_headers(async_client):
     response = await async_client.post(
         "/api/auth/login",
-        json={"email": "dealer@waybill.com", "password": "dealer123", "role": "dealer"}
+        json={"username": "dealer", "email": "dealer@waybill.com", "company_name": "Dealer XYZ", "password": "dealer123"}
     )
     assert response.status_code == 200, f"Login failed: {response.text}"
     token = response.json()["access_token"]

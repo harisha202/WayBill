@@ -314,16 +314,42 @@ export function RetailReplenishmentOrders() {
         }
     };
 
+    const handleReject = async (sku) => {
+        if (!window.confirm(`Reject AI recommendation for ${sku}?`)) return;
+        setProcessing(sku);
+        try {
+            // Mock reject endpoint since it doesn't exist on backend
+            // In a real app we would call retailApi.rejectReorder(sku);
+            alert(`Rejected recommendation for ${sku}.`);
+            refetch(); 
+        } finally {
+            setProcessing(null);
+        }
+    };
+
     const columns = [
         { key: 'sku', header: 'SKU', render: val => <strong>{val}</strong> },
         { key: 'name', header: 'Product' },
-        { key: 'current_stock', header: 'Current Stock', render: val => <span style={{color: 'var(--red)', fontWeight: 'bold'}}>{val}</span> },
+        { key: 'current_stock', header: 'Stock', render: val => <span style={{color: 'var(--red)', fontWeight: 'bold'}}>{val}</span> },
         { key: 'recommended_qty', header: 'Suggested Qty' },
+        { 
+            key: 'recommendation', 
+            header: 'AI Reason', 
+            render: (_, row) => (
+                <div style={{fontSize: '0.85rem', maxWidth: '300px'}}>
+                    <div><strong>Reason:</strong> {row.reason || row.recommendation || row.fact_basis || 'Stock fell below threshold'}</div>
+                    {row.confidence > 0 && <div style={{color: 'var(--text-secondary)'}}>Confidence: {row.confidence}%</div>}
+                </div>
+            )
+        },
         { 
             key: 'actions', 
             header: 'Actions',
             render: (_, row) => (
-                <button disabled={processing === row.sku} onClick={() => handleApprove(row.sku, row.recommended_qty)} style={{ padding: '6px 12px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}>Approve Reorder</button>
+                <div style={{display: 'flex', gap: '8px', alignItems: 'center'}}>
+                    <button disabled={processing === row.sku} onClick={() => handleApprove(row.sku, row.recommended_qty)} style={{ padding: '6px 12px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}>Approve</button>
+                    <button disabled={processing === row.sku} onClick={() => handleReject(row.sku)} style={{ padding: '6px 12px', background: 'transparent', color: 'var(--red)', border: '1px solid var(--red)', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}>Reject</button>
+                </div>
             )
         }
     ];

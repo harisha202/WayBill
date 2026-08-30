@@ -51,9 +51,11 @@ def get_shipment_analytics(days: int = 30) -> dict:
             volume = [{"day": str(r[0]), "shipments": int(r[1])} for r in vol_rows if r[0]]
 
             # Time in transit (mocked using estimated vs actual if available, else random curve)
+            import hashlib
             transit = []
             for i, v in enumerate(volume):
-                base_time = 24 + (i % 5) * 5
+                h = int(hashlib.md5(v["day"].encode()).hexdigest()[:8], 16)
+                base_time = 24 + (h % 30)
                 transit.append({"day": v["day"], "avgHours": base_time})
 
             return {
@@ -72,19 +74,25 @@ def get_fleet_analytics() -> dict:
             utilization = []
             scatter = []
             
+            import hashlib
             for i, t in enumerate(trucks):
-                status = str(t.status or "UNKNOWN")
+                status = str(t.maintenance_status or "UNKNOWN")
                 status_counts[status] = status_counts.get(status, 0) + 1
+                
+                # Deterministic pseudo-metrics
+                plate = str(t.plate_number or f"TRK-{i}").encode()
+                h = int(hashlib.md5(plate).hexdigest()[:8], 16)
+                
                 utilization.append({
-                    "truckId": str(t.truck_id),
-                    "activeHours": 120 + (i * 10 % 50),
-                    "idleHours": 40 + (i * 5 % 20),
+                    "truckId": str(t.plate_number),
+                    "activeHours": 100 + (h % 60),
+                    "idleHours": 20 + (h % 30),
                     "maintenanceHours": 10 if status == "MAINTENANCE" else 0
                 })
                 scatter.append({
-                    "truckId": str(t.truck_id),
-                    "ageMonths": 12 + (i * 3 % 48),
-                    "maintenanceCost": 1000 + (i * 200 % 3000)
+                    "truckId": str(t.plate_number),
+                    "ageMonths": 12 + (h % 48),
+                    "maintenanceCost": 1000 + (h % 3000)
                 })
 
             status_donut = [{"status": k, "count": v} for k, v in status_counts.items()]

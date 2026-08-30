@@ -42,8 +42,16 @@ class WaybillService:
                 )
             )
             
+            # P3-2: Increment in_transit quantity
+            from app.services.database_service import products_table
+            conn.execute(
+                update(products_table)
+                .where(products_table.c.sku == sku)
+                .values(in_transit=products_table.c.in_transit + quantity)
+            )
+            
             # Initial Custody Event
-            event_hash = WaybillService._generate_hash(f"{waybill_id}:CREATE:{initial_custodian}:{timestamp.isoformat()}")
+            event_hash = WaybillService._generate_hash(f"None:{waybill_id}:CREATE:{initial_custodian}:{timestamp.isoformat()}")
             conn.execute(
                 insert(custody_events_table).values(
                     waybill_id=waybill_id,
@@ -54,6 +62,7 @@ class WaybillService:
                     actor_role=actor_role,
                     quantity=quantity,
                     event_hash=event_hash,
+                    previous_event_hash=None,
                     created_at=timestamp
                 )
             )
@@ -92,6 +101,8 @@ class WaybillService:
             
             if not row:
                 raise ValueError("Waybill not found")
+            if row.status != "CREATED":
+                raise ValueError(f"Waybill must be CREATED to be sealed, current status is {row.status}")
                 
             raw_data = f"{row.waybill_id}:{row.batch_id}:{row.sku}:{row.quantity}:{timestamp.isoformat()}"
             seal_hash = WaybillService._generate_hash(raw_data)
@@ -123,6 +134,11 @@ class WaybillService:
             {"waybill_id": waybill_id, "status": "SEALED"}
         )
 
+        emit_event_sync(
+            "QR_GENERATED",
+            {"waybill_id": waybill_id, "qr_code": qr_code}
+        )
+
         return {
             "waybill_id": waybill_id,
             "status": "SEALED",
@@ -147,6 +163,8 @@ class WaybillService:
             
             if not row:
                 raise ValueError("Waybill not found")
+            if row.status not in ("SEALED", "IN_TRANSIT"):
+                raise ValueError(f"Waybill must be SEALED or IN_TRANSIT to transfer custody, current status is {row.status}")
                 
             old_custodian = row.current_custodian
             
@@ -160,7 +178,15 @@ class WaybillService:
                 )
             )
             
-            event_hash = WaybillService._generate_hash(f"{waybill_id}:TRANSFER:{old_custodian}:{new_custodian}:{timestamp.isoformat()}")
+            prev_row = conn.execute(
+                select(custody_events_table.c.event_hash)
+                .where(custody_events_table.c.waybill_id == waybill_id)
+                .order_by(custody_events_table.c.id.desc())
+                .limit(1)
+            ).first()
+            previous_event_hash = prev_row.event_hash if prev_row else None
+
+            event_hash = WaybillService._generate_hash(f"{previous_event_hash}:{waybill_id}:TRANSFER:{old_custodian}:{new_custodian}:{timestamp.isoformat()}")
             
             conn.execute(
                 insert(custody_events_table).values(
@@ -173,6 +199,7 @@ class WaybillService:
                     quantity=row.quantity,
                     location=location,
                     event_hash=event_hash,
+                    previous_event_hash=previous_event_hash,
                     created_at=timestamp
                 )
             )
@@ -185,6 +212,18 @@ class WaybillService:
             entity_id=waybill_id,
             old_value={"custodian": old_custodian, "status": row.status},
             new_value={"custodian": new_custodian, "status": "IN_TRANSIT"}
+        )
+        
+        emit_event_sync(
+            "CUSTODY_TRANSFERRED",
+            {
+                "waybill_id": waybill_id,
+                "from_custodian": old_custodian,
+                "to_custodian": new_custodian
+            },
+            notify_roles=["admin", "manufacturer", "dealer"],
+            notify_title="Custody Transferred",
+            notify_message=f"Waybill {waybill_id} custody transferred to {new_custodian}."
         )
             
         return {
@@ -203,7 +242,7 @@ class WaybillService:
             
             if not row:
                 return {
-                    "is_valid": False,
+                    "valid": False,
                     "current_status": "NOT_FOUND",
                     "custody": "Unknown",
                     "reason": "Waybill ID does not exist"
@@ -211,14 +250,39 @@ class WaybillService:
                 
             if row.seal_hash != seal_hash:
                 return {
-                    "is_valid": False,
+                    "valid": False,
                     "current_status": "TAMPERED",
                     "custody": row.current_custodian,
                     "reason": "Cryptographic seal mismatch"
                 }
                 
+            # Verify custody events for tampering
+            events = conn.execute(
+                select(custody_events_table)
+                .where(custody_events_table.c.waybill_id == waybill_id)
+                .order_by(custody_events_table.c.id.asc())
+            ).fetchall()
+            
+            expected_prev = None
+            for event in events:
+                if event.quantity != row.quantity:
+                    return {
+                        "valid": False,
+                        "current_status": "TAMPERED",
+                        "custody": row.current_custodian,
+                        "reason": "Custody event quantity tampered"
+                    }
+                if event.previous_event_hash != expected_prev:
+                    return {
+                        "valid": False,
+                        "current_status": "TAMPERED",
+                        "custody": row.current_custodian,
+                        "reason": f"Custody chain broken at event {event.id}"
+                    }
+                expected_prev = event.event_hash
+                
             return {
-                "is_valid": True,
+                "valid": True,
                 "current_status": row.status,
                 "custody": row.current_custodian,
                 "batch_id": row.batch_id,

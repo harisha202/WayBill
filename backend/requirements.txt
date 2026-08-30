@@ -12,6 +12,7 @@ pytest-asyncio==0.23.5
 slowapi==0.1.9
 qrcode[pil]>=7.4.2
 anthropic>=0.40.0
+google-generativeai
 
 statsmodels
 pandas

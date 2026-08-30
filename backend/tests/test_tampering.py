@@ -19,7 +19,7 @@ async def async_client():
 async def admin_headers(async_client):
     response = await async_client.post(
         "/api/auth/login",
-        json={"email": "admin@waybill.com", "password": "admin123", "role": "admin"}
+        json={"username": "admin", "email": "admin@waybill.com", "company_name": "WayBill HQ", "password": "admin123"}
     )
     assert response.status_code == 200, f"Login failed: {response.text}"
     token = response.json()["access_token"]
@@ -42,10 +42,16 @@ async def test_waybill_tampering(async_client, admin_headers):
     waybill_data = res.json()["data"]
     waybill_id = waybill_data["waybill_id"]
     
+    # 1.5 Seal the Waybill to generate seal_hash
+    from app.services.waybill_service import waybill_service
+    seal_res = waybill_service.seal_waybill(waybill_id, "admin-actor", "admin")
+    qr_code = seal_res["qr_code"]
+    seal_hash = seal_res["seal_hash"]
+    
     # Verify initially valid
     verify_res1 = await async_client.post(
         f"/api/waybills/{waybill_id}/verify", 
-        json={"idempotency_key": uuid.uuid4().hex, "seal_hash": waybill_data.get("qr_code", "NA")}, 
+        json={"idempotency_key": uuid.uuid4().hex, "seal_hash": seal_hash}, 
         headers=admin_headers
     )
     assert verify_res1.status_code == 200
@@ -60,7 +66,7 @@ async def test_waybill_tampering(async_client, admin_headers):
     # 3. Verify it is invalid
     verify_res2 = await async_client.post(
         f"/api/waybills/{waybill_id}/verify", 
-        json={"idempotency_key": uuid.uuid4().hex, "seal_hash": waybill_data.get("qr_code", "NA")}, 
+        json={"idempotency_key": uuid.uuid4().hex, "seal_hash": seal_hash}, 
         headers=admin_headers
     )
     assert verify_res2.status_code == 200

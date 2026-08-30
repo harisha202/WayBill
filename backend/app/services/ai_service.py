@@ -87,14 +87,16 @@ class _LRUCache:
 
 _cache = _LRUCache(_CACHE_MAX_SIZE, _CACHE_TTL)
 
+_EXPLAIN_STR = " Also include explainability fields: fact_basis (string), prediction (string), recommendation (string), confidence (number 0-100), data_sources (list of strings)."
+
 _PROMPTS = {
-    "forecast": "Return valid JSON with forecast, confidence, trend, seasonality_detected, summary, risk_factors, recommended_safety_stock, reorder_point.",
-    "supplier_risk": "Return valid JSON with overall_risk_score, risk_level, confidence, dimensions, red_flags, positive_indicators, recommendations, alternative_suppliers.",
-    "route": "Return valid JSON with optimised_sequence, total_distance_km, total_duration_hours, estimated_fuel_cost_inr, co2_kg, savings, risk_factors, recommendations.",
-    "inventory": "Return valid JSON with alert_level, items_at_risk, immediate_actions, weekly_actions, total_reorder_cost_inr.",
-    "anomaly": "Return valid JSON with anomaly_detected, severity, confidence, anomalies, delay_hours, eta_revised, customer_message.",
-    "blockchain": "Return valid JSON with summary, highlight, keyStage, steps, provenance_score, compliance_flags, journey_health.",
-    "dashboard": "Return valid JSON with headline, health_score, top_priority, alerts, opportunities, weekly_summary.",
+    "forecast": "Return valid JSON with forecast, confidence, trend, seasonality_detected, summary, risk_factors, recommended_safety_stock, reorder_point." + _EXPLAIN_STR,
+    "supplier_risk": "Return valid JSON with overall_risk_score, risk_level, confidence, dimensions, red_flags, positive_indicators, recommendations, alternative_suppliers." + _EXPLAIN_STR,
+    "route": "Return valid JSON with optimised_sequence, total_distance_km, total_duration_hours, estimated_fuel_cost_inr, co2_kg, savings, risk_factors, recommendations." + _EXPLAIN_STR,
+    "inventory": "Return valid JSON with alert_level, items_at_risk, immediate_actions, weekly_actions, total_reorder_cost_inr." + _EXPLAIN_STR,
+    "anomaly": "Return valid JSON with anomaly_detected, severity, confidence, anomalies, delay_hours, eta_revised, customer_message." + _EXPLAIN_STR,
+    "blockchain": "Return valid JSON with summary, highlight, keyStage, steps, provenance_score, compliance_flags, journey_health." + _EXPLAIN_STR,
+    "dashboard": "Return valid JSON with headline, health_score, top_priority, alerts, opportunities, weekly_summary." + _EXPLAIN_STR,
 }
 
 
@@ -371,7 +373,13 @@ def _call_json(
     provider_override: str | None = None,
     anthropic_api_key: str | None = None,
     gemini_api_key: str | None = None,
+    actor_id: str = "",
+    actor_role: str = "",
+    prompt_type: str = "ai_query"
 ) -> dict | list | None:
+    # Basic Prompt Injection Protection
+    user = user.replace("System:", "User:").replace("Assistant:", "User:").replace("Ignore previous", "Consider previous")
+    
     text = _call(
         system,
         user,
@@ -381,6 +389,22 @@ def _call_json(
         anthropic_api_key=anthropic_api_key,
         gemini_api_key=gemini_api_key,
     )
+    
+    if actor_id:
+        from app.services.audit_service import log_action
+        try:
+            log_action(
+                user=actor_id,
+                role=actor_role,
+                action="AI_QUERY",
+                entity="AI",
+                entity_id=prompt_type,
+                old_value={"user_prompt": user[:200]},
+                new_value={"response": text[:200] if text else ""}
+            )
+        except Exception as e:
+            logger.warning(f"Failed to log AI query: {e}")
+
     return _parse_json(text) if text else None
 
 
@@ -492,7 +516,7 @@ def predict_demand(history: list[float], horizon: int = 3) -> list[float]:
     return baseline
 
 
-def forecast_with_insights(product_name: str, history: list[float], horizon: int = 30, context: str = "") -> dict:
+def forecast_with_insights(product_name: str, history: list[float], horizon: int = 30, context: str = "", actor_id: str = "", actor_role: str = "") -> dict:
     clean = _sanitize(history)
     baseline = _baseline(clean, horizon)
     fallback_conf = _confidence_from_history(clean)
@@ -512,6 +536,9 @@ def forecast_with_insights(product_name: str, history: list[float], horizon: int
         _PROMPTS["forecast"],
         json.dumps({"product_name": product_name, "history": clean[-90:], "horizon": horizon, "context": context}),
         max_tokens=1200,
+        actor_id=actor_id,
+        actor_role=actor_role,
+        prompt_type="forecast"
     )
     if isinstance(result, dict):
         forecast = _coerce_forecast(result.get("forecast"), horizon) or baseline
@@ -528,7 +555,7 @@ def forecast_with_insights(product_name: str, history: list[float], horizon: int
     return fallback
 
 
-def analyse_supplier_risk(supplier_name: str, supplier_data: dict, news_snippets: list[str] | None = None) -> dict:
+def analyse_supplier_risk(supplier_name: str, supplier_data: dict, news_snippets: list[str] | None = None, actor_id: str = "", actor_role: str = "") -> dict:
     fallback: dict[str, Any] = {
         "overall_risk_score": 50,
         "risk_level": "medium",
@@ -545,11 +572,14 @@ def analyse_supplier_risk(supplier_name: str, supplier_data: dict, news_snippets
         _PROMPTS["supplier_risk"],
         json.dumps({"supplier_name": supplier_name, "supplier_data": supplier_data, "news_snippets": news_snippets or []}),
         max_tokens=1200,
+        actor_id=actor_id,
+        actor_role=actor_role,
+        prompt_type="supplier_risk"
     )
     return result if isinstance(result, dict) and "overall_risk_score" in result else fallback
 
 
-def optimise_delivery_route(warehouse: str, stops: list[dict], constraints: dict | None = None) -> dict:
+def optimise_delivery_route(warehouse: str, stops: list[dict], constraints: dict | None = None, actor_id: str = "", actor_role: str = "") -> dict:
     fallback = {
         "optimised_sequence": [
             {"stop": index + 1, "location": stop.get("location", ""), "eta": "N/A", "distance_from_prev_km": 0, "notes": ""}
@@ -569,6 +599,9 @@ def optimise_delivery_route(warehouse: str, stops: list[dict], constraints: dict
         _PROMPTS["route"],
         json.dumps({"warehouse": warehouse, "stops": stops, "constraints": constraints or {}}),
         max_tokens=1200,
+        actor_id=actor_id,
+        actor_role=actor_role,
+        prompt_type="route_optimizer"
     )
     return result if isinstance(result, dict) and "optimised_sequence" in result else fallback
 
@@ -610,13 +643,16 @@ def predict_low_stock(inventory_data: list[dict], api_key: str = "") -> list[dic
                     **item,
                     "recommendation": match.get("recommendation", item.get("recommendation", "")),
                     "priority": match.get("priority", item.get("priority", "medium")),
+                    "fact_basis": match.get("fact_basis", result.get("fact_basis", "")),
+                    "prediction": match.get("prediction", result.get("prediction", "")),
+                    "confidence": match.get("confidence", result.get("confidence", 0)),
                 }
             )
         return merged
     return inventory_data
 
 
-def check_inventory_alerts(inventory_items: list[dict], avg_daily_demand: dict[str, float] | None = None) -> dict:
+def check_inventory_alerts(inventory_items: list[dict], avg_daily_demand: dict[str, float] | None = None, actor_id: str = "", actor_role: str = "") -> dict:
     items_at_risk: list[dict] = []
     for item in inventory_items:
         current_stock = int(item.get("current_stock", item.get("currentStock", item.get("quantity", 0))) or 0)
@@ -663,6 +699,9 @@ def check_inventory_alerts(inventory_items: list[dict], avg_daily_demand: dict[s
         _PROMPTS["inventory"],
         json.dumps({"inventory_items": inventory_items, "avg_daily_demand": avg_daily_demand or {}}),
         max_tokens=1200,
+        actor_id=actor_id,
+        actor_role=actor_role,
+        prompt_type="inventory_alerts"
     )
     return result if isinstance(result, dict) and "alert_level" in result else fallback
 
@@ -672,7 +711,7 @@ def predict_delay_risk(distance_km: float, weather_score: float, traffic_score: 
     return round(max(0.0, min(1.0, raw)), 3)
 
 
-def detect_shipment_anomalies(tracking_id: str, tracking_events: list[dict], expected_delivery: str) -> dict:
+def detect_shipment_anomalies(tracking_id: str, tracking_events: list[dict], expected_delivery: str, actor_id: str = "", actor_role: str = "") -> dict:
     fallback = {
         "anomaly_detected": False,
         "severity": "none",
@@ -688,6 +727,9 @@ def detect_shipment_anomalies(tracking_id: str, tracking_events: list[dict], exp
         _PROMPTS["anomaly"],
         json.dumps({"tracking_id": tracking_id, "tracking_events": tracking_events, "expected_delivery": expected_delivery}),
         max_tokens=1200,
+        actor_id=actor_id,
+        actor_role=actor_role,
+        prompt_type="shipment_anomalies"
     )
     return result if isinstance(result, dict) and "anomaly_detected" in result else fallback
 
@@ -723,7 +765,7 @@ def summarize_product_journey(journey: list[dict]) -> dict:
     return fallback
 
 
-def get_dashboard_insights(inventory_summary: dict, recent_shipments: list[dict], top_suppliers: list[dict]) -> dict:
+def get_dashboard_insights(inventory_summary: dict, recent_shipments: list[dict], top_suppliers: list[dict], actor_id: str = "", actor_role: str = "") -> dict:
     fallback = {
         "headline": "Supply chain data loaded. AI insights are unavailable.",
         "health_score": 50,
@@ -738,6 +780,9 @@ def get_dashboard_insights(inventory_summary: dict, recent_shipments: list[dict]
         _PROMPTS["dashboard"],
         json.dumps({"inventory_summary": inventory_summary, "recent_shipments": recent_shipments[:10], "top_suppliers": top_suppliers[:5]}),
         max_tokens=800,
+        actor_id=actor_id,
+        actor_role=actor_role,
+        prompt_type="dashboard_insights"
     )
     return result if isinstance(result, dict) and "headline" in result else fallback
 
@@ -770,25 +815,25 @@ async def _acall_json(system: str, user: str, **kwargs) -> dict | list | None:
     return await _to_thread(_call_json, system, user, **kwargs)
 
 
-async def aforecast_with_insights(product_name: str, history: list[float], horizon: int = 30, context: str = "") -> dict:
-    return await _to_thread(forecast_with_insights, product_name, history, horizon, context)
+async def aforecast_with_insights(product_name: str, history: list[float], horizon: int = 30, context: str = "", actor_id: str = "", actor_role: str = "") -> dict:
+    return await _to_thread(forecast_with_insights, product_name, history, horizon, context, actor_id=actor_id, actor_role=actor_role)
 
 
-async def aanalyse_supplier_risk(name: str, data: dict, news: list[str] | None = None) -> dict:
-    return await _to_thread(analyse_supplier_risk, name, data, news)
+async def aanalyse_supplier_risk(name: str, data: dict, news: list[str] | None = None, actor_id: str = "", actor_role: str = "") -> dict:
+    return await _to_thread(analyse_supplier_risk, name, data, news, actor_id=actor_id, actor_role=actor_role)
 
 
-async def aoptimise_delivery_route(warehouse: str, stops: list[dict], constraints: dict | None = None) -> dict:
-    return await _to_thread(optimise_delivery_route, warehouse, stops, constraints)
+async def aoptimise_delivery_route(warehouse: str, stops: list[dict], constraints: dict | None = None, actor_id: str = "", actor_role: str = "") -> dict:
+    return await _to_thread(optimise_delivery_route, warehouse, stops, constraints, actor_id=actor_id, actor_role=actor_role)
 
 
-async def acheck_inventory_alerts(items: list[dict], demand: dict | None = None) -> dict:
-    return await _to_thread(check_inventory_alerts, items, demand)
+async def acheck_inventory_alerts(items: list[dict], demand: dict | None = None, actor_id: str = "", actor_role: str = "") -> dict:
+    return await _to_thread(check_inventory_alerts, items, demand, actor_id=actor_id, actor_role=actor_role)
 
 
-async def adetect_shipment_anomalies(tid: str, events: list[dict], expected: str) -> dict:
-    return await _to_thread(detect_shipment_anomalies, tid, events, expected)
+async def adetect_shipment_anomalies(tid: str, events: list[dict], expected: str, actor_id: str = "", actor_role: str = "") -> dict:
+    return await _to_thread(detect_shipment_anomalies, tid, events, expected, actor_id=actor_id, actor_role=actor_role)
 
 
-async def aget_dashboard_insights(inv: dict, shipments: list[dict], suppliers: list[dict]) -> dict:
-    return await _to_thread(get_dashboard_insights, inv, shipments, suppliers)
+async def aget_dashboard_insights(inv: dict, shipments: list[dict], suppliers: list[dict], actor_id: str = "", actor_role: str = "") -> dict:
+    return await _to_thread(get_dashboard_insights, inv, shipments, suppliers, actor_id=actor_id, actor_role=actor_role)

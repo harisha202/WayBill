@@ -21,38 +21,45 @@ def test_admin_can_list_users():
     assert "password" not in str(data)
     assert "password_hash" not in str(data)
 
+import uuid
+
 def test_admin_can_create_manufacturer():
+    unique = uuid.uuid4().hex[:8]
     payload = {
-        "username": "test_mfg_01",
+        "username": f"test_mfg_{unique}",
         "password": "password123",
         "full_name": "Test Manufacturer",
-        "email": "testmfg@example.com",
+        "email": f"testmfg_{unique}@example.com",
         "role": UserRole.manufacturer.value,
         "company_name": "Test Mfg Co"
     }
     response = client.post("/api/admin/users", json=payload, headers=get_admin_headers())
     assert response.status_code == 200
-    assert response.json()["data"]["username"] == "test_mfg_01"
+    assert response.json()["data"]["username"] == payload["username"]
     
 def test_admin_cannot_create_manufacturer_without_company():
+    unique = uuid.uuid4().hex[:8]
     payload = {
-        "username": "test_mfg_02",
+        "username": f"test_mfg_{unique}",
         "password": "password123",
         "full_name": "Test Manufacturer 2",
-        "email": "testmfg2@example.com",
+        "email": f"testmfg_{unique}@example.com",
         "role": UserRole.manufacturer.value,
         "company_name": ""
     }
     response = client.post("/api/admin/users", json=payload, headers=get_admin_headers())
     assert response.status_code == 400
+    assert "Company name is required" in str(response.json())
 
 def test_admin_cannot_create_admin():
+    unique = uuid.uuid4().hex[:8]
     payload = {
-        "username": "new_admin",
+        "username": f"test_admin_{unique}",
         "password": "password123",
-        "full_name": "New Admin",
-        "email": "admin2@example.com",
-        "role": UserRole.admin.value
+        "full_name": "Test Admin 2",
+        "email": f"testadmin_{unique}@example.com",
+        "role": UserRole.admin.value,
+        "company_name": "Test Admin Co"
     }
     response = client.post("/api/admin/users", json=payload, headers=get_admin_headers())
     assert response.status_code == 400

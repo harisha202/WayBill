@@ -1,9 +1,10 @@
+from app.services.tracking_service import TrackingService
 from fastapi import APIRouter, Depends, Request
 from app.core.middleware import require_roles
 from app.models.user import UserRole
 from app.schemas.tracking import RouteOptimizationRequest, RouteOptimizationResponse, GPSCoordinate
 from app.schemas.base import APIResponse
-from app.services.database_service import log_activity, _haversine_km
+from app.services.database_service import log_activity
 import random
 
 router = APIRouter(prefix="/route-optimizer", tags=["Route Optimizer"])
@@ -12,15 +13,20 @@ router = APIRouter(prefix="/route-optimizer", tags=["Route Optimizer"])
 def optimise_route(payload: RouteOptimizationRequest, request: Request):
     user = request.state.user if hasattr(request.state, "user") else {"sub": "sys", "role": "transporter"}
     
-    base_distance = _haversine_km(
+    base_distance = TrackingService.calculate_distance(
         payload.current_location.lat, payload.current_location.lng,
         payload.destination.lat, payload.destination.lng
     )
+    import hashlib
     
-    detour_factor = random.uniform(1.3, 1.5)
+    def hash_float(key: str, min_v: float, max_v: float) -> float:
+        h = int(hashlib.md5(key.encode()).hexdigest(), 16)
+        return min_v + (h % 1000) / 1000.0 * (max_v - min_v)
+        
+    detour_factor = hash_float(f"{payload.current_location.lat},{payload.destination.lng}", 1.3, 1.5)
     distance_before = base_distance * detour_factor
     
-    optimized_factor = random.uniform(1.1, 1.15)
+    optimized_factor = hash_float(f"opt_{payload.current_location.lat},{payload.destination.lng}", 1.1, 1.15)
     distance_after = base_distance * optimized_factor
     
     time_before = distance_before / 40.0
@@ -33,15 +39,18 @@ def optimise_route(payload: RouteOptimizationRequest, request: Request):
     money_saved = cost_before - cost_after
     percentage_saved = (money_saved / cost_before) * 100 if cost_before > 0 else 0
     
-    risk_before = random.uniform(0.6, 0.9)
-    risk_after = random.uniform(0.2, 0.4)
+    risk_before = hash_float(f"risk_b_{base_distance}", 0.6, 0.9)
+    risk_after = hash_float(f"risk_a_{base_distance}", 0.2, 0.4)
     
     mid_lat = (payload.current_location.lat + payload.destination.lat) / 2
     mid_lng = (payload.current_location.lng + payload.destination.lng) / 2
     
+    h_lat = hash_float(f"path_lat_{mid_lat}", -0.01, 0.01)
+    h_lng = hash_float(f"path_lng_{mid_lng}", -0.01, 0.01)
+    
     optimized_path = [
         payload.current_location,
-        GPSCoordinate(lat=mid_lat + random.uniform(-0.01, 0.01), lng=mid_lng + random.uniform(-0.01, 0.01)),
+        GPSCoordinate(lat=mid_lat + h_lat, lng=mid_lng + h_lng),
         payload.destination
     ]
     

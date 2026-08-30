@@ -14,7 +14,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import admin, ai, auth, blockchain, dealer, inventory, manufacturer, tracking, suppliers, route_optimizer, waybill, retail
+from app.api import admin, ai, auth, blockchain, dealer, disputes, inventory, manufacturer, notifications, tracking, suppliers, route_optimizer, waybill, retail
 from app.core.config import ConfigurationError, get_settings, validate_settings
 from app.services.ai_service import ai_status
 from app.services.database_service import DatabaseError, check_database_connection, initialize_database
@@ -70,6 +70,8 @@ def create_app() -> FastAPI:
     app.include_router(route_optimizer.router, prefix="/api")
     app.include_router(waybill.router, prefix="/api")
     app.include_router(retail.router, prefix="/api")
+    app.include_router(disputes.router, prefix="/api")
+    app.include_router(notifications.router, prefix="/api")
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
@@ -147,7 +149,18 @@ def create_app() -> FastAPI:
 
 
     @app.websocket("/ws/notifications/{user_id}")
-    async def notifications_socket(websocket: WebSocket, user_id: str) -> None:
+    async def notifications_socket(websocket: WebSocket, user_id: str, token: str = "") -> None:
+        from jose import JWTError, jwt
+        settings = get_settings()
+        try:
+            payload = jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
+            if payload.get("sub") != user_id and payload.get("role") != "admin":
+                await websocket.close(code=4001)
+                return
+        except JWTError:
+            await websocket.close(code=4001)
+            return
+
         await notification_service.connect(user_id, websocket)
         try:
             recent = notification_service.list_recent(limit=20, user_id=user_id)
@@ -158,6 +171,30 @@ def create_app() -> FastAPI:
             pass
         finally:
             await notification_service.disconnect(user_id, websocket)
+
+    @app.websocket("/ws/gps")
+    async def gps_socket(websocket: WebSocket, token: str = "") -> None:
+        from jose import JWTError, jwt
+        from app.services.websocket_manager import manager
+        settings = get_settings()
+        try:
+            payload = jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
+            role = payload.get("role")
+            if role not in ("transporter", "admin"):
+                await websocket.close(code=4001)
+                return
+        except JWTError:
+            await websocket.close(code=4001)
+            return
+
+        await manager.connect(websocket, role=role)
+        try:
+            while True:
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            pass
+        finally:
+            manager.disconnect(websocket)
 
     return app
 

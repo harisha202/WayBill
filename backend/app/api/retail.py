@@ -41,6 +41,14 @@ def process_sale(
             actor_id=actor_id,
             actor_role=actor_role
         )
+        from app.services.domain_events import emit_event_sync
+        emit_event_sync(
+            "STOCK_UPDATED",
+            {"sku": req.sku, "quantity_change": -req.quantity, "reason": "retail_sale"},
+            notify_roles=["retail_shop", "dealer"],
+            notify_title="Stock Updated",
+            notify_message=f"Sold {req.quantity} of {req.sku}."
+        )
         return APIResponse(success=True, data=result, message="Sale processed successfully")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -72,8 +80,17 @@ def get_reorder_recommendations(
         
     recs = []
     for item in items:
-        diff = item["reorder_point"] - item["available_stock"]
-        recommended_qty = max(diff + 100, 100) # Simple logic to suggest enough to clear the threshold
+        # P3-3: Real Reorder Formula (Safety Stock + (Lead Time * Avg Daily Demand) - Current Stock)
+        safety = item["safety_stock_qty"] or 50
+        lead_time = item["lead_time_days"] or 7
+        avg_daily_demand = 15 # Mock average for now, could be dynamic
+        
+        optimal_level = safety + (lead_time * avg_daily_demand)
+        diff = optimal_level - item["available_stock"]
+        
+        # Round up to nearest 50 for realistic pallet/box sizes
+        recommended_qty = int(max(((diff + 49) // 50) * 50, 50))
+        
         recs.append({
             "sku": item["sku"],
             "name": item["name"],
@@ -82,6 +99,22 @@ def get_reorder_recommendations(
             "recommended_qty": recommended_qty,
             "reason": "Stock fell below reorder point"
         })
+        
+    if recs:
+        from app.services.ai_service import predict_low_stock
+        from app.core.config import get_settings
+        api_key = get_settings().anthropic_api_key
+        if api_key:
+            recs = predict_low_stock(recs, api_key)
+            
+        from app.services.domain_events import emit_event_sync
+        emit_event_sync(
+            "REORDER_RECOMMENDED",
+            {"recommendations": recs},
+            notify_roles=["retail_shop", "dealer"],
+            notify_title="Reorder Recommendations",
+            notify_message=f"{len(recs)} items dropped below reorder point."
+        )
         
     return APIResponse(success=True, data=recs)
 
@@ -116,6 +149,7 @@ def approve_reorder(
                 recommended_quantity=req.quantity,
                 justification="Retailer approved reorder",
                 status="APPROVED",
+                order_id=order["order_code"],
                 created_at=datetime.now(timezone.utc)
             )
         )

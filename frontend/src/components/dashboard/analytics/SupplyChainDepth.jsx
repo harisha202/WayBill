@@ -32,9 +32,11 @@ function ForceNetwork({ data, onNodeClick }) {
   const [selectedNode, setSelectedNode] = useState(null);
   const animRef = useRef(null);
 
-  // Initialize positions in a circle by entity_type
+  // Initialize and run simulation
   useEffect(() => {
     if (!nodes.length) return;
+    
+    // 1. Initial positioning
     const W = 800, H = 480;
     const cx = W/2, cy = H/2;
     const typeGroups = {};
@@ -43,7 +45,7 @@ function ForceNetwork({ data, onNodeClick }) {
       typeGroups[n.entity_type].push(n.id);
     });
     const types = Object.keys(typeGroups);
-    const pos = {};
+    let initialPos = {};
     types.forEach((type, ti) => {
       const groupAngle = (ti / types.length) * Math.PI * 2;
       const radius = 160 + (types.length > 3 ? 40 : 0);
@@ -52,25 +54,22 @@ function ForceNetwork({ data, onNodeClick }) {
       typeGroups[type].forEach((id, i) => {
         const a = (i / typeGroups[type].length) * Math.PI * 2;
         const r = 50;
-        pos[id] = {
+        initialPos[id] = {
           x: gcx + r * Math.cos(a) + (Math.random()-0.5)*20,
           y: gcy + r * Math.sin(a) + (Math.random()-0.5)*20,
           vx: 0, vy: 0
         };
       });
     });
-    setPositions(pos);
-  }, [data]);
-
-  // Run simple spring simulation
-  useEffect(() => {
-    if (!Object.keys(positions).length || !nodes.length) return;
-    let pos = {...positions};
+    
+    // Set initial positions immediately so we see something
+    setPositions(initialPos);
+    
+    // 2. Run simulation
+    let pos = {...initialPos};
     let frames = 0;
-    const _edgeSet = new Set(edges.map(e => `${e.source}-${e.target}`));
-
+    
     function tick() {
-      const W = 800, H = 480;
       const next = {};
       nodes.forEach(n => {
         next[n.id] = { ...pos[n.id], vx: (pos[n.id]?.vx||0)*0.85, vy: (pos[n.id]?.vy||0)*0.85 };
@@ -113,15 +112,23 @@ function ForceNetwork({ data, onNodeClick }) {
 
       pos = next;
       frames++;
+      
+      // Update state every few frames for smooth animation
+      if (frames % 5 === 0) {
+        setPositions(next);
+      }
+      
       if (frames < 60) {
         animRef.current = requestAnimationFrame(tick);
       } else {
         setPositions(next);
       }
     }
+    
     animRef.current = requestAnimationFrame(tick);
+    
     return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
-  }, [data, positions]);
+  }, [data]);
 
   if (!nodes.length) return <div style={{color:'var(--muted)',textAlign:'center',padding:'2rem'}}>No network data</div>;
 

@@ -9,6 +9,6 @@ export const trackingApi = {
             speed: speed,
             heading: heading
         });
-        return response.data;
+        return response;
     }
 };

@@ -63,6 +63,7 @@ def test_send_email_uses_starttls_login_and_send(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
 
     service = EmailService()
+    service.sender_password = "a" * 16
 
     assert service.send_email("user@example.com", "Test Subject", "<b>Hello</b>", "Hello") is True
     assert calls == [
@@ -78,6 +79,7 @@ def test_send_email_uses_starttls_login_and_send(monkeypatch: pytest.MonkeyPatch
 
 def test_send_email_rejects_invalid_recipient() -> None:
     service = EmailService()
+    service.sender_password = "a" * 16
 
     assert service.send_email("not-an-email", "Test", "<b>Hello</b>", "Hello") is False
     assert service.last_error_message == "ValueError: Invalid recipient email address"
@@ -85,6 +87,7 @@ def test_send_email_rejects_invalid_recipient() -> None:
 
 def test_send_email_rejects_invalid_sender(monkeypatch: pytest.MonkeyPatch) -> None:
     service = EmailService()
+    service.sender_password = "a" * 16
     monkeypatch.setattr(service, "sender_email", "invalid-sender")
 
     assert service.send_email("user@example.com", "Test", "<b>Hello</b>", "Hello") is False

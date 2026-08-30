@@ -2,20 +2,47 @@ import React, { useState } from 'react';
 
 const SealVerificationCenter = () => {
   const [waybillId, setWaybillId] = useState('');
-  const [status, setStatus] = useState('idle'); // 'idle', 'loading', 'verified', 'tampered'
+  const [sealHash, setSealHash] = useState('');
+  const [status, setStatus] = useState('idle'); // 'idle', 'loading', 'verified', 'tampered', 'error'
+  const [verifyResult, setVerifyResult] = useState(null);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  const handleVerify = (e) => {
+  const handleVerify = async (e) => {
     e.preventDefault();
-    if (!waybillId.trim()) return;
+    if (!waybillId.trim() || !sealHash.trim()) return;
     setStatus('loading');
-    setTimeout(() => {
-      // Mock logic: if ID contains 'TAMPER' or 'X', it fails. Otherwise verified.
-      const isTampered = waybillId.toUpperCase().includes('TAMPER') || waybillId.toUpperCase().includes('X');
-      setStatus(isTampered ? 'tampered' : 'verified');
-    }, 1200);
+    setVerifyResult(null);
+    setErrorMsg('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/waybills/${encodeURIComponent(waybillId.trim())}/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ seal_hash: sealHash.trim() }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Server error: ${res.status}`);
+      }
+
+      const data = await res.json();
+      // Backend returns { valid: bool, current_status, custody, batch_id, sku, quantity, reason }
+      const result = data.data || data;
+      setVerifyResult(result);
+      setStatus(result.valid ? 'verified' : 'tampered');
+    } catch (err) {
+      setErrorMsg(err.message || 'Unknown error');
+      setStatus('error');
+    }
   };
 
   const isTampered = status === 'tampered';
+  const isVerified = status === 'verified';
 
   return (
     <div style={{
@@ -26,7 +53,9 @@ const SealVerificationCenter = () => {
       fontFamily: 'system-ui, sans-serif'
     }}>
       <h2 style={{ fontSize: '1.5rem', fontWeight: '700', marginBottom: '4px' }}>Seal Verification Center</h2>
-      <p style={{ color: 'var(--muted)', marginBottom: '24px', fontSize: '0.95rem' }}>Enter Waybill ID to verify cryptographic seal and custody chain.</p>
+      <p style={{ color: 'var(--muted)', marginBottom: '24px', fontSize: '0.95rem' }}>
+        Enter Waybill ID and Seal Hash to verify cryptographic seal and custody chain.
+      </p>
 
       <div style={{
         background: 'var(--bg)',
@@ -36,10 +65,10 @@ const SealVerificationCenter = () => {
         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
         marginBottom: '24px'
       }}>
-        <form onSubmit={handleVerify} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '16px', alignItems: 'center' }}>
-          <input 
-            type="text" 
-            placeholder="e.g. WAY-8890-SECURE" 
+        <form onSubmit={handleVerify} style={{ display: 'grid', gap: '12px' }}>
+          <input
+            type="text"
+            placeholder="Waybill ID (e.g. WAY-8890ABCD)"
             value={waybillId}
             onChange={(e) => setWaybillId(e.target.value)}
             style={{
@@ -50,12 +79,31 @@ const SealVerificationCenter = () => {
               color: 'var(--text)',
               fontSize: '1rem',
               outline: 'none',
-              width: '100%'
+              width: '100%',
+              boxSizing: 'border-box',
             }}
           />
-          <button 
+          <input
+            type="text"
+            placeholder="Seal Hash (SHA-256 hex string)"
+            value={sealHash}
+            onChange={(e) => setSealHash(e.target.value)}
+            style={{
+              background: 'var(--surface)',
+              border: '1px solid #334155',
+              padding: '12px 16px',
+              borderRadius: '8px',
+              color: 'var(--text)',
+              fontSize: '0.9rem',
+              fontFamily: 'monospace',
+              outline: 'none',
+              width: '100%',
+              boxSizing: 'border-box',
+            }}
+          />
+          <button
             type="submit"
-            disabled={status === 'loading'}
+            disabled={status === 'loading' || !waybillId.trim() || !sealHash.trim()}
             style={{
               background: status === 'loading' ? 'var(--border)' : '#0F6E56',
               color: 'var(--text)',
@@ -64,16 +112,30 @@ const SealVerificationCenter = () => {
               borderRadius: '8px',
               fontSize: '1rem',
               fontWeight: '600',
-              cursor: status === 'loading' ? 'not-allowed' : 'pointer',
-              transition: 'background 0.2s'
+              cursor: (status === 'loading' || !waybillId.trim() || !sealHash.trim()) ? 'not-allowed' : 'pointer',
+              transition: 'background 0.2s',
+              width: '100%',
             }}
           >
-            {status === 'loading' ? 'Verifying...' : 'Verify'}
+            {status === 'loading' ? 'Verifying...' : 'Verify Seal'}
           </button>
         </form>
       </div>
 
-      {status !== 'idle' && status !== 'loading' && (
+      {status === 'error' && (
+        <div style={{
+          background: 'rgba(220, 38, 38, 0.1)',
+          border: '1px solid #dc2626',
+          padding: '16px 24px',
+          borderRadius: '12px',
+          color: '#f87171',
+          marginBottom: '24px'
+        }}>
+          ⚠️ Verification failed: {errorMsg}
+        </div>
+      )}
+
+      {(isVerified || isTampered) && verifyResult && (
         <div style={{ display: 'grid', gap: '24px' }}>
           <div style={{
             background: isTampered ? 'rgba(220, 38, 38, 0.1)' : 'rgba(16, 185, 129, 0.1)',
@@ -86,29 +148,30 @@ const SealVerificationCenter = () => {
             alignItems: 'center',
             gap: '12px'
           }}>
-            <div style={{ 
-              fontSize: '4rem', 
+            <div style={{
+              fontSize: '4rem',
               lineHeight: '1',
               filter: `drop-shadow(0 0 16px ${isTampered ? 'rgba(220,38,38,0.4)' : 'rgba(16,185,129,0.4)'})`
             }}>
               {isTampered ? '❌' : '✅'}
             </div>
-            <h1 style={{ 
-              fontSize: '2.5rem', 
-              fontWeight: '800', 
-              margin: '0', 
+            <h1 style={{
+              fontSize: '2.5rem',
+              fontWeight: '800',
+              margin: '0',
               color: isTampered ? '#f87171' : '#34d399',
               letterSpacing: '0.05em'
             }}>
               {isTampered ? 'TAMPER DETECTED' : 'VERIFIED'}
             </h1>
             <p style={{ color: 'var(--muted)', fontSize: '1.1rem', margin: '0' }}>
-              {isTampered 
-                ? 'Security breach identified. Quarantine shipment immediately.' 
+              {isTampered
+                ? (verifyResult.reason || 'Security breach identified. Quarantine shipment immediately.')
                 : 'All cryptographic checks passed. Shipment integrity confirmed.'}
             </p>
           </div>
 
+          {/* Details panel */}
           <div style={{
             background: 'var(--bg)',
             borderRadius: '12px',
@@ -116,29 +179,31 @@ const SealVerificationCenter = () => {
             overflow: 'hidden'
           }}>
             <div style={{ padding: '16px 24px', borderBottom: '1px solid #1e293b', background: 'var(--surface)' }}>
-              <h3 style={{ margin: '0', fontSize: '1.1rem', fontWeight: '600' }}>Diagnostic Ledger</h3>
+              <h3 style={{ margin: '0', fontSize: '1.1rem', fontWeight: '600' }}>Verification Details</h3>
             </div>
             <div style={{ padding: '0' }}>
               {[
-                { 
-                  label: 'IoT E-Seal Status', 
-                  desc: 'Cryptographic lock integrity check.', 
-                  pass: !isTampered 
+                {
+                  label: 'Cryptographic Seal',
+                  desc: 'SHA-256 hash match against database record.',
+                  pass: isVerified
                 },
-                { 
-                  label: 'Chain of Custody', 
-                  desc: 'GPS continuous ping and node handshakes.', 
-                  pass: !isTampered 
+                {
+                  label: 'Chain of Custody',
+                  desc: `Current custodian: ${verifyResult.custody || 'Unknown'}`,
+                  pass: isVerified
                 },
-                { 
-                  label: 'Blockchain Ledger', 
-                  desc: 'Smart contract state and TxHash matching.', 
-                  pass: true 
+                {
+                  label: 'Waybill Status',
+                  desc: `Status: ${verifyResult.current_status || 'Unknown'}`,
+                  pass: isVerified
                 },
-                { 
-                  label: 'Digital Documents', 
-                  desc: 'E-Waybill, Invoice, and BoL hashes.', 
-                  pass: true
+                {
+                  label: 'Product Info',
+                  desc: verifyResult.sku
+                    ? `SKU: ${verifyResult.sku} | Qty: ${verifyResult.quantity}`
+                    : 'Not available',
+                  pass: Boolean(verifyResult.sku)
                 }
               ].map((check, idx) => (
                 <div key={idx} style={{
