@@ -4,7 +4,7 @@ import math
 from sqlalchemy import insert, select, update
 from typing import Dict, Any, List
 
-from app.services.database_service import _engine, shipments_table, trucks_table, drivers_table, waybill_documents_table, gps_events_table, interventions_table
+from app.services.database_service import _engine, shipments_table, trucks_table, drivers_table, gps_events_table, interventions_table
 from app.services.audit_service import audit_service
 from app.services.domain_events import emit_event_sync
 
@@ -162,6 +162,21 @@ class TrackingService:
             
             if not shipment:
                 raise ValueError("Shipment not found")
+            truck = conn.execute(
+                select(trucks_table).where(trucks_table.c.plate_number == truck_id)
+            ).first()
+            if not truck:
+                raise ValueError("Truck not found")
+            if str(truck.maintenance_status or "").lower() in {"maintenance", "unavailable", "out_of_service"}:
+                raise ValueError("Truck is not available for assignment")
+            if shipment.weight is not None and truck.capacity is not None and float(shipment.weight) > float(truck.capacity):
+                raise ValueError("Shipment weight exceeds truck capacity")
+
+            driver = conn.execute(
+                select(drivers_table).where(drivers_table.c.license_id == driver_id)
+            ).first()
+            if not driver:
+                raise ValueError("Driver not found")
                 
             conn.execute(
                 update(shipments_table)
@@ -171,7 +186,7 @@ class TrackingService:
                     assignment_status="ASSIGNED",
                     transporter_id=actor_id if actor_role == "transporter" else None,
                     status="IN_TRANSIT",
-                    updated_at=timestamp
+                    timestamp=timestamp
                 )
             )
 

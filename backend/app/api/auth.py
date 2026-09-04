@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime, timedelta, timezone
+from typing import Optional
+
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from jose import JWTError, jwt  # type: ignore[import-untyped]
@@ -22,13 +24,16 @@ from app.services.database_service import (
     record_failed_login,
     reset_failed_logins,
     is_account_locked,
+    log_activity,
 )
 from app.services.email_service import get_email_service
 from app.services.otp_service import OTPService
+from app.services.notification_service import notification_service
+from app.services.domain_events import emit_event_sync
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from fastapi import Request, Depends, HTTPException, status, APIRouter
+from fastapi import Request, Depends, HTTPException, status, APIRouter, Body
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 limiter = Limiter(key_func=get_remote_address)
@@ -39,11 +44,21 @@ otp_service = OTPService()
 email_service = get_email_service()
 
 
+class PasswordRecoveryRequest(BaseModel):
+    email: str
+    username: Optional[str] = None
+    role: Optional[str] = None
+
+PasswordRecoveryRequest.model_rebuild()
+
+
+
 class LoginRequest(BaseModel):
     username: str
     email: str
     company_name: str
     password: str
+
 
 
 class SendOTPRequest(BaseModel):
@@ -389,4 +404,109 @@ def validate_token(
     ),
 ):
     return {"valid": True, "payload": payload}
+
+
+from fastapi import Body
+
+@router.post("/forgot-password")
+@router.post("/request-password-recovery")
+@limiter.limit(lambda: os.getenv("RATE_LIMIT_AUTH", "5/minute"))
+async def request_password_recovery(request: Request):
+    """
+    Allow eligible supply-chain users (Manufacturer, Transporter, Dealer, Retail Shop)
+    to request password recovery.
+    Security Model: Only ADMIN can authorize and reset password via server-generated OTP.
+    """
+    try:
+        body = await request.json()
+        data = PasswordRecoveryRequest(**body)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid request payload: {exc}")
+
+    email = normalize_email(data.email)
+    try:
+        user = get_user_by_email(email)
+
+    except DatabaseError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database temporarily unavailable",
+        ) from exc
+
+    if not user:
+        # Generic safe response to prevent user enumeration
+        return {
+            "success": True,
+            "message": "If an authorized account is associated with this email, your password reset request has been logged. An administrator must authorize the reset and initiate OTP verification.",
+        }
+
+    role = str(user.get("role", "")).lower()
+    if role == UserRole.admin.value.lower():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Admin accounts cannot request password recovery through this workflow. Contact system administrator.",
+        )
+
+    # Eligible roles check
+    eligible_roles = {
+        UserRole.manufacturer.value.lower(),
+        UserRole.transporter.value.lower(),
+        UserRole.dealer.value.lower(),
+        UserRole.retail_shop.value.lower(),
+    }
+    if role not in eligible_roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This account role is not eligible for automated password recovery requests.",
+        )
+
+    # Log security & audit event
+    log_activity(
+        user_id=str(user["id"]),
+        role=role,
+        action="PASSWORD_RESET_REQUESTED",
+        entity_type="user",
+        entity_id=str(user["id"]),
+        details={
+            "email": email,
+            "username": user.get("username"),
+            "company": user.get("company_name"),
+            "role": role,
+            "status": "PENDING_ADMIN_AUTHORIZATION",
+        },
+    )
+
+    # Notify Administrator
+    notification_service.publish(
+        user_id="admin",
+        title="Password Reset Request",
+        message=f"User {user.get('username', email)} ({user.get('company_name', '-')} | {role.upper()}) requested password recovery. Admin authorization required.",
+        metadata={
+            "user_id": user["id"],
+            "email": user["email"],
+            "username": user.get("username"),
+            "role": role,
+            "company": user.get("company_name"),
+        },
+    )
+
+    emit_event_sync(
+        "PASSWORD_RESET_REQUESTED",
+        {
+            "user_id": user["id"],
+            "email": user["email"],
+            "role": role,
+            "company": user.get("company_name"),
+        },
+        notify_roles=["admin"],
+        notify_severity="warning",
+        notify_title="Password Reset Requested",
+        notify_message=f"Password recovery requested for {user.get('username', email)} ({role.upper()}). Admin authorization required.",
+    )
+
+    return {
+        "success": True,
+        "message": "Password recovery request submitted. Please notify your Administrator to authorize the reset and dispatch your verification OTP.",
+    }
+
 

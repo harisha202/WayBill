@@ -39,7 +39,7 @@ target_metadata = metadata
 def run_migrations_offline() -> None:
     settings = get_settings()
     url = settings.database_url or f"sqlite:///{settings.sqlite_db_path}"
-    context.configure(
+    context.configure(render_as_batch=True,
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
@@ -67,7 +67,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
+        context.configure(render_as_batch=True,
             connection=connection, target_metadata=target_metadata
         )
 

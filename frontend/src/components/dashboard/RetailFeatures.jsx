@@ -318,10 +318,11 @@ export function RetailReplenishmentOrders() {
         if (!window.confirm(`Reject AI recommendation for ${sku}?`)) return;
         setProcessing(sku);
         try {
-            // Mock reject endpoint since it doesn't exist on backend
-            // In a real app we would call retailApi.rejectReorder(sku);
+            await retailApi.rejectReorder(sku);
             alert(`Rejected recommendation for ${sku}.`);
             refetch(); 
+        } catch (e) {
+            alert("Error: " + (e.response?.data?.detail || e.message));
         } finally {
             setProcessing(null);
         }
@@ -494,7 +495,7 @@ export function RetailQRTraceability() {
                 if (data.success && data.data && data.data.is_valid) {
                     setResult({ 
                         status: 'VERIFIED', 
-                        message: 'Waybill Document is authentic and matches blockchain records.', 
+                        message: 'Waybill Document is authentic and matches hash-chain records.', 
                         timestamp: new Date().toISOString(),
                         details: data.data 
                     });

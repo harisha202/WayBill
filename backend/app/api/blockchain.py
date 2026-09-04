@@ -229,14 +229,14 @@ def get_chain_of_custody():
     from sqlalchemy import select, desc
     
     with _engine().begin() as conn:
-        stmt = select(custody_events_table).order_by(desc(custody_events_table.c.timestamp)).limit(10)
+        stmt = select(custody_events_table).order_by(desc(custody_events_table.c.created_at)).limit(10)
         rows = conn.execute(stmt).mappings().all()
         
         data = []
         for r in rows:
             data.append({
-                "actor": r["to_party"] or "Unknown",
-                "time": str(r["timestamp"]),
+                "actor": r["to_custodian"] or "Unknown",
+                "time": str(r["created_at"]),
                 "location": r["location"] or "Unknown",
                 "hash": r["event_hash"] or "0x000"
             })
@@ -249,7 +249,7 @@ def get_seal_verification():
     from sqlalchemy import select
     
     with _engine().begin() as conn:
-        stmt = select(waybill_documents_table).where(waybill_documents_table.c.is_sealed == True).limit(1)
+        stmt = select(waybill_documents_table).where(waybill_documents_table.c.seal_hash.is_not(None)).limit(1)
         row = conn.execute(stmt).mappings().first()
         if row:
             return APIResponse(success=True, data={"valid": True, "original_hash": row["seal_hash"], "current_hash": row["seal_hash"]})
@@ -263,9 +263,10 @@ def get_qr_rate():
     
     with _engine().begin() as conn:
         total = conn.execute(select(func.count()).select_from(waybill_documents_table)).scalar() or 0
-        sealed = conn.execute(select(func.count()).select_from(waybill_documents_table).where(waybill_documents_table.c.is_sealed == True)).scalar() or 0
+        sealed = conn.execute(select(func.count()).select_from(waybill_documents_table).where(waybill_documents_table.c.seal_hash.is_not(None))).scalar() or 0
         success_rate = round((sealed / total * 100) if total > 0 else 100.0, 1)
         return APIResponse(success=True, data={"success_rate": success_rate, "invalid": int(total * 0.05), "expired": int(total * 0.02), "tampered": 0})
+
 
 @router.get("/analytics/ledger-integrity", dependencies=[Depends(require_roles(UserRole.admin))])
 def get_ledger_integrity():

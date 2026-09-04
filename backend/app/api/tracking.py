@@ -110,6 +110,26 @@ def get_shipment(shipment_id: str):
             raise HTTPException(status_code=404, detail="Shipment not found")
         return APIResponse(success=True, data=dict(shipment._mapping))
 
+@router.post("/shipments/{shipment_id}/assign-vehicle", dependencies=[Depends(require_roles(UserRole.admin, UserRole.transporter))])
+def assign_vehicle(
+    shipment_id: str,
+    data: VehicleAssignmentRequest,
+    payload: dict = Depends(require_roles(UserRole.admin, UserRole.transporter)),
+):
+    try:
+        actor_id = payload.get("sub", "unknown")
+        actor_role = payload.get("role", "unknown")
+        result = tracking_service.assign_vehicle(
+            shipment_id=shipment_id,
+            truck_id=data.truck_id,
+            driver_id=data.driver_id,
+            actor_id=actor_id,
+            actor_role=actor_role,
+        )
+        return APIResponse(success=True, data=result)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @router.post("/shipments/{shipment_id}/interventions", dependencies=[Depends(require_roles(UserRole.admin, UserRole.transporter))])
 def report_intervention(shipment_id: str, data: InterventionRequest, payload: dict = Depends(require_roles(UserRole.admin, UserRole.transporter))):
     try:
@@ -141,7 +161,7 @@ def get_drivers():
 # ─── TRANSPORTER ANALYTICS ENDPOINTS ──────────────────────────────────────────
 
 @router.get("/reports/export", dependencies=[Depends(require_roles(UserRole.admin, UserRole.transporter))])
-def export_tracking_report(type: str = Query("shipments", regex="^(shipments|fleet|drivers)$")):
+def export_tracking_report(type: str = Query("shipments", pattern="^(shipments|fleet|drivers)$")):
     from app.services.database_service import _engine, shipments_table, trucks_table, drivers_table
     from sqlalchemy import select
     import csv, io
@@ -168,7 +188,6 @@ def export_tracking_report(type: str = Query("shipments", regex="^(shipments|fle
         writer.writerow(["No data"])
         
     return Response(content=stream.getvalue().encode("utf-8"), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="tracking_{type}.csv"'})
-
 
 @router.get("/analytics/overview", dependencies=[Depends(require_roles(UserRole.admin, UserRole.transporter))])
 def transporter_overview_analytics(days: int = Query(30, ge=7, le=365)):

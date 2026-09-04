@@ -1,38 +1,15 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 
 const QRScanner = ({ onScan }) => {
   const [isCameraActive, setIsCameraActive] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [manualValue, setManualValue] = useState('');
 
-  const handleScanResult = async (qrString) => {
+  const handleScanResult = (qrString) => {
     if (!qrString) return;
-    
-    // Extract waybill_id: assumes format could be a URL like "https://domain.com/waybill/ID123" or just "ID123"
-    let waybillId = qrString;
-    try {
-      const url = new URL(qrString);
-      const parts = url.pathname.split('/');
-      waybillId = parts[parts.length - 1];
-    } catch (e) {
-      // not a URL, use as is
-    }
-
-    setLoading(true);
     setError(null);
     setIsCameraActive(false);
-
-    try {
-      const response = await axios.post(`/api/waybill/${waybillId}/verify`, { seal_hash: '' });
-      setResult(response.data);
-      if (onScan) onScan(response.data);
-    } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Verification failed');
-    } finally {
-      setLoading(false);
-    }
+    if (onScan) onScan(qrString);
   };
 
   const containerStyle = {
@@ -103,8 +80,6 @@ const QRScanner = ({ onScan }) => {
           </>
         )}
         
-        {loading && <div style={{ marginTop: '1rem', color: 'var(--primary)' }}>Verifying...</div>}
-        
         {error && (
           <div style={{ marginTop: '1rem', color: 'red', textAlign: 'center' }}>
             <strong>Error:</strong> {error}
@@ -112,24 +87,29 @@ const QRScanner = ({ onScan }) => {
             <button onClick={() => { setError(null); setIsCameraActive(true); }} style={{ marginTop: '0.5rem' }}>Retry</button>
           </div>
         )}
-
-        {result && (
-          <div style={{ marginTop: '1rem', padding: '1rem', background: 'var(--surface, #fff)', border: '1px solid var(--border, #ccc)', borderRadius: '8px', width: '100%', maxWidth: '400px' }}>
-            <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>Verification Successful</h3>
-            <p><strong>Waybill Info:</strong> {result.waybill_info || 'N/A'}</p>
-            <p><strong>Batch:</strong> {result.batch || 'N/A'}</p>
-            <p><strong>Product:</strong> {result.product || 'N/A'}</p>
-            <p><strong>Custody Chain:</strong> {result.custody_chain || 'N/A'}</p>
-            <button onClick={() => { setResult(null); setIsCameraActive(true); }} style={{ marginTop: '1rem', padding: '0.5rem 1rem', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '4px' }}>Scan Another</button>
-          </div>
-        )}
         
-        {isCameraActive && !loading && (
-          <button 
-            onClick={() => handleScanResult('WAY-12345')} 
-            style={{ marginTop: '1rem', padding: '0.5rem 1rem' }}>
-            Simulate Scan (WAY-12345)
-          </button>
+        {isCameraActive && (
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!manualValue.trim()) {
+                setError('Enter a waybill QR payload or waybill ID.');
+                return;
+              }
+              handleScanResult(manualValue.trim());
+            }}
+            style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', width: '100%', maxWidth: '420px' }}
+          >
+            <input
+              value={manualValue}
+              onChange={(event) => setManualValue(event.target.value)}
+              placeholder="Waybill ID or QR payload"
+              style={{ flex: 1, padding: '0.65rem', border: '1px solid var(--border, #ccc)', borderRadius: '4px' }}
+            />
+            <button type="submit" style={{ padding: '0.65rem 1rem' }}>
+              Verify
+            </button>
+          </form>
         )}
       </div>
     </div>

@@ -1,11 +1,11 @@
 import { test, expect } from '@playwright/test';
 
 const USERS = {
-  admin: { username: 'test_admin', role: 'admin' },
-  dealer: { username: 'test_dealer', role: 'dealer' },
-  retail_shop: { username: 'test_retail', role: 'retail_shop' },
-  manufacturer: { username: 'test_mfg', role: 'manufacturer' },
-  transporter: { username: 'test_trans', role: 'transporter' },
+  admin: { username: 'admin', role: 'admin', email: 'admin@waybill.com', company: 'WayBill HQ', password: 'admin123', path: /\/admin/ },
+  dealer: { username: 'dealer', role: 'dealer', email: 'dealer@waybill.com', company: 'Dealer LLC', password: 'dealer123', path: /\/dealer/ },
+  retail_shop: { username: 'retail', role: 'retail_shop', email: 'retail@waybill.com', company: 'Retail Store', password: 'retail123', path: /\/retail/ },
+  manufacturer: { username: 'maker', role: 'manufacturer', email: 'manufacturer@waybill.com', company: 'Maker Corp', password: 'maker123', path: /\/manufacturer/ },
+  transporter: { username: 'transporter', role: 'transporter', email: 'transporter@waybill.com', company: 'Transit Inc', password: 'transit123', path: /\/transporter/ },
 };
 
 // We will iterate through roles to verify successful login
@@ -21,14 +21,13 @@ for (const [key, user] of Object.entries(USERS)) {
     await page.locator('.standard-role-card').filter({ hasText: new RegExp(user.role.replace('_', ' '), 'i') }).click();
     
     await page.fill('input[placeholder="Enter your username"]', user.username);
-    await page.fill('input[placeholder="Enter company name"]', 'HQ');
-    await page.fill('input[type="email"]', user.username.split('_')[1] + '@test.com');
-    await page.fill('input[type="password"]', 'testpass');
+    await page.fill('input[placeholder="Enter company name"]', user.company);
+    await page.fill('input[type="email"]', user.email);
+    await page.fill('input[type="password"]', user.password);
     
     await page.click('button[type="submit"]');
     
-    // Check if redirected to dashboard (or role-specific root like /admin, /dealer)
-    await expect(page).not.toHaveURL(/\/login/i, { timeout: 10000 });
+    await expect(page).toHaveURL(user.path, { timeout: 10000 });
   });
 }
 

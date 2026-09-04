@@ -108,10 +108,16 @@ export function TransporterDashboard() {
       <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:'1.5rem' }}>
         {/* Main: Geo Map (using existing LiveMap component logic visually) */}
         <div style={{ ...card, padding:0, overflow:'hidden', height:400 }}>
-          <div style={{ padding:'1rem 1.5rem', borderBottom:'1px solid var(--border)' }}>
-             <p style={chartLabel}>Live Geospatial Tracking</p>
-             <p style={{...chartDesc, margin:0}}>Real-time vehicle positions and routes.</p>
+          <div style={{ padding:'1rem 1.5rem', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+             <div>
+               <p style={chartLabel}>Live Geospatial Tracking</p>
+               <p style={{...chartDesc, margin:0}}>Real-time vehicle positions and routes.</p>
+             </div>
+             <span style={{ padding:'0.2rem 0.6rem', borderRadius:4, fontSize:'0.7rem', fontWeight:700, background:'rgba(59,130,246,0.2)', color:'#60a5fa', border:'1px solid rgba(59,130,246,0.4)', textTransform:'uppercase', letterSpacing:'0.05em' }}>
+               SIMULATED TRACKING
+             </span>
           </div>
+
           <MapContainer center={[20.5937, 78.9629]} zoom={4} style={{ height: '100%', width: '100%' }}>
               <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" attribution='&copy; CartoDB' />
           </MapContainer>
@@ -170,10 +176,11 @@ export function RouteOptimizer() {
     setDownloading(true);
     setDownloadError(null);
     try {
-      const response = await axios.get(`/api/transporter/reports/export?type=${type}`, {
+      const response = await axios.get(`/api/tracking/reports/export?type=${type}`, {
         responseType: 'blob',
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
+
       const url = URL.createObjectURL(response.data);
       const a = document.createElement('a');
       a.href = url;

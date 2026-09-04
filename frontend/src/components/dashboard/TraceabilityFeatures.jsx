@@ -63,15 +63,15 @@ export function TraceabilityDashboard() {
     <div style={containerStyle}>
       <header style={{ marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 0.5rem 0' }}>Traceability & Compliance</h1>
-        <p style={{ color: 'var(--muted)', margin: 0 }}>Blockchain-backed Chain of Custody</p>
+        <p style={{ color: 'var(--muted)', margin: 0 }}>Hash-backed Chain of Custody</p>
       </header>
 
       <div style={gridStyle}>
         <div style={{ ...cardStyle, gridColumn: '1 / -1' }}>
           <h2 style={titleStyle}><span style={iconStyle}>??</span> Traceability Search</h2>
           <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-             <input type="text" placeholder="Enter Waybill ID, Batch ID, or Hash..." style={{ flex: 1, padding: '0.75rem', borderRadius: '8px', background: 'var(--bg)', border: '1px solid #334155', color: 'var(--text)' }} />
-             <button style={{ padding: '0.75rem 1.5rem', background: '#3b82f6', color: 'white', borderRadius: '8px', border: 'none', cursor: 'pointer' }}>Search Blockchain</button>
+             <input type="text" placeholder="Scan QR or Enter ID..." style={{ padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--dashboard-card)', color: 'var(--text)' }} />
+             <button style={{ padding: '0.75rem 1.5rem', background: '#3b82f6', color: 'white', borderRadius: '8px', border: 'none', cursor: 'pointer' }}>Search Ledger</button>
              <button style={{ padding: '0.75rem 1.5rem', background: '#10b981', color: 'white', borderRadius: '8px', border: 'none', cursor: 'pointer' }}>?? Scan QR</button>
           </div>
         </div>

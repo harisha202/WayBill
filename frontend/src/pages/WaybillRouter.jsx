@@ -40,7 +40,10 @@ export default function WaybillRouter({ user, role, isGuest, onLogout, onNavigat
         else if (currentPath.includes('ledger')) content = <AdminLedger />;
         else if (currentPath.includes('users')) content = <UserManagement />;
         else if (currentPath.includes('settings')) content = <AdminSettings />;
-        else if (currentPath.includes('seal')) content = <SealVerificationCenter />;
+        else if (currentPath.includes('alerts')) content = <AlertCenter />;
+        else if (currentPath.includes('disputes')) content = <DisputeCenter />;
+        else if (currentPath.includes('verify') || currentPath.includes('seal')) content = <SealVerificationCenter />;
+        else if (currentPath.includes('batch')) content = <BatchTraceability />;
         else if (currentPath.includes('traceability')) content = <TraceabilityDashboard />;
         else content = <ControlTower />;
     }
@@ -61,7 +64,10 @@ export default function WaybillRouter({ user, role, isGuest, onLogout, onNavigat
         else if (currentPath.includes('fleet')) content = <FleetManagement />;
         else if (currentPath.includes('logs')) content = <DriverLogs />;
         else if (currentPath.includes('maintenance')) content = <MaintenanceAlerts />;
-        else if (currentPath.includes('ledger') || currentPath === '/transporter') content = <TransporterDashboard />;
+        else if (currentPath.includes('alerts')) content = <AlertCenter />;
+        else if (currentPath.includes('disputes')) content = <DisputeCenter />;
+        else if (currentPath.includes('ledger')) content = <AdminLedger />;
+        else content = <TransporterDashboard />;
     }
     else if (role === 'dealer' || role === 'Dealer') {
         if (currentPath.includes('inventory')) content = <Inventory />;
@@ -71,22 +77,24 @@ export default function WaybillRouter({ user, role, isGuest, onLogout, onNavigat
         else if (currentPath.includes('alerts')) content = <DealerAlertCenter />;
         else if (currentPath.includes('disputes')) content = <DealerDisputeCenter />;
         else if (currentPath.includes('batch')) content = <DealerBatchTraceability />;
-        else if (currentPath.includes('seal')) content = <SealVerificationCenter />;
+        else if (currentPath.includes('seal') || currentPath.includes('verify')) content = <SealVerificationCenter />;
         else if (currentPath.includes('traceability')) content = <TraceabilityDashboard />;
         else content = <DealerDashboard />;
     }
-    else if (role === 'retail_shop' || role === 'RetailShop') {
+    else if (role === 'retail_shop' || role === 'RetailShop' || role === 'retailshop') {
         if (currentPath.includes('inventory')) content = <RetailInventoryAnalytics />;
         else if (currentPath.includes('pos')) content = <RetailSalesPOS />;
         else if (currentPath.includes('reorder')) content = <RetailReplenishmentOrders />;
         else if (currentPath.includes('qr')) content = <RetailQRTraceability />;
-        else if (currentPath.includes('verify')) content = <RetailWaybillsShipments />;
-        else if (currentPath.includes('batch')) content = <RetailReceiving />;
+        else if (currentPath.includes('verify') || currentPath.includes('seal')) content = <SealVerificationCenter />;
+        else if (currentPath.includes('batch')) content = <BatchTraceability />;
         else if (currentPath.includes('alerts')) content = <RetailAlertCenter />;
+        else if (currentPath.includes('disputes')) content = <DisputeCenter />;
         else if (currentPath.includes('ledger')) content = <RetailReports />;
         else if (currentPath.includes('traceability')) content = <TraceabilityDashboard />;
         else content = <RetailDashboardOverview />;
     }
+
 
 
     return (

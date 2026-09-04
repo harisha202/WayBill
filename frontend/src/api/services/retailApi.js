@@ -33,6 +33,14 @@ export const retailApi = {
         return response;
     },
 
+    rejectReorder: async (sku, reason = 'Retailer rejected reorder recommendation') => {
+        const response = await apiClient.post('/retail/reorder/reject', {
+            sku,
+            reason
+        });
+        return response;
+    },
+
     getAnalyticsDashboard: async (days = 30) => {
         const response = await apiClient.get(`/retail/analytics/dashboard?days=${days}`);
         return response;

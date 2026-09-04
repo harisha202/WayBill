@@ -23,7 +23,20 @@ const QRVerification = ({ onVerificationComplete }) => {
         waybillId = parsed.waybill_id;
         sealHash = parsed.seal_hash || '';
       } catch (e) {
-        waybillId = data;
+        const raw = String(data || '').trim();
+        if (raw.includes('|')) {
+          const [idPart, sealPart] = raw.split('|');
+          waybillId = idPart;
+          sealHash = sealPart || '';
+        } else {
+          try {
+            const url = new URL(raw);
+            waybillId = url.searchParams.get('id') || url.pathname.split('/').filter(Boolean).pop() || raw;
+            sealHash = url.searchParams.get('seal') || '';
+          } catch {
+            waybillId = raw;
+          }
+        }
       }
 
       const token = localStorage.getItem('token');
@@ -33,7 +46,10 @@ const QRVerification = ({ onVerificationComplete }) => {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ seal_hash: sealHash }),
+        body: JSON.stringify({
+          seal_hash: sealHash,
+          idempotency_key: `qr-${waybillId}-${Date.now()}`,
+        }),
       });
 
       if (!res.ok) {

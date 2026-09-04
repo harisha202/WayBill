@@ -171,9 +171,10 @@ def verify_blockchain_transaction(payload: dict):
 
 
 @router.get("/reports/generate", dependencies=[Depends(require_roles(UserRole.admin))])
-def generate_report(type: str = Query("orders", regex="^(orders|waybills|shipments|inventory|audit)$")) -> Response:
+def generate_report(type: str = Query("orders", pattern="^(orders|waybills|shipments|inventory|audit)$")) -> Response:
     from app.services.database_service import _engine, orders_table, waybill_documents_table, shipments_table, products_table, audit_logs_table
     from sqlalchemy import select
+
     
     stream = io.StringIO()
     writer = csv.writer(stream)
@@ -354,6 +355,9 @@ def send_password_reset_otp(user_id: int, payload: dict = Depends(require_roles(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
         
+    if user.get("role", "").lower() == UserRole.admin.value.lower():
+        raise HTTPException(status_code=400, detail="Cannot reset ADMIN accounts via this standard OTP endpoint")
+
     otp_service = OTPService()
     email_service = get_email_service()
     
@@ -371,6 +375,15 @@ def send_password_reset_otp(user_id: int, payload: dict = Depends(require_roles(
     if not success:
         raise HTTPException(status_code=500, detail="Failed to send OTP to user's registered email.")
         
+    log_activity(
+        payload["sub"],
+        UserRole.admin.value,
+        "ADMIN_SENT_PASSWORD_RESET_OTP",
+        "user",
+        str(user_id),
+        {"email": user["email"], "role": user.get("role"), "result": "SUCCESS"},
+    )
+
     return {"success": True, "message": "OTP sent to registered email"}
 
 @router.post("/users/{user_id}/reset-password", dependencies=[Depends(require_roles(UserRole.admin))])
@@ -380,6 +393,12 @@ def reset_password(user_id: int, reset_req: UserResetPasswordRequest, payload: d
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
         
+    if user.get("role", "").lower() == UserRole.admin.value.lower():
+        raise HTTPException(status_code=400, detail="Cannot reset ADMIN accounts via this standard OTP endpoint")
+
+    if len(reset_req.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+
     otp_service = OTPService()
     is_valid, message = otp_service.verify_otp(user["email"], reset_req.otp)
     if not is_valid:
@@ -388,11 +407,29 @@ def reset_password(user_id: int, reset_req: UserResetPasswordRequest, payload: d
     pwd_hash = hash_password(reset_req.new_password)
     try:
         updated = reset_user_password(user_id, pwd_hash)
-        log_activity(payload["sub"], UserRole.admin.value, "PASSWORD_RESET", "user", str(user_id), {"result": "SUCCESS"})
+        log_activity(
+            payload["sub"],
+            UserRole.admin.value,
+            "PASSWORD_RESET",
+            "user",
+            str(user_id),
+            {"email": user["email"], "role": user.get("role"), "result": "SUCCESS"},
+        )
+        
+        from app.services.domain_events import emit_event_sync
+        emit_event_sync(
+            "PASSWORD_RESET_COMPLETED",
+            {"user_id": user_id, "email": user["email"], "reset_by": payload["sub"]},
+            notify_users=[user["email"]],
+            notify_title="Password Reset Complete",
+            notify_message="Your password was reset by your administrator. You can now log in with your new password.",
+        )
+        
         updated.pop("password_hash", None)
         return {"success": True, "message": "Password reset successfully"}
     except DatabaseError as e:
         raise HTTPException(status_code=404, detail="User not found")
+
 
 @router.delete("/users/{user_id}", dependencies=[Depends(require_roles(UserRole.admin))])
 def delete_existing_user(user_id: int, payload: dict = Depends(require_roles(UserRole.admin))):

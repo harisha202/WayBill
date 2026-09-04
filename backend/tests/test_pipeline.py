@@ -58,11 +58,23 @@ async def test_pipeline_partial_receipt_backorder(async_client, dealer_headers):
     assert res_order.status_code == 200, res_order.text
     order_code = res_order.json()["data"]["order"]["order_code"]
 
-    # 2. Receive 70
+    # 2. Receiving before dispatch must be blocked
     receive_payload = {
         "idempotency_key": uuid.uuid4().hex,
         "received_quantity": 70
     }
+    early_receive = await async_client.patch(
+        f"/api/dealer/orders/{order_code}/receive",
+        json=receive_payload,
+        headers=dealer_headers
+    )
+    assert early_receive.status_code == 400
+    assert "cannot be received" in early_receive.text
+
+    with _engine().begin() as conn:
+        conn.execute(text(f"UPDATE orders SET current_stage = 'dispatched', status = 'dispatched' WHERE order_code = '{order_code}'"))
+
+    # 3. Receive 70 after dispatch
     res_receive = await async_client.patch(
         f"/api/dealer/orders/{order_code}/receive", 
         json=receive_payload, 
@@ -70,7 +82,7 @@ async def test_pipeline_partial_receipt_backorder(async_client, dealer_headers):
     )
     assert res_receive.status_code == 200, res_receive.text
 
-    # 3. Check backorders for this order_code
+    # 4. Check backorders for this order_code
     res_backorders = await async_client.get("/api/dealer/orders/backorders", headers=dealer_headers)
     assert res_backorders.status_code == 200, res_backorders.text
     

@@ -346,12 +346,12 @@ export function UserManagement() {
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
               {modalMode !== 'reset_password' && (
                 <>
-                  <input type="text" placeholder="Full Name" required value={formData.full_name} onChange={e => setFormData({...formData, full_name: e.target.value})} style={inputStyle} />
-                  <input type="text" placeholder="Username" required disabled={modalMode === 'edit'} value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} style={inputStyle} />
+                  <input id="user-fullname" name="full_name" type="text" placeholder="Full Name" aria-label="Full Name" required value={formData.full_name} onChange={e => setFormData({...formData, full_name: e.target.value})} style={inputStyle} />
+                  <input id="user-username" name="username" type="text" placeholder="Username" aria-label="Username" required disabled={modalMode === 'edit'} value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} style={inputStyle} />
                   {modalMode === 'create' && (
-                    <input type="email" placeholder="Email" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} style={inputStyle} />
+                    <input id="user-email" name="emailaddress" type="email" placeholder="Email" aria-label="Email Address" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} style={inputStyle} />
                   )}
-                  <select value={formData.role} required onChange={e => setFormData({...formData, role: e.target.value})} style={inputStyle}>
+                  <select id="user-role" name="role" aria-label="Role" value={formData.role} required onChange={e => setFormData({...formData, role: e.target.value})} style={inputStyle}>
                     <option value="admin">Admin</option>
                     <option value="manufacturer">Manufacturer</option>
                     <option value="transporter">Transporter</option>
@@ -359,19 +359,22 @@ export function UserManagement() {
                     <option value="retail_shop">Retail Shop</option>
                   </select>
                   <input 
+                    id="user-companyname"
+                    name="companyname"
                     type="text" 
                     placeholder="Company Name *" 
+                    aria-label="Company Name"
                     required 
                     value={formData.company_name} 
                     onChange={e => setFormData({...formData, company_name: e.target.value})} 
                     style={inputStyle} 
                   />
-                  <input type="text" placeholder="Phone (Optional)" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} style={inputStyle} />
+                  <input id="user-phone" name="phone" type="text" placeholder="Phone (Optional)" aria-label="Phone Number" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} style={inputStyle} />
                 </>
               )}
 
               {modalMode === 'create' && (
-                <input type="password" placeholder="Password (min 6 chars)" required minLength={6} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} style={inputStyle} />
+                <input id="user-password" name="password" type="password" placeholder="Password (min 6 chars)" aria-label="Password" required minLength={6} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} style={inputStyle} />
               )}
               
               {modalMode === 'reset_password' && (
@@ -383,12 +386,13 @@ export function UserManagement() {
                     </button>
                   ) : (
                     <>
-                      <input type="text" placeholder="Enter 6-digit OTP" required minLength={6} maxLength={6} value={otp} onChange={e => setOtp(e.target.value)} style={inputStyle} />
-                      <input type="password" placeholder="New Password (min 6 chars)" required minLength={6} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} style={inputStyle} />
+                      <input id="reset-otp" name="otp" type="text" placeholder="Enter 6-digit OTP" aria-label="6-digit OTP" required minLength={6} maxLength={6} value={otp} onChange={e => setOtp(e.target.value)} style={inputStyle} />
+                      <input id="reset-newpassword" name="new_password" type="password" placeholder="New Password (min 6 chars)" aria-label="New Password" required minLength={6} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} style={inputStyle} />
                     </>
                   )}
                 </>
               )}
+
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1rem' }}>
                 <button type="button" className="secondary-btn" onClick={() => setIsModalOpen(false)}>Cancel</button>

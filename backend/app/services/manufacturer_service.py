@@ -14,6 +14,7 @@ from app.services.database_service import (
     stock_movements_table,
     audit_logs_table,
     shipments_table,
+    orders_table,
 )
 from app.services.audit_service import audit_service
 from app.services.waybill_service import waybill_service
@@ -38,6 +39,15 @@ class ManufacturerService:
         timestamp = datetime.now(timezone.utc)
 
         with _engine().begin() as conn:
+            if order_code is not None:
+                existing = conn.execute(
+                    select(production_orders_table.c.order_id).where(
+                        production_orders_table.c.order_code == order_code
+                    )
+                ).first()
+                if existing:
+                    raise ValueError(f"Production already exists for order {order_code}.")
+
             values: Dict[str, Any] = dict(
                 order_id=order_id,
                 batch_id=batch_id,
@@ -127,6 +137,12 @@ class ManufacturerService:
             ).first()
             if not order:
                 raise ValueError(f"Order {order_id} not found.")
+            if order.status != "STARTED":
+                raise ValueError(f"QA can only be submitted after production starts. Current state: {order.status}.")
+            if passed + failed <= 0:
+                raise ValueError("QA inspection quantity must be greater than zero.")
+            if passed + failed > order.quantity:
+                raise ValueError("QA inspected quantity cannot exceed production quantity.")
 
             conn.execute(
                 insert(quality_inspections_table).values(
@@ -190,8 +206,8 @@ class ManufacturerService:
                 raise ValueError("Order not found.")
             if order.status != "STARTED":
                 raise ValueError("Order is not running.")
-            if order.qa_status not in ("PASSED", "PARTIALLY_PASSED"):
-                raise ValueError("QA must be passed before completing production.")
+            if order.qa_status != "PASSED":
+                raise ValueError("QA must fully pass before completing production.")
 
             product = conn.execute(
                 select(products_table).where(products_table.c.sku == order.sku)
@@ -268,6 +284,8 @@ class ManufacturerService:
             ).first()
             if not order or order.status != "COMPLETED":
                 raise ValueError("Only COMPLETED production orders can be dispatched.")
+            if order.qa_status != "PASSED":
+                raise ValueError("Only fully QA-passed production orders can be dispatched.")
 
         # Create Waybill with correct signature
         waybill = waybill_service.create_waybill(
@@ -294,6 +312,17 @@ class ManufacturerService:
                     timestamp=timestamp,
                 )
             )
+            if order.order_code:
+                conn.execute(
+                    update(orders_table)
+                    .where(orders_table.c.order_code == order.order_code)
+                    .values(
+                        shipment_id=shipment_id,
+                        current_stage="dispatched",
+                        status="dispatched",
+                        updated_at=timestamp,
+                    )
+                )
             # Link shipment back to production order if column exists
             try:
                 conn.execute(
@@ -303,6 +332,20 @@ class ManufacturerService:
                 )
             except Exception:
                 pass  # shipment_id column may not exist yet
+
+            # Adjust inventory: available_stock -> in_transit
+            prod = conn.execute(
+                select(products_table).where(products_table.c.sku == order.sku)
+            ).first()
+            if prod:
+                new_avail = max(0, (prod.available_stock or 0) - order.quantity)
+                new_transit = (prod.in_transit or 0) + order.quantity
+                conn.execute(
+                    update(products_table)
+                    .where(products_table.c.sku == order.sku)
+                    .values(available_stock=new_avail, in_transit=new_transit)
+                )
+
 
         audit_service.log_action(
             actor_id,

@@ -9,7 +9,7 @@ const QRVerificationStatus = ({ verification, scanResult, onReset }) => {
                     <div style={{ color: 'var(--green)' }}>
                         <div style={{ fontSize: '4rem' }}>✅</div>
                         <h2 style={{ margin: '0.5rem 0' }}>Waybill Verified</h2>
-                        <p style={{ margin: 0 }}>The cryptographic seal matches the blockchain ledger.</p>
+                        <p style={{ margin: 0 }}>The cryptographic seal matches the hash-based ledger.</p>
                     </div>
                 ) : (
                     <div style={{ color: 'var(--red)' }}>

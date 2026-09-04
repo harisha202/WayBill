@@ -361,8 +361,9 @@ export const authApi = {
         Accept: 'application/json',
       },
     }),
-
+  requestPasswordRecovery: (payload) => http.post('/auth/forgot-password', payload),
 }
+
 
 export const adminApi = {
   get: http.get,

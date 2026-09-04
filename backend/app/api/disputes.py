@@ -27,6 +27,7 @@ class DisputeCreateRequest(BaseModel):
 
 class DisputeResolveRequest(BaseModel):
     resolution_note: Optional[str] = None
+    status: Optional[str] = "RESOLVED"
 
 
 @router.post("/", response_model=APIResponse[dict])
@@ -80,22 +81,24 @@ def resolve_dispute_endpoint(
 ) -> APIResponse[dict]:
     actor_id = payload.get("sub", "unknown")
     try:
-        updated = resolve_dispute(dispute_id=dispute_id, resolution_note=data.resolution_note)
+        updated = resolve_dispute(dispute_id=dispute_id, resolution_note=data.resolution_note, next_status=data.status or "RESOLVED")
+    except NotImplementedError as exc:
+        raise HTTPException(status_code=501, detail=str(exc))
     except DatabaseError as exc:
-        raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
+        raise HTTPException(status_code=503, detail=str(exc))
 
     if updated is None:
         raise HTTPException(status_code=404, detail="Dispute not found")
 
     emit_event_sync(
-        "DISPUTE_RESOLVED",
-        {"dispute_id": dispute_id, "resolved_by": actor_id},
+        "DISPUTE_UPDATED",
+        {"dispute_id": dispute_id, "updated_by": actor_id, "status": data.status},
         notify_roles=["admin"],
-        notify_title="Dispute Resolved",
-        notify_message=f"Dispute {dispute_id} has been resolved by {actor_id}.",
+        notify_title="Dispute Updated",
+        notify_message=f"Dispute {dispute_id} is now {data.status} by {actor_id}.",
     )
 
-    return APIResponse(success=True, data=updated, message="Dispute resolved successfully")
+    return APIResponse(success=True, data=updated, message=f"Dispute updated to {data.status} successfully")
 
 
 @router.get("/", response_model=APIResponse[list])

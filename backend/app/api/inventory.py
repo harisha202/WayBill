@@ -23,8 +23,8 @@ from app.services.database_service import (
     list_orders,
     list_products,
     record_sale,
-    create_order,
     update_order_stage,
+    reorder_recommendations,
 )
 from app.services.notification_service import notification_service
 
@@ -180,43 +180,17 @@ def create_sale(data: SaleCreateRequest) -> APIResponse[dict]:
                 status="sold",
             )
             
-        # Automated Reorder Alert & Trigger
+        # Reorder is advisory here. Creating a replenishment order requires
+        # explicit approval through the retail reorder approval endpoint.
         current_quantity = int(updated_product.get("quantity") or 0)
-        THRESHOLD = 50
-        if current_quantity < THRESHOLD:
-            pending_orders = [o for o in list_orders() if o.get("product_sku") == data.sku and o.get("status") not in ("delivered", "sold", "retail_received")]
-            if not pending_orders:
-                auto_order = create_order(
-                    retailer_name="Auto-Reorder System",
-                    retailer_email="system@globalsupply.com",
-                    dealer_id="dealer",
-                    product_sku=data.sku,
-                    quantity=100,
-                    origin="Manufacturer Hub",
-                    destination=data.retailer_name,
-                )
-                auto_tx = generate_tx_hash({"orderCode": auto_order["order_code"], "type": "auto_reorder", "sku": data.sku})
-                create_ledger_record(
-                    product_id=str(product.get("id")),
-                    batch_id="NA",
-                    event_stage="auto_reorder_triggered",
-                    payload={"orderCode": auto_order["order_code"], "reason": f"Stock depleted to {current_quantity}"},
-                    ledger_hash=generate_product_hash(str(product.get("id")), "NA", {"orderCode": auto_order["order_code"]}),
-                    tx_hash=auto_tx,
-                )
-                append_pipeline_event(
-                    order_code=auto_order["order_code"],
-                    product_sku=data.sku,
-                    stage="auto_reorder_triggered",
-                    tx_hash=auto_tx,
-                    payload={"message": f"Automated reorder triggered. Stock was {current_quantity} (threshold {THRESHOLD})"}
-                )
-                notification_service.publish(
-                    user_id="admin",
-                    title="Automated Reorder Triggered",
-                    message=f"Stock for {data.sku} fell to {current_quantity}. Auto-reordering 100 units.",
-                    metadata={"orderCode": auto_order["order_code"], "sku": data.sku}
-                )
+        reorder_point = product.get("reorder_point")
+        if reorder_point is not None and current_quantity <= int(reorder_point):
+            notification_service.publish(
+                user_id="admin",
+                title="Reorder recommendation available",
+                message=f"Stock for {data.sku} fell to {current_quantity}. Review and approve reorder before purchase.",
+                metadata={"sku": data.sku, "currentStock": current_quantity, "reorderPoint": int(reorder_point)}
+            )
     except DatabaseConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except DatabaseError as exc:
@@ -255,20 +229,61 @@ def get_inventory_vs_reorder(payload: dict = Depends(require_roles(UserRole.admi
 
 @router.get("/analytics/inventory-health", dependencies=[Depends(require_roles(UserRole.retail_shop))])
 def get_inventory_health():
-    from app.schemas.base import APIResponse
-    return APIResponse(success=True, data={"status": "LOW STOCK", "available": 45, "reorder_point": 50, "safety_stock": 20})
+    products = list_products()
+    statuses = {"critical": 0, "low_stock": 0, "healthy": 0, "overstocked": 0, "out_of_stock": 0}
+    items = []
+    for product in products:
+        available = int(product.get("available_stock") or 0)
+        reorder_point = int(product.get("reorder_point") or 0)
+        safety_stock = int(product.get("safety_stock_qty") or 0)
+        if available <= 0:
+            status = "out_of_stock"
+        elif safety_stock and available <= safety_stock:
+            status = "critical"
+        elif reorder_point and available <= reorder_point:
+            status = "low_stock"
+        elif reorder_point and available > reorder_point * 3:
+            status = "overstocked"
+        else:
+            status = "healthy"
+        statuses[status] += 1
+        items.append({
+            "sku": product.get("sku"),
+            "available": available,
+            "reorder_point": reorder_point,
+            "safety_stock": safety_stock,
+            "status": status,
+        })
+    return APIResponse(success=True, data={"summary": statuses, "items": items})
 
 @router.get("/analytics/pos-sales-trend", dependencies=[Depends(require_roles(UserRole.retail_shop))])
 def get_pos_sales():
-    from app.schemas.base import APIResponse
-    return APIResponse(success=True, data={"daily": 120, "weekly": 800, "monthly": 3200})
+    return APIResponse(success=True, data=get_sales_analytics(period="month"))
 
 @router.get("/analytics/demand-forecast", dependencies=[Depends(require_roles(UserRole.retail_shop))])
 def get_demand_forecast():
-    from app.schemas.base import APIResponse
-    return APIResponse(success=True, data={"forecast_7d": 900, "mape": 8.5})
+    sales = get_sales_analytics(period="month")
+    values = [float(point.get("value") or 0.0) for point in sales.get("trend", [])]
+    non_zero = [value for value in values if value > 0]
+    if len(non_zero) < 7:
+        return APIResponse(success=True, data={
+            "status": "INSUFFICIENT_DATA",
+            "message": "Insufficient historical sales data for demand forecast.",
+            "historical": sales.get("trend", []),
+            "forecast": [],
+        })
+    avg_daily = sum(non_zero[-7:]) / 7
+    return APIResponse(success=True, data={
+        "status": "ESTIMATED",
+        "basis": "7-day trailing average from sales_history",
+        "forecast_7d": round(avg_daily * 7, 2),
+        "historical": sales.get("trend", []),
+    })
 
 @router.get("/analytics/auto-reorder", dependencies=[Depends(require_roles(UserRole.retail_shop))])
 def get_auto_reorder():
-    from app.schemas.base import APIResponse
-    return APIResponse(success=True, data={"sku": "ABC-100", "recommended_qty": 500, "confidence": 91, "reason": "Demand increased 18%, inventory below reorder point."})
+    items = [
+        item for item in reorder_recommendations(days=30)
+        if item.get("priority") in ("critical", "high")
+    ]
+    return APIResponse(success=True, data={"items": items})

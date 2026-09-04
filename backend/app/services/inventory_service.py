@@ -37,9 +37,13 @@ class InventoryService:
             
             if not order:
                 raise ValueError(f"Order {order_code} not found")
+            if order.current_stage == "dealer_received":
+                raise ValueError(f"Order {order_code} has already been received by dealer")
+            if order.current_stage not in ("dispatched", "dealer_in_transit", "in_transit"):
+                raise ValueError(f"Order {order_code} cannot be received from stage {order.current_stage}")
                 
             sku = order.product_sku
-            ordered_quantity = order.quantity if hasattr(order, 'quantity') else order.ordered_quantity # Check exact column
+            ordered_quantity = order.quantity if hasattr(order, 'quantity') else order.ordered_quantity
             
             # 2. Calculate Discrepancy
             discrepancy = ordered_quantity - received_quantity
@@ -55,8 +59,11 @@ class InventoryService:
                 .where(orders_table.c.order_code == order_code)
                 .values(
                     received_quantity=received_quantity,
-                    # pending_quantity=discrepancy if has_discrepancy else 0, # Assuming column exists or we just rely on status
-                    status="DELIVERED" if not has_discrepancy else "PARTIALLY_DELIVERED",
+                    discrepancy_quantity=discrepancy if has_discrepancy else 0,
+                    discrepancy_status="OPEN" if has_discrepancy else None,
+                    current_stage="dealer_received",
+                    status="dealer_received",
+                    dealer_received_at=timestamp,
                     updated_at=timestamp
                 )
             )
@@ -66,9 +73,10 @@ class InventoryService:
                 select(products_table).where(products_table.c.sku == sku)
             ).first()
             
+            total_amount = None
             if product:
-                prev_qty = product.available_stock
-                new_in_transit = max(0, product.in_transit - ordered_quantity)
+                prev_qty = product.available_stock or 0
+                new_in_transit = max(0, (product.in_transit or 0) - ordered_quantity)
                 new_available = prev_qty + received_quantity
                 
                 # Update product
@@ -77,7 +85,8 @@ class InventoryService:
                     .where(products_table.c.sku == sku)
                     .values(
                         in_transit=new_in_transit,
-                        available_stock=new_available
+                        available_stock=new_available,
+                        quantity=new_available
                     )
                 )
                 
@@ -97,18 +106,9 @@ class InventoryService:
                     )
                 )
 
-                # P3-1: Auto-Create Financial Ledger on Delivery
-                from app.services.ledger_service import LedgerService
+                # Auto-Create Financial Ledger on Delivery
                 price = product.price if hasattr(product, 'price') else 1000.0
                 total_amount = received_quantity * price
-                LedgerService.create_transaction(
-                    entity_type="ORDER",
-                    entity_id=order_code,
-                    transaction_type="DELIVERY_RECEIPT",
-                    amount=total_amount,
-                    currency="USD",
-                    exchange_rate=1.0
-                )
             
             # 5. Create Discrepancy & Backorder if necessary
             if has_discrepancy:
@@ -116,7 +116,7 @@ class InventoryService:
                     insert(discrepancies_table).values(
                         discrepancy_id=str(uuid.uuid4()),
                         order_id=order_code,
-                        waybill_id=None, # Updated in waybill service if known
+                        waybill_id=None,
                         sku=sku,
                         ordered_quantity=ordered_quantity,
                         received_quantity=received_quantity,
@@ -135,6 +135,17 @@ class InventoryService:
                         created_at=timestamp
                     )
                 )
+
+        if total_amount is not None:
+            from app.services.ledger_service import LedgerService
+            LedgerService.create_transaction(
+                entity_type="ORDER",
+                entity_id=order_code,
+                transaction_type="DELIVERY_RECEIPT",
+                amount=total_amount,
+                currency="USD",
+                exchange_rate=1.0
+            )
 
         # 6. Audit Logging
         audit_service.log_action(
@@ -207,19 +218,22 @@ class InventoryService:
             if not product:
                 raise ValueError("Product not found")
                 
-            prev_qty = product.available_stock
+            prev_qty = product.available_stock or 0
             
-            if prev_qty < quantity:
+            # Atomic conditional decrement preventing race conditions
+            update_res = conn.execute(
+                update(products_table)
+                .where(products_table.c.sku == sku, products_table.c.available_stock >= quantity)
+                .values(
+                    available_stock=products_table.c.available_stock - quantity,
+                    quantity=products_table.c.quantity - quantity
+                )
+            )
+            if update_res.rowcount == 0:
                 raise ValueError(f"Insufficient stock for {sku}. Requested: {quantity}, Available: {prev_qty}")
                 
             new_qty = prev_qty - quantity
-            
-            # Update product
-            conn.execute(
-                update(products_table)
-                .where(products_table.c.sku == sku)
-                .values(available_stock=new_qty)
-            )
+
             
             # Record Stock Movement
             conn.execute(

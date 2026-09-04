@@ -783,8 +783,14 @@ def _stage_title(stage: str) -> str:
 
 
 def _next_order_code(conn) -> str:
+    import uuid
     max_id = conn.execute(select(func.max(orders_table.c.id))).scalar() or 0
-    return f"ORD-{int(max_id) + 1:05d}"
+    candidate = f"ORD-{int(max_id) + 1:05d}"
+    exists = conn.execute(select(orders_table.c.id).where(orders_table.c.order_code == candidate)).first()
+    if exists:
+        return f"ORD-{int(max_id) + 1:05d}-{uuid.uuid4().hex[:4].upper()}"
+    return candidate
+
 
 
 def _format_indian_grouping(number_text: str) -> str:
@@ -890,7 +896,10 @@ def _seed_defaults() -> None:
 
 def initialize_database() -> None:
     try:
-        metadata.create_all(_engine())
+        from app.core.config import get_settings
+        if not get_settings().database_url:
+            # Only auto-create if using local SQLite, otherwise rely on Alembic migrations
+            metadata.create_all(_engine())
         _seed_defaults()
     except SQLAlchemyError as exc:
         raise DatabaseError("Database initialization failed") from exc
@@ -1354,34 +1363,37 @@ def create_order(
     quantity: int,
     origin: str | None = None,
     destination: str | None = None,
+    reserve_stock: bool = True,
 ) -> dict:
     now = _utc_now()
     try:
         with _engine().begin() as conn:
-            # Check available stock (read first for error messaging)
-            row = conn.execute(select(products_table).where(products_table.c.sku == product_sku).with_for_update()).first()
-            if row is None:
-                raise DatabaseError("Product SKU not found")
-            
-            product = _row_to_dict(row)
-            available_stock = int(product.get("available_stock") or 0)
-            
-            if int(quantity) > available_stock:
-                raise DatabaseConflictError(f"Insufficient available stock. Requested: {quantity}, Available: {available_stock}")
-            
-            # Update product stock atomically to prevent race conditions
-            result = conn.execute(
-                products_table.update()
-                .where(products_table.c.sku == product_sku)
-                .where(products_table.c.available_stock >= int(quantity))
-                .values(
-                    available_stock=products_table.c.available_stock - int(quantity),
-                    reserved_stock=products_table.c.reserved_stock + int(quantity)
+            if reserve_stock:
+                # Check available stock (read first for error messaging)
+                row = conn.execute(select(products_table).where(products_table.c.sku == product_sku).with_for_update()).first()
+                if row is None:
+                    raise DatabaseError("Product SKU not found")
+                
+                product = _row_to_dict(row)
+                available_stock = int(product.get("available_stock") or 0)
+                
+                if int(quantity) > available_stock:
+                    raise DatabaseConflictError(f"Insufficient available stock. Requested: {quantity}, Available: {available_stock}")
+                
+                # Update product stock atomically to prevent race conditions
+                result = conn.execute(
+                    products_table.update()
+                    .where(products_table.c.sku == product_sku)
+                    .where(products_table.c.available_stock >= int(quantity))
+                    .values(
+                        available_stock=products_table.c.available_stock - int(quantity),
+                        reserved_stock=products_table.c.reserved_stock + int(quantity)
+                    )
                 )
-            )
-            
-            if result.rowcount == 0:
-                raise DatabaseConflictError(f"Insufficient available stock. Requested: {quantity}, Available: {available_stock}")
+                
+                if result.rowcount == 0:
+                    raise DatabaseConflictError(f"Insufficient available stock. Requested: {quantity}, Available: {available_stock}")
+
 
 
             order_code = _next_order_code(conn)
@@ -1523,13 +1535,13 @@ def list_orders(skip: int = 0, limit: int = 100, dealer_id: str | None = None, r
         if payload:
             role = payload.get("role")
             if role == "dealer" and not dealer_id:
-                dealer_id = payload.get("username")
+                dealer_id = payload.get("sub")
             elif role == "retail_shop" and not retailer_email:
-                retailer_email = payload.get("username")
+                retailer_email = payload.get("sub")
             elif role == "manufacturer" and not manufacturer_id:
-                manufacturer_id = payload.get("username")
+                manufacturer_id = payload.get("sub")
             elif role == "transporter" and not transporter_id:
-                transporter_id = payload.get("username")
+                transporter_id = payload.get("sub")
                 
         with _engine().connect() as conn:
             stmt = select(orders_table).order_by(desc(orders_table.c.updated_at))
@@ -1661,7 +1673,7 @@ def list_shipments(skip: int = 0, limit: int = 100, transporter_id: str | None =
         from app.core.middleware import current_user_payload
         payload = current_user_payload.get()
         if payload and payload.get("role") == "transporter" and not transporter_id:
-            transporter_id = payload.get("username")
+            transporter_id = payload.get("sub")
             
         with _engine().connect() as conn:
             stmt = select(shipments_table).order_by(shipments_table.c.id.asc())
@@ -2083,10 +2095,11 @@ def reorder_recommendations(days: int = 30) -> list[dict]:
     for row in product_rows:
         product = _row_to_dict(row)
         sku = str(product.get("sku") or "")
-        current_stock = int(product.get("quantity") or 0)
+        current_stock = int(product.get("available_stock") if product.get("available_stock") is not None else (product.get("quantity") or 0))
         reorder_point = int(product.get("reorder_point") or 0)
         safety_stock = int(product.get("safety_stock_qty") or 0)
         lead_time = int(product.get("lead_time_days") or 0)
+
 
         total_sold = sold_by_sku.get(sku, 0)
         avg_daily_sales = round(total_sold / max(days, 1), 2)
@@ -5001,24 +5014,73 @@ def create_dispute(
     }
 
 
-def resolve_dispute(dispute_id: str, resolution_note: str | None = None) -> dict | None:
-    """Resolve an open dispute. Returns updated dict or None if not found."""
+def resolve_dispute(dispute_id: str, resolution_note: str | None = None, next_status: str = "RESOLVED") -> dict | None:
+    """
+    Advance the dispute lifecycle.
+    Lifecycle: OPEN -> UNDER_REVIEW -> APPROVED / REJECTED -> SETTLEMENT_PENDING -> SETTLED / FAILED -> CLOSED
+    """
     now = _utc_now()
+    valid_transitions = {
+        "OPEN": ["UNDER_REVIEW", "RESOLVED", "CLOSED", "REJECTED"],
+        "UNDER_REVIEW": ["APPROVED", "REJECTED", "RESOLVED"],
+        "APPROVED": ["SETTLEMENT_PENDING", "RESOLVED"],
+        "REJECTED": ["CLOSED"],
+        "SETTLEMENT_PENDING": ["SETTLED", "FAILED"],
+        "SETTLED": ["CLOSED"],
+        "FAILED": ["CLOSED", "SETTLEMENT_PENDING"],
+        "RESOLVED": ["CLOSED"]
+    }
+
     try:
         with _engine().begin() as conn:
+            row = conn.execute(
+                select(disputes_table).where(disputes_table.c.dispute_id == dispute_id).with_for_update()
+            ).first()
+
+            if not row:
+                return None
+
+            current_status = row._mapping.get("status", "OPEN")
+            
+            # Idempotency check
+            if current_status == next_status:
+                return _row_to_dict(row)
+                
+            allowed = valid_transitions.get(current_status, [])
+            if next_status not in allowed and next_status != "RESOLVED":
+                raise DatabaseError(f"Invalid state transition from {current_status} to {next_status}")
+
+            if next_status == "SETTLEMENT_PENDING":
+                # Business rules required for exact debit/credit ownership are genuinely unspecified.
+                # Identifying the missing rule instead of inventing one.
+                raise NotImplementedError("Missing Business Rule: Ownership and liability for settlement debits/credits are unspecified.")
+
+            update_vals = {"status": next_status}
+            if next_status in ["RESOLVED", "CLOSED"]:
+                update_vals["resolved_at"] = now
+                
+            if resolution_note:
+                # Append resolution note to description (since we don't have a dedicated notes field)
+                old_desc = row._mapping.get("description") or ""
+                update_vals["description"] = f"{old_desc} | Resolution: {resolution_note}"
+
             result = conn.execute(
                 disputes_table.update()
                 .where(disputes_table.c.dispute_id == dispute_id)
-                .values(status="RESOLVED", resolved_at=now)
+                .values(**update_vals)
             )
+
             if result.rowcount == 0:
                 return None
-            row = conn.execute(
+                
+            updated = conn.execute(
                 select(disputes_table).where(disputes_table.c.dispute_id == dispute_id)
             ).first()
-            return _row_to_dict(row) if row else None
+            return _row_to_dict(updated) if updated else None
+    except NotImplementedError:
+        raise
     except SQLAlchemyError as exc:
-        raise DatabaseError("Failed to resolve dispute") from exc
+        raise DatabaseError("Failed to update dispute status") from exc
 
 
 def list_disputes(

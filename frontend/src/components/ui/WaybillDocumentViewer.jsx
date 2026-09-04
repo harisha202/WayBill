@@ -36,7 +36,7 @@ export function WaybillDocumentViewer({ orderCode, waybillId, onClose, onConfirm
       <div style={styles.overlay}>
         <div style={{...styles.modal, ...styles.center}}>
           <div className="spinner" style={styles.spinner}></div>
-          <p style={styles.text}>Retrieving Blockchain Document...</p>
+          <p style={styles.text}>Retrieving Secure Document...</p>
         </div>
       </div>
     );
@@ -197,7 +197,7 @@ export function WaybillDocumentViewer({ orderCode, waybillId, onClose, onConfirm
           </div>
           
           <div style={styles.authStamp}>
-            <p style={styles.authText}>Secured by WayBill Blockchain</p>
+            <p style={styles.authText}>Secured by Tamper-Evident Ledger</p>
             <p style={styles.authSubText}>Last Updated: {new Date(waybill.updated_at || Date.now()).toLocaleString()}</p>
             {onConfirm && (
               <button 

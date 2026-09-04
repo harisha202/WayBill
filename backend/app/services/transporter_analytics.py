@@ -1,4 +1,4 @@
-from sqlalchemy import select, func, text, desc
+from sqlalchemy import select, func, text
 from app.services.database_service import (
     _engine, _utc_now, DatabaseError,
     shipments_table, trucks_table, drivers_table, interventions_table
@@ -15,21 +15,19 @@ def get_transporter_overview_analytics(days: int = 30) -> dict:
             on_time = total - delayed
             sla_rate = round((on_time / total * 100) if total > 0 else 100, 1)
 
-            # Mocking delay reasons based on interventions
             reasons_rows = conn.execute(
                 select(interventions_table.c.reason, func.count().label("count"))
                 .group_by(interventions_table.c.reason)
             ).fetchall()
             
             reasons = [{"reason": str(r[0]), "count": int(r[1])} for r in reasons_rows]
-            if not reasons:
-                reasons = [{"reason": "Traffic", "count": delayed}, {"reason": "Weather", "count": max(0, delayed // 2)}]
 
             return {
                 "slaRate": sla_rate,
                 "delayedCount": delayed,
                 "onTimeCount": on_time,
-                "delayReasons": sorted(reasons, key=lambda x: x["count"], reverse=True)
+                "delayReasons": sorted(reasons, key=lambda x: x["count"], reverse=True),
+                "delayReasonsSource": "interventions" if reasons else "unavailable"
             }
     except Exception as exc:
         raise DatabaseError("Failed to get transport overview analytics") from exc
@@ -42,25 +40,19 @@ def get_shipment_analytics(days: int = 30) -> dict:
             # Volume Trend
             vol_rows = conn.execute(
                 text("""
-                    SELECT strftime('%Y-%m-%d', created_at) as day, COUNT(*) as count
+                    SELECT strftime('%Y-%m-%d', timestamp) as day, COUNT(*) as count
                     FROM shipments
-                    WHERE created_at >= :since
+                    WHERE timestamp >= :since
                     GROUP BY day ORDER BY day ASC
                 """), {"since": since.isoformat()}
             ).fetchall()
             volume = [{"day": str(r[0]), "shipments": int(r[1])} for r in vol_rows if r[0]]
 
-            # Time in transit (mocked using estimated vs actual if available, else random curve)
-            import hashlib
-            transit = []
-            for i, v in enumerate(volume):
-                h = int(hashlib.md5(v["day"].encode()).hexdigest()[:8], 16)
-                base_time = 24 + (h % 30)
-                transit.append({"day": v["day"], "avgHours": base_time})
-
             return {
                 "volumeTrend": volume,
-                "transitTrend": transit
+                "transitTrend": [],
+                "transitTrendStatus": "UNAVAILABLE",
+                "transitTrendReason": "Shipment schema does not store dispatch and delivery timestamps needed for time-in-transit analytics."
             }
     except Exception as exc:
         raise DatabaseError("Failed to get shipment analytics") from exc
@@ -72,35 +64,25 @@ def get_fleet_analytics() -> dict:
             trucks = conn.execute(select(trucks_table)).fetchall()
             status_counts = {}
             utilization = []
-            scatter = []
-            
-            import hashlib
             for i, t in enumerate(trucks):
                 status = str(t.maintenance_status or "UNKNOWN")
                 status_counts[status] = status_counts.get(status, 0) + 1
-                
-                # Deterministic pseudo-metrics
-                plate = str(t.plate_number or f"TRK-{i}").encode()
-                h = int(hashlib.md5(plate).hexdigest()[:8], 16)
-                
+
                 utilization.append({
                     "truckId": str(t.plate_number),
-                    "activeHours": 100 + (h % 60),
-                    "idleHours": 20 + (h % 30),
-                    "maintenanceHours": 10 if status == "MAINTENANCE" else 0
-                })
-                scatter.append({
-                    "truckId": str(t.plate_number),
-                    "ageMonths": 12 + (h % 48),
-                    "maintenanceCost": 1000 + (h % 3000)
+                    "loadPercent": float(t.current_load_percent or 0.0),
+                    "capacity": float(t.capacity or 0.0),
+                    "maintenanceStatus": status
                 })
 
             status_donut = [{"status": k, "count": v} for k, v in status_counts.items()]
 
             return {
                 "status": status_donut,
-                "utilization": utilization[:10], # Top 10
-                "ageVsCost": scatter
+                "utilization": utilization[:10],
+                "ageVsCost": [],
+                "ageVsCostStatus": "UNAVAILABLE",
+                "ageVsCostReason": "Truck schema does not store vehicle age or maintenance cost."
             }
     except Exception as exc:
         raise DatabaseError("Failed to get fleet analytics") from exc
@@ -110,6 +92,7 @@ def get_driver_analytics() -> dict:
     try:
         with _engine().connect() as conn:
             ints = conn.execute(select(interventions_table)).fetchall()
+            drivers = conn.execute(select(drivers_table)).fetchall()
             issue_counts = {}
             for i in ints:
                 typ = str(i.action_type)
@@ -117,14 +100,17 @@ def get_driver_analytics() -> dict:
                 
             issues = [{"type": k, "count": v} for k, v in issue_counts.items()]
             
-            # Mock Radar for overall performance
-            radar = [
-                {"metric": "Safety", "score": 85},
-                {"metric": "On-Time", "score": 92},
-                {"metric": "Fuel Efficiency", "score": 78},
-                {"metric": "Compliance", "score": 95},
-                {"metric": "Customer Rating", "score": 88}
-            ]
+            radar = []
+            if drivers:
+                avg_performance = sum(float(d.performance_score or 0.0) for d in drivers) / len(drivers)
+                avg_on_time = sum(float(d.on_time_percent or 0.0) for d in drivers) / len(drivers)
+                incident_count = sum(int(d.incident_count or 0) for d in drivers)
+                safety_score = max(0.0, 100.0 - (incident_count / max(len(drivers), 1) * 10.0))
+                radar = [
+                    {"metric": "Safety", "score": round(safety_score, 1)},
+                    {"metric": "On-Time", "score": round(avg_on_time, 1)},
+                    {"metric": "Performance", "score": round(avg_performance, 1)}
+                ]
 
             return {
                 "issues": issues,

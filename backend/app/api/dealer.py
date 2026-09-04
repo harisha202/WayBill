@@ -235,6 +235,8 @@ def forward_order_to_manufacturer(order_code: str, data: DealerOrderForwardReque
     order = get_order(order_code)
     if order is None:
         raise HTTPException(status_code=404, detail="Order not found")
+    if order.get("current_stage") != "dealer_confirmed":
+        raise HTTPException(status_code=400, detail=f"Order cannot be forwarded from stage {order.get('current_stage')}")
     try:
         updated = update_order_stage(
             order_code,
@@ -269,7 +271,9 @@ def forward_order_to_manufacturer(order_code: str, data: DealerOrderForwardReque
 
 
 @router.patch("/orders/{order_code}/receive", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))], response_model=APIResponse[dict])
+@router.post("/orders/{order_code}/receive", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))], response_model=APIResponse[dict])
 def receive_order(
+
     order_code: str,
     data: ReceiptRequest,
     payload: dict = Depends(require_roles(UserRole.admin, UserRole.dealer))
@@ -284,13 +288,6 @@ def receive_order(
             received_quantity=data.received_quantity,
             actor_id=actor_id,
             actor_role=actor_role
-        )
-        from app.services.database_service import update_order_stage
-        update_order_stage(
-            order_code=order_code,
-            stage="dealer_received",
-            status="dealer_received",
-            dealer_received=True
         )
 
         # Update Waybill Custody to Dealer if a waybill is associated
@@ -315,7 +312,7 @@ def receive_order(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
-        raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
+        raise exc
 
     # Notify the retailer who placed the order (use order retailer_email as user_id)
     order_record = get_order(order_code)
@@ -516,7 +513,8 @@ def get_margin(payload: dict = Depends(require_roles(UserRole.admin, UserRole.de
 # ─── DEALER ANALYTICS ENDPOINTS ───────────────────────────────────────────────
 
 @router.get("/reports/export", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])
-def export_dealer_report(type: str = Query("orders", regex="^(orders|inventory|discrepancies)$")):
+def export_dealer_report(type: str = Query("orders", pattern="^(orders|inventory|discrepancies)$")):
+
     from app.services.database_service import _engine, orders_table, products_table, discrepancies_table
     from sqlalchemy import select
     import csv, io
