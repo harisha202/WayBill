@@ -82,7 +82,8 @@ class WaybillService:
             action="WAYBILL_CREATED",
             entity="WAYBILL",
             entity_id=waybill_id,
-            new_value={"status": "CREATED", "custodian": initial_custodian}
+            new_value={"status": "CREATED", "custodian": initial_custodian},
+            conn=conn
         )
             
         emit_event_sync(

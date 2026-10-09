@@ -46,10 +46,10 @@ async def _default_retail_token(client: AsyncClient) -> str:
     response = await client.post(
         "/api/auth/login",
         json={
-            "username": "retail",
-            "email": "retail@waybill.com",
-            "company_name": "Retail Store",
-            "password": "retail123",
+            "username": "rule_retail",
+            "email": "rule_retail@test.com",
+            "company_name": "HQ",
+            "password": "testpass",
         },
     )
     assert response.status_code == 200, response.text

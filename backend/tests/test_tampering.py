@@ -16,13 +16,10 @@ async def async_client():
         yield client
 
 @pytest_asyncio.fixture
-async def admin_headers(async_client):
-    response = await async_client.post(
-        "/api/auth/login",
-        json={"username": "admin", "email": "admin@waybill.com", "company_name": "WayBill HQ", "password": "admin123"}
-    )
-    assert response.status_code == 200, f"Login failed: {response.text}"
-    token = response.json()["access_token"]
+async def admin_headers():
+    from app.api.auth import create_access_token
+    from app.models.user import UserRole
+    token = create_access_token(subject="admin@globalsupply.com", role=UserRole.admin)
     return {"Authorization": f"Bearer {token}"}
 
 @pytest.mark.asyncio

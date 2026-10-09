@@ -49,7 +49,7 @@ def test_password_recovery_request_flow():
 
     # 3. Admin accounts cannot request password recovery through standard route
     admin_req_res = client.post("/api/auth/forgot-password", json={
-        "email": "admin@waybill.com",
+        "email": "admin@globalsupply.com",
         "role": "admin"
     })
     assert admin_req_res.status_code == 400

@@ -743,11 +743,16 @@ def _engine() -> Engine:
             )
     except Exception:
         pass
+    connect_args = {}
+    if primary_url.startswith("sqlite"):
+        connect_args["timeout"] = 30
+
     try:
         primary_engine = create_engine(
             primary_url,
             future=True,
             pool_pre_ping=True,
+            connect_args=connect_args,
         )
         with primary_engine.connect():
             pass
@@ -762,6 +767,7 @@ def _engine() -> Engine:
                 fallback_url,
                 future=True,
                 pool_pre_ping=True,
+                connect_args={"timeout": 30},
             )
             with fallback_engine.connect():
                 pass

@@ -14,7 +14,8 @@ class AuditService:
         entity_id: str,
         old_value: dict | None = None,
         new_value: dict | None = None,
-        metadata: dict | None = None
+        metadata: dict | None = None,
+        conn = None
     ) -> None:
         """
         Logs a mutation action to the audit_logs_table.
@@ -29,19 +30,22 @@ class AuditService:
         if metadata is None:
             metadata = {}
 
-        with _engine().begin() as conn:
-            conn.execute(
-                insert(audit_logs_table).values(
-                    user=user,
-                    role=role,
-                    action=action,
-                    entity=entity,
-                    entity_id=entity_id,
-                    old_value=old_value,
-                    new_value=new_value,
-                    metadata=metadata,
-                    timestamp=timestamp
-                )
-            )
+        values = {
+            "user": user,
+            "role": role,
+            "action": action,
+            "entity": entity,
+            "entity_id": entity_id,
+            "old_value": old_value,
+            "new_value": new_value,
+            "metadata": metadata,
+            "timestamp": timestamp,
+        }
+
+        if conn is not None:
+            conn.execute(insert(audit_logs_table).values(**values))
+        else:
+            with _engine().begin() as new_conn:
+                new_conn.execute(insert(audit_logs_table).values(**values))
 
 audit_service = AuditService()

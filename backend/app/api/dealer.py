@@ -25,6 +25,7 @@ from app.services.database_service import (
     reorder_recommendations,
     update_order_stage,
     receive_order_with_discrepancy,
+    check_and_record_idempotency_key,
     _engine,
     stock_movements_table,
 )
@@ -151,6 +152,9 @@ def _pipeline_rows(limit: int = 100, dealer_id: Optional[str] = None) -> list[di
 
 @router.post("/orders/retail", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer, UserRole.retail_shop))], response_model=APIResponse[dict])
 def create_retail_order(data: OrderCreateRequest) -> APIResponse[dict]:
+    if getattr(data, "idempotency_key", None) and check_and_record_idempotency_key(data.idempotency_key):
+        raise HTTPException(status_code=409, detail="Duplicate request: order with this idempotency_key has already been processed")
+
     if get_product_by_sku(data.product_sku) is None:
         raise HTTPException(status_code=404, detail="Product SKU not found")
 

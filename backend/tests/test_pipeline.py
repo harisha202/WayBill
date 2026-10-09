@@ -21,7 +21,7 @@ def setup_teardown():
     from app.core.security import hash_password
     with _engine().begin() as conn:
         pw = hash_password("dealer123")
-        conn.execute(text(f"DELETE FROM users WHERE email='dealer@waybill.com'"))
+        conn.execute(text(f"DELETE FROM users WHERE email='dealer@waybill.com' OR username='dealer'"))
         conn.execute(text(f"INSERT INTO users (username, name, email, password_hash, role, company_name, is_active, failed_login_attempts, created_at) VALUES ('dealer', 'Dealer', 'dealer@waybill.com', '{pw}', 'dealer', 'Dealer XYZ', 1, 0, CURRENT_TIMESTAMP)"))
     yield
 
