@@ -112,7 +112,7 @@ export const CANONICAL_ROUTES = [
     icon: '📦',
     componentKey: 'BatchTraceability',
     permission: 'admin.batch.view',
-    apiDependency: '/api/blockchain/transactions',
+    apiDependency: '/api/admin/blockchain/transactions',
   },
   {
     role: 'Admin',
@@ -121,7 +121,7 @@ export const CANONICAL_ROUTES = [
     icon: '⚙️',
     componentKey: 'AdminSettings',
     permission: 'admin.settings.manage',
-    apiDependency: '/api/ai/document',
+    apiDependency: '/api/ai/documents',
   },
 
   // ─── MANUFACTURER ROUTES ─────────────────────────────────────────────────
@@ -278,7 +278,7 @@ export const CANONICAL_ROUTES = [
     icon: '🔔',
     componentKey: 'TransporterAlertCenter',
     permission: 'transporter.alerts.view',
-    apiDependency: '/api/notifications/my',
+    apiDependency: '/api/notifications/',
   },
   {
     role: 'Transporter',
@@ -453,7 +453,7 @@ export const CANONICAL_ROUTES = [
     icon: '📦',
     componentKey: 'BatchTraceability',
     permission: 'retail.batch.view',
-    apiDependency: '/api/blockchain/transactions',
+    apiDependency: '/api/admin/blockchain/transactions',
   },
   {
     role: 'RetailShop',
@@ -462,7 +462,7 @@ export const CANONICAL_ROUTES = [
     icon: '📥',
     componentKey: 'RetailReceiving',
     permission: 'retail.receiving.manage',
-    apiDependency: '/api/retail/orders',
+    apiDependency: '/api/retail/shipments',
   },
   {
     role: 'RetailShop',
