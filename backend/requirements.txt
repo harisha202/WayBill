@@ -17,6 +17,7 @@ google-generativeai
 statsmodels
 pandas
 numpy
+pypdf>=5.0.0
 alembic  
 python-multipart  
  

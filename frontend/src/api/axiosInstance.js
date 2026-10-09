@@ -2,10 +2,11 @@ import { getAuthState, logout } from '../store/useAuthStore'
 import { normalizeCurrencyString } from '../utils/currency'
 
 // FastAPI routes are mounted under /api, so production base URLs should keep that suffix.
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '')
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '')
 const ENABLE_DEMO_FALLBACK = String(import.meta.env.VITE_ENABLE_DEMO_FALLBACK || '').toLowerCase() === 'true'
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1'])
 let runtimeApiBaseUrl = API_BASE_URL
+export { buildUrl }
 
 function isLocalhostPage() {
   return typeof window !== 'undefined' && LOCAL_HOSTS.has(window.location.hostname)

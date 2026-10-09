@@ -3,7 +3,6 @@ import { connectNotificationSocket, disconnectNotificationSocket } from '../../a
 import Sidebar from './Sidebar'
 import UserMenu from '../navigation/UserMenu'
 import StatCard from '../ui/StatCard'
-import DashboardReportSection from './DashboardReportSection'
 import { PATH_BY_ROLE_LINK, SOCKET_USER_BY_ROLE } from './navConfig'
 import { AskWaybillPanel } from '../ui/AskWaybillPanel'
 import { Toaster, toast } from 'react-hot-toast'
@@ -269,7 +268,25 @@ function DashboardLayout({
 
   const roleClass = role ? `role-${String(role).toLowerCase()}` : ''
   const shellClassName = ['dashboard-shell', roleClass, themeClass].filter(Boolean).join(' ')
-  const showRoleReport = activeLink === 'Dashboard'
+
+  const normalizedPath = String(currentPath || '').trim().toLowerCase()
+  const normalizedLink = String(activeLink || '').trim().toLowerCase()
+
+  // Only display overview KPI command-grid and AI summary report on the root Control Tower / Dashboard overview
+  const isMainOverview = (
+    normalizedPath === '/admin' || 
+    normalizedPath === '/manufacturer' || 
+    normalizedPath === '/transporter' || 
+    normalizedPath === '/dealer' || 
+    normalizedPath === '/retail' || 
+    normalizedPath === '' || 
+    normalizedPath === '/' ||
+    normalizedLink.includes('control tower') ||
+    normalizedLink === 'dashboard' ||
+    normalizedLink === '🏠 dashboard'
+  )
+
+  const shouldShowCommandGrid = isMainOverview && !!enrichedStats.length
 
   return (
     <div className={shellClassName}>
@@ -289,7 +306,7 @@ function DashboardLayout({
         </header>
 
         <main className="dashboard-content">
-          {!!enrichedStats.length && (
+          {shouldShowCommandGrid && (
             <section className="command-grid">
               {enrichedStats.map((item, index) => (
                 <StatCard
@@ -305,7 +322,6 @@ function DashboardLayout({
               ))}
             </section>
           )}
-          {showRoleReport && <DashboardReportSection role={role} stats={enrichedStats} />}
           {children}
         </main>
       </section>

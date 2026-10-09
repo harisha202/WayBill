@@ -124,10 +124,26 @@ def get_sales_analytics_endpoint(time_range: str = Query("week", alias="range"))
     ],
     response_model=APIResponse[dict]
 )
-def create_sale(data: SaleCreateRequest) -> APIResponse[dict]:
+def create_sale(
+    data: SaleCreateRequest,
+    auth_payload: dict = Depends(
+        require_roles(
+            UserRole.admin,
+            UserRole.retail_shop,
+            UserRole.dealer,
+            UserRole.manufacturer,
+            UserRole.transporter,
+        )
+    ),
+) -> APIResponse[dict]:
     product = get_product_by_sku(data.sku)
     if product is None:
         raise HTTPException(status_code=404, detail="Product SKU not found")
+
+    actor_id = auth_payload.get("sub", "unknown")
+    actor_role = auth_payload.get("role", "unknown")
+    company_name = auth_payload.get("company_name")
+    retailer_name = (company_name or actor_id) if actor_role == "retail_shop" else (data.retailer_name or "Retail Store")
 
     unit_price = float(product.get("price") or 0.0)
     sale_amount = round(unit_price * int(data.quantity), 2)
@@ -140,12 +156,12 @@ def create_sale(data: SaleCreateRequest) -> APIResponse[dict]:
             sku=data.sku,
             units_sold=data.quantity,
             sale_amount=sale_amount,
-            retailer_name=data.retailer_name,
+            retailer_name=retailer_name,
         )
         payload = {
             "sku": data.sku,
             "quantity": data.quantity,
-            "retailerName": data.retailer_name,
+            "retailerName": retailer_name,
             "paymentMethod": data.payment_method,
             "orderCode": data.order_code,
             "saleId": sale.get("id"),

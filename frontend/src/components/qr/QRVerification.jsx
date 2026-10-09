@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import QRScanner from '../qr/QRScanner';
 import QRScanResult from '../qr/QRScanResult';
 import QRVerificationStatus from '../qr/QRVerificationStatus';
+import { getAuthToken } from '../../store/useAuthStore';
 
 const QRVerification = ({ onVerificationComplete }) => {
   const [scanState, setScanState] = useState('scanning'); // scanning, processing, completed
@@ -18,15 +19,19 @@ const QRVerification = ({ onVerificationComplete }) => {
       let waybillId = '';
       let sealHash = '';
       
-      try {
-        const parsed = JSON.parse(data);
-        waybillId = parsed.waybill_id;
-        sealHash = parsed.seal_hash || '';
-      } catch (e) {
-        const raw = String(data || '').trim();
-        if (raw.includes('|')) {
-          const [idPart, sealPart] = raw.split('|');
-          waybillId = idPart;
+      const raw = String(data).trim();
+      if (raw.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(raw);
+          waybillId = parsed.waybill_id || parsed.id || '';
+          sealHash = parsed.seal_hash || parsed.sealHash || '';
+        } catch {
+          waybillId = raw;
+        }
+      } else {
+        const [wbPart, sealPart] = raw.split('|');
+        if (wbPart && sealPart) {
+          waybillId = wbPart;
           sealHash = sealPart || '';
         } else {
           try {
@@ -39,7 +44,7 @@ const QRVerification = ({ onVerificationComplete }) => {
         }
       }
 
-      const token = localStorage.getItem('token');
+      const token = getAuthToken();
       const res = await fetch(`/api/waybills/${encodeURIComponent(waybillId.trim())}/verify`, {
         method: 'POST',
         headers: {

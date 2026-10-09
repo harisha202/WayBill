@@ -48,6 +48,19 @@ class ManufacturerService:
                 if existing:
                     raise ValueError(f"Production already exists for order {order_code}.")
 
+                # Atomically update originating order to manufacturer_accepted
+                conn.execute(
+                    update(orders_table)
+                    .where(orders_table.c.order_code == order_code)
+                    .values(
+                        current_stage="manufacturer_accepted",
+                        status="manufacturer_accepted",
+                        manufacturer_id=actor_id,
+                        batch_id=batch_id,
+                        updated_at=timestamp
+                    )
+                )
+
             values: Dict[str, Any] = dict(
                 order_id=order_id,
                 batch_id=batch_id,
@@ -278,6 +291,9 @@ class ManufacturerService:
         2. Create a Shipment record
         3. Update production order with shipment_id
         """
+        timestamp = datetime.now(timezone.utc)
+        shipment_id = f"SHP-{uuid.uuid4().hex[:8].upper()}"
+
         with _engine().begin() as conn:
             order = conn.execute(
                 select(production_orders_table).where(production_orders_table.c.order_id == order_id)
@@ -287,53 +303,22 @@ class ManufacturerService:
             if order.qa_status != "PASSED":
                 raise ValueError("Only fully QA-passed production orders can be dispatched.")
 
-        # Create Waybill with correct signature
-        waybill = waybill_service.create_waybill(
-            batch_id=order.batch_id,
-            sku=order.sku,
-            quantity=order.quantity,
-            order_id=order.order_code or order_id,
-            initial_custodian=actor_id,
-            actor_id=actor_id,
-            actor_role=actor_role,
-        )
+            calculated_weight = float(order.quantity * 2.5) if order.quantity else 1250.0
 
-        # Create a Shipment record linked to this production
-        timestamp = datetime.now(timezone.utc)
-        shipment_id = f"SHP-{uuid.uuid4().hex[:8].upper()}"
-        with _engine().begin() as conn:
-            conn.execute(
-                insert(shipments_table).values(
-                    shipment_id=shipment_id,
-                    order_code=order.order_code,
-                    status="PENDING",
-                    origin="Manufacturer Hub",
-                    destination=destination,
-                    timestamp=timestamp,
-                )
+            # 1. Create Waybill within this same atomic transaction
+            waybill = waybill_service.create_waybill(
+                batch_id=order.batch_id,
+                sku=order.sku,
+                quantity=order.quantity,
+                order_id=order.order_code or order_id,
+                initial_custodian=actor_id,
+                actor_id=actor_id,
+                actor_role=actor_role,
+                conn=conn,
+                adjust_inventory=False, # Handled below once
             )
-            if order.order_code:
-                conn.execute(
-                    update(orders_table)
-                    .where(orders_table.c.order_code == order.order_code)
-                    .values(
-                        shipment_id=shipment_id,
-                        current_stage="dispatched",
-                        status="dispatched",
-                        updated_at=timestamp,
-                    )
-                )
-            # Link shipment back to production order if column exists
-            try:
-                conn.execute(
-                    update(production_orders_table)
-                    .where(production_orders_table.c.order_id == order_id)
-                    .values(shipment_id=shipment_id)
-                )
-            except Exception:
-                pass  # shipment_id column may not exist yet
 
-            # Adjust inventory: available_stock -> in_transit
+            # 2. Adjust inventory once: available_stock -> in_transit
             prod = conn.execute(
                 select(products_table).where(products_table.c.sku == order.sku)
             ).first()
@@ -345,6 +330,42 @@ class ManufacturerService:
                     .where(products_table.c.sku == order.sku)
                     .values(available_stock=new_avail, in_transit=new_transit)
                 )
+
+            # 3. Create Shipment record linked to this production
+            conn.execute(
+                insert(shipments_table).values(
+                    shipment_id=shipment_id,
+                    order_code=order.order_code,
+                    status="PENDING",
+                    origin="Manufacturer Hub",
+                    destination=destination,
+                    weight=calculated_weight,
+                    timestamp=timestamp,
+                )
+            )
+
+            # 4. Update linked order stage to dispatched
+            if order.order_code:
+                conn.execute(
+                    update(orders_table)
+                    .where(orders_table.c.order_code == order.order_code)
+                    .values(
+                        shipment_id=shipment_id,
+                        current_stage="dispatched",
+                        status="dispatched",
+                        updated_at=timestamp,
+                    )
+                )
+
+            # 5. Link shipment back to production order
+            try:
+                conn.execute(
+                    update(production_orders_table)
+                    .where(production_orders_table.c.order_id == order_id)
+                    .values(shipment_id=shipment_id)
+                )
+            except Exception:
+                pass
 
 
         audit_service.log_action(

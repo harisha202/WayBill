@@ -50,10 +50,16 @@ class WaybillReceiveRequest(IdempotentRequest):
     location: Optional[str] = None
     received_quantity: int = Field(..., ge=0)
 
-class WaybillVerifyRequest(IdempotentRequest):
+class WaybillVerifyRequest(BaseModel):
     seal_hash: str
+    idempotency_key: Optional[str] = None
     
 class WaybillVerifyResponse(BaseModel):
     valid: bool
+    current_status: Optional[str] = None
+    custody: Optional[str] = None
+    batch_id: Optional[str] = None
+    sku: Optional[str] = None
+    quantity: Optional[int] = None
     waybill: Optional[WaybillDocumentSchema] = None
     reason: Optional[str] = None

@@ -61,6 +61,38 @@ rag_quota_table = Table(
     Column("updated_at", DateTime, default=datetime.utcnow, onupdate=datetime.utcnow),
 )
 
+rag_documents_table = Table(
+    "rag_documents",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("document_id", String(120), nullable=False, unique=True),
+    Column("filename", String(255), nullable=False),
+    Column("content_type", String(120), nullable=False),
+    Column("file_size", Integer, nullable=False, default=0),
+    Column("page_count", Integer, nullable=False, default=1),
+    Column("checksum", String(128), nullable=True),
+    Column("uploader_id", String(120), nullable=True),
+    Column("uploader_role", String(40), nullable=True),
+    Column("uploader_company", String(160), nullable=True),
+    Column("status", String(40), nullable=False, default="PROCESSING"),
+    Column("error_message", Text, nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+)
+
+rag_chunks_table = Table(
+    "rag_chunks",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("document_id", String(120), nullable=False),
+    Column("chunk_index", Integer, nullable=False),
+    Column("page_number", Integer, nullable=False, default=1),
+    Column("chunk_text", Text, nullable=False),
+    Column("chunk_metadata", JSON, nullable=False, default={}),
+    Column("embedding", JSON, nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
 users_table = Table(
     "users",
     metadata,
@@ -825,6 +857,12 @@ def _seed_defaults() -> None:
     with _engine().begin() as conn:
         user_count = conn.execute(select(func.count()).select_from(users_table)).scalar() or 0
         if user_count == 0:
+            admin_init_pwd = os.getenv("WAYBILL_ADMIN_INIT_PWD") or os.getenv("ADMIN_PASSWORD") or "AdminWaybill@2026!"
+            maker_init_pwd = os.getenv("WAYBILL_MAKER_INIT_PWD") or os.getenv("MAKER_PASSWORD") or "MakerWaybill@2026!"
+            transit_init_pwd = os.getenv("WAYBILL_TRANSIT_INIT_PWD") or os.getenv("TRANSIT_PASSWORD") or "TransitWaybill@2026!"
+            dealer_init_pwd = os.getenv("WAYBILL_DEALER_INIT_PWD") or os.getenv("DEALER_PASSWORD") or "DealerWaybill@2026!"
+            retail_init_pwd = os.getenv("WAYBILL_RETAIL_INIT_PWD") or os.getenv("RETAIL_PASSWORD") or "RetailWaybill@2026!"
+
             conn.execute(
                 users_table.insert(),
                 [
@@ -832,7 +870,7 @@ def _seed_defaults() -> None:
                         "username": "admin",
                         "name": "WayBill Admin",
                         "email": "admin@waybill.com",
-                        "password_hash": hash_password("admin123"),
+                        "password_hash": hash_password(admin_init_pwd),
                         "role": "admin",
                         "company_name": "WayBill HQ",
                         "phone": "555-0000",
@@ -842,7 +880,7 @@ def _seed_defaults() -> None:
                         "username": "maker",
                         "name": "WayBill Manufacturer",
                         "email": "manufacturer@waybill.com",
-                        "password_hash": hash_password("maker123"),
+                        "password_hash": hash_password(maker_init_pwd),
                         "role": "manufacturer",
                         "company_name": "Maker Corp",
                         "phone": "555-1111",
@@ -852,7 +890,7 @@ def _seed_defaults() -> None:
                         "username": "transporter",
                         "name": "WayBill Transporter",
                         "email": "transporter@waybill.com",
-                        "password_hash": hash_password("transit123"),
+                        "password_hash": hash_password(transit_init_pwd),
                         "role": "transporter",
                         "company_name": "Transit Inc",
                         "phone": "555-2222",
@@ -862,7 +900,7 @@ def _seed_defaults() -> None:
                         "username": "dealer",
                         "name": "WayBill Dealer",
                         "email": "dealer@waybill.com",
-                        "password_hash": hash_password("dealer123"),
+                        "password_hash": hash_password(dealer_init_pwd),
                         "role": "dealer",
                         "company_name": "Dealer LLC",
                         "phone": "555-3333",
@@ -872,7 +910,7 @@ def _seed_defaults() -> None:
                         "username": "retail",
                         "name": "WayBill Retail",
                         "email": "retail@waybill.com",
-                        "password_hash": hash_password("retail123"),
+                        "password_hash": hash_password(retail_init_pwd),
                         "role": "retail_shop",
                         "company_name": "Retail Store",
                         "phone": "555-4444",
@@ -892,6 +930,192 @@ def _seed_defaults() -> None:
                         .where(users_table.c.id == user_id)
                         .values(password_hash=hash_password(stored))
                     )
+
+        # Seed trucks if empty
+        truck_count = conn.execute(select(func.count()).select_from(trucks_table)).scalar() or 0
+        if truck_count == 0:
+            conn.execute(
+                trucks_table.insert(),
+                [
+                    {
+                        "plate_number": "KA-01-AB-1234",
+                        "model": "Volvo FH16",
+                        "capacity": 25000.0,
+                        "gps_device_id": "GPS-KA01",
+                        "maintenance_status": "OPERATIONAL",
+                        "assigned_route": "Bangalore -> Chennai",
+                        "current_load_percent": 78.5,
+                        "created_at": now,
+                    },
+                    {
+                        "plate_number": "MH-02-CD-5678",
+                        "model": "Tata Prima 4928",
+                        "capacity": 28000.0,
+                        "gps_device_id": "GPS-MH02",
+                        "maintenance_status": "OPERATIONAL",
+                        "assigned_route": "Mumbai -> Delhi",
+                        "current_load_percent": 85.0,
+                        "created_at": now,
+                    },
+                    {
+                        "plate_number": "DL-03-EF-9012",
+                        "model": "BharatBenz 3528",
+                        "capacity": 22000.0,
+                        "gps_device_id": "GPS-DL03",
+                        "maintenance_status": "IN_SHOP",
+                        "assigned_route": "Delhi -> Kolkata",
+                        "current_load_percent": 0.0,
+                        "created_at": now,
+                    },
+                    {
+                        "plate_number": "TN-04-GH-3456",
+                        "model": "Ashok Leyland 4220",
+                        "capacity": 26000.0,
+                        "gps_device_id": "GPS-TN04",
+                        "maintenance_status": "OPERATIONAL",
+                        "assigned_route": "Chennai -> Hyderabad",
+                        "current_load_percent": 62.0,
+                        "created_at": now,
+                    },
+                    {
+                        "plate_number": "KA-05-IJ-7890",
+                        "model": "Eicher Pro 6035",
+                        "capacity": 20000.0,
+                        "gps_device_id": "GPS-KA05",
+                        "maintenance_status": "INSPECTION_DUE",
+                        "assigned_route": "Bangalore -> Pune",
+                        "current_load_percent": 91.0,
+                        "created_at": now,
+                    },
+                    {
+                        "plate_number": "MH-06-KL-2345",
+                        "model": "Volvo FM400",
+                        "capacity": 30000.0,
+                        "gps_device_id": "GPS-MH06",
+                        "maintenance_status": "OPERATIONAL",
+                        "assigned_route": "Pune -> Ahmedabad",
+                        "current_load_percent": 74.0,
+                        "created_at": now,
+                    },
+                ]
+            )
+
+        # Seed drivers if empty
+        driver_count = conn.execute(select(func.count()).select_from(drivers_table)).scalar() or 0
+        if driver_count == 0:
+            conn.execute(
+                drivers_table.insert(),
+                [
+                    {
+                        "name": "Rajesh Sharma",
+                        "license_id": "DL-IND-2018-98432",
+                        "contract_type": "FULL_TIME",
+                        "performance_score": 94.5,
+                        "on_time_percent": 96.2,
+                        "incident_count": 0,
+                        "avatar_seed": "rajesh",
+                        "created_at": now,
+                    },
+                    {
+                        "name": "Suresh Patel",
+                        "license_id": "MH-IND-2019-45129",
+                        "contract_type": "FULL_TIME",
+                        "performance_score": 89.0,
+                        "on_time_percent": 91.8,
+                        "incident_count": 1,
+                        "avatar_seed": "suresh",
+                        "created_at": now,
+                    },
+                    {
+                        "name": "Anil Kumar",
+                        "license_id": "KA-IND-2020-78210",
+                        "contract_type": "CONTRACT",
+                        "performance_score": 92.0,
+                        "on_time_percent": 94.5,
+                        "incident_count": 0,
+                        "avatar_seed": "anil",
+                        "created_at": now,
+                    },
+                    {
+                        "name": "Vikram Singh",
+                        "license_id": "DL-IND-2017-33190",
+                        "contract_type": "FULL_TIME",
+                        "performance_score": 86.5,
+                        "on_time_percent": 88.0,
+                        "incident_count": 2,
+                        "avatar_seed": "vikram",
+                        "created_at": now,
+                    },
+                    {
+                        "name": "Manoj Verma",
+                        "license_id": "TN-IND-2021-65481",
+                        "contract_type": "CONTRACT",
+                        "performance_score": 95.0,
+                        "on_time_percent": 98.1,
+                        "incident_count": 0,
+                        "avatar_seed": "manoj",
+                        "created_at": now,
+                    },
+                ]
+            )
+
+        # Seed maintenance records if empty
+        maint_count = conn.execute(select(func.count()).select_from(maintenance_records_table)).scalar() or 0
+        if maint_count == 0:
+            conn.execute(
+                maintenance_records_table.insert(),
+                [
+                    {
+                        "truck_id": "DL-03-EF-9012",
+                        "maintenance_type": "transmission_check",
+                        "description": "Brake pad replacement and hydraulic pressure test",
+                        "status": "SCHEDULED",
+                        "scheduled_date": now,
+                        "completed_date": None,
+                    },
+                    {
+                        "truck_id": "KA-05-IJ-7890",
+                        "maintenance_type": "engine_oil_service",
+                        "description": "Routine 50,000 km engine service and filter replacement",
+                        "status": "IN_PROGRESS",
+                        "scheduled_date": now,
+                        "completed_date": None,
+                    },
+                    {
+                        "truck_id": "MH-02-CD-5678",
+                        "maintenance_type": "tire_rotation",
+                        "description": "All 10-wheel tire alignment and pressure sensor recalibration",
+                        "status": "COMPLETED",
+                        "scheduled_date": now,
+                        "completed_date": now,
+                    },
+                ]
+            )
+
+        # Seed suppliers if empty
+        sup_count = conn.execute(select(func.count()).select_from(suppliers_table)).scalar() or 0
+        if sup_count == 0:
+            conn.execute(
+                suppliers_table.insert(),
+                [
+                    {"supplier_id": "SUP-001", "name": "Apex Silicones Ltd", "tier": 1, "parent_supplier_id": None, "created_at": now},
+                    {"supplier_id": "SUP-002", "name": "Bharat Polymer Industries", "tier": 1, "parent_supplier_id": None, "created_at": now},
+                    {"supplier_id": "SUP-003", "name": "Global Precision Castings", "tier": 2, "parent_supplier_id": "SUP-001", "created_at": now},
+                    {"supplier_id": "SUP-004", "name": "Titanium Materials Corp", "tier": 2, "parent_supplier_id": "SUP-002", "created_at": now},
+                    {"supplier_id": "SUP-005", "name": "Southern Packaging Solutions", "tier": 3, "parent_supplier_id": "SUP-003", "created_at": now},
+                ]
+            )
+            conn.execute(
+                supplier_risk_scores_table.insert(),
+                [
+                    {"supplier_id": "SUP-001", "overall_score": 0.22, "financial_score": 0.18, "geopolitical_score": 0.25, "operational_score": 0.15, "delivery_score": 0.20, "esg_score": 0.30, "assessed_at": now},
+                    {"supplier_id": "SUP-002", "overall_score": 0.45, "financial_score": 0.40, "geopolitical_score": 0.35, "operational_score": 0.50, "delivery_score": 0.48, "esg_score": 0.42, "assessed_at": now},
+                    {"supplier_id": "SUP-003", "overall_score": 0.68, "financial_score": 0.65, "geopolitical_score": 0.70, "operational_score": 0.60, "delivery_score": 0.72, "esg_score": 0.65, "assessed_at": now},
+                    {"supplier_id": "SUP-004", "overall_score": 0.35, "financial_score": 0.30, "geopolitical_score": 0.40, "operational_score": 0.25, "delivery_score": 0.38, "esg_score": 0.35, "assessed_at": now},
+                    {"supplier_id": "SUP-005", "overall_score": 0.82, "financial_score": 0.80, "geopolitical_score": 0.85, "operational_score": 0.78, "delivery_score": 0.88, "esg_score": 0.75, "assessed_at": now},
+                ]
+            )
+
 
 
 def initialize_database() -> None:
@@ -2376,8 +2600,10 @@ def get_supplier_tree() -> list[dict]:
 # Waybill Document Methods
 # -----------------------------------------------------------------------------
 
-def check_and_record_idempotency_key(idempotency_key: str) -> bool:
+def check_and_record_idempotency_key(idempotency_key: str | None) -> bool:
     """Returns True if the key was already processed, False if it's new (and records it)."""
+    if not idempotency_key:
+        return False
     with _engine().begin() as conn:
         try:
             conn.execute(
@@ -2524,12 +2750,23 @@ def verify_waybill(waybill_id: str, seal_hash: str) -> dict:
 
 def verify_waybill_trust(waybill_id: str) -> dict:
     from app.services.blockchain_service import generate_product_hash
+    from sqlalchemy import or_
     with _engine().connect() as conn:
-        waybill_row = conn.execute(select(waybill_documents_table).where(waybill_documents_table.c.waybill_id == waybill_id)).first()
+        clean_query = str(waybill_id or "").strip()
+        waybill_row = conn.execute(
+            select(waybill_documents_table).where(
+                or_(
+                    waybill_documents_table.c.waybill_id == clean_query,
+                    waybill_documents_table.c.seal_hash == clean_query,
+                    waybill_documents_table.c.qr_code == clean_query
+                )
+            )
+        ).first()
         if not waybill_row:
             return {"is_valid": False, "mismatches": ["Waybill not found"]}
             
         waybill = _row_to_dict(waybill_row)
+        actual_waybill_id = waybill.get("waybill_id")
         seal_hash = waybill.get("seal_hash")
         mismatches = []
         
@@ -2539,7 +2776,7 @@ def verify_waybill_trust(waybill_id: str) -> dict:
         # 1. Calculate custody hash chain
         events_rows = conn.execute(
             select(custody_events_table)
-            .where(custody_events_table.c.waybill_id == waybill_id)
+            .where(custody_events_table.c.waybill_id == actual_waybill_id)
             .order_by(custody_events_table.c.id)
         ).fetchall()
         
@@ -2553,9 +2790,6 @@ def verify_waybill_trust(waybill_id: str) -> dict:
                     mismatches.append(f"Custody chain broken at event {event.get('id')}: previous_event_hash mismatch")
                 # Recalculating hash requires exact isoformat, doing link verification instead
                 expected_prev = event.get("event_hash")
-                
-            if seal_hash and expected_prev != seal_hash:
-                mismatches.append("Seal hash mismatch: waybill seal_hash != latest event hash")
                 
         # 2. Calculate ledger hash chain
         batch_id = waybill.get("batch_id")
@@ -2584,11 +2818,18 @@ def verify_waybill_trust(waybill_id: str) -> dict:
         
         for i in range(1, len(fin_chain)):
             if fin_chain[i].get("previous_ledger_hash") != fin_chain[i-1].get("ledger_hash"):
-                if fin_chain[i].get("entity_id") == waybill_id or fin_chain[i].get("seal_hash") == seal_hash:
+                if fin_chain[i].get("entity_id") == actual_waybill_id or fin_chain[i].get("seal_hash") == seal_hash:
                     mismatches.append(f"Financial ledger chain broken at entry {fin_chain[i].get('id')}")
                     
         return {
             "is_valid": len(mismatches) == 0,
+            "waybill_id": actual_waybill_id,
+            "seal_hash": seal_hash,
+            "batch_id": batch_id,
+            "sku": waybill.get("sku"),
+            "quantity": waybill.get("quantity"),
+            "status": waybill.get("status"),
+            "current_custodian": waybill.get("current_custodian"),
             "mismatches": mismatches
         }
 
@@ -3359,7 +3600,7 @@ def get_financial_analytics(date_from: str | None = None, date_to: str | None = 
                     SELECT
                         strftime('%Y-%m', o.created_at) as month,
                         SUM(p.price * o.quantity) as revenue,
-                        COALESCE(SUM(cl.total_cost), SUM(p.price * o.quantity) * 0.65) as cost
+                        COALESCE(SUM(cl.total_cost), 0.0) as cost
                     FROM orders o
                     JOIN products p ON o.product_sku = p.sku
                     LEFT JOIN cost_ledger cl ON o.order_code = cl.order_id
@@ -3370,7 +3611,7 @@ def get_financial_analytics(date_from: str | None = None, date_to: str | None = 
                 for r in fallback_rows:
                     if r[0]:
                         rev = float(r[1] or 0)
-                        cost = float(r[2] or rev * 0.65)
+                        cost = float(r[2] or 0.0)
                         profit = rev - cost
                         margin = round((profit / rev * 100) if rev > 0 else 0, 1)
                         rev_cost.append({
@@ -3683,9 +3924,33 @@ def get_mfg_forecast_analytics(date_from=None, date_to=None, sku_filter=None):
                 FROM orders WHERE 1=1 {dc} {sc}
             """)).fetchone()
 
+            actual_points = [{'day': r[0], 'actual_demand': int(r[1] or 0), 'demand_qty': int(r[1] or 0), 'forecast_demand': None, 'order_count': int(r[2] or 0)} for r in trend if r[0]]
+            
+            # Compute algorithmic forecast for future 7 days strictly separated from actuals
+            forecast_points = []
+            if actual_points:
+                from app.services.ai_service import predict_demand
+                hist_series = [float(p['actual_demand']) for p in actual_points]
+                predicted_vals = predict_demand(hist_series, horizon=7)
+                try:
+                    last_dt = datetime.strptime(actual_points[-1]['day'], '%Y-%m-%d')
+                except Exception:
+                    last_dt = datetime.utcnow()
+                for idx, pred in enumerate(predicted_vals, 1):
+                    f_date = (last_dt + timedelta(days=idx)).strftime('%Y-%m-%d')
+                    forecast_points.append({
+                        'day': f_date,
+                        'actual_demand': None,
+                        'demand_qty': None,
+                        'forecast_demand': round(float(pred), 1),
+                        'order_count': 0
+                    })
+
             return {
                 'kpis': {'total_orders': int(kpi_row[0] or 0), 'total_demand': int(kpi_row[1] or 0), 'unique_skus': int(kpi_row[2] or 0)},
-                'demand_trend': [{'day': r[0], 'demand_qty': int(r[1] or 0), 'order_count': int(r[2] or 0)} for r in trend if r[0]],
+                'actual_trend': actual_points,
+                'forecast_trend': forecast_points,
+                'demand_trend': actual_points + forecast_points,
                 'demand_by_sku': [{'sku': r[0], 'demand_qty': int(r[1] or 0), 'order_count': int(r[2] or 0)} for r in by_sku if r[0]],
                 'historical_trend': [{'week': r[0], 'demand_qty': int(r[1] or 0)} for r in hist if r[0]]
             }
@@ -5142,3 +5407,183 @@ def record_qr_verification_event(
         "reason": reason,
         "timestamp": now,
     }
+
+
+# ─── RAG DOCUMENT AND CHUNK REPOSITORY ────────────────────────────────────────
+
+def create_rag_document(
+    document_id: str,
+    filename: str,
+    content_type: str,
+    file_size: int,
+    page_count: int,
+    checksum: str | None = None,
+    uploader_id: str | None = None,
+    uploader_role: str | None = None,
+    uploader_company: str | None = None,
+    status: str = "PROCESSING",
+    error_message: str | None = None,
+) -> dict:
+    now = _utc_now()
+    try:
+        with _engine().begin() as conn:
+            conn.execute(
+                rag_documents_table.insert().values(
+                    document_id=document_id,
+                    filename=filename,
+                    content_type=content_type,
+                    file_size=file_size,
+                    page_count=page_count,
+                    checksum=checksum,
+                    uploader_id=uploader_id,
+                    uploader_role=uploader_role,
+                    uploader_company=uploader_company,
+                    status=status,
+                    error_message=error_message,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to create RAG document") from exc
+    return {
+        "document_id": document_id,
+        "filename": filename,
+        "content_type": content_type,
+        "file_size": file_size,
+        "page_count": page_count,
+        "checksum": checksum,
+        "uploader_id": uploader_id,
+        "uploader_role": uploader_role,
+        "uploader_company": uploader_company,
+        "status": status,
+        "error_message": error_message,
+        "created_at": now.isoformat(),
+        "updated_at": now.isoformat(),
+    }
+
+
+def update_rag_document_status(
+    document_id: str,
+    status: str,
+    page_count: int | None = None,
+    error_message: str | None = None,
+) -> None:
+    now = _utc_now()
+    values: dict[str, Any] = {"status": status, "updated_at": now}
+    if page_count is not None:
+        values["page_count"] = page_count
+    if error_message is not None:
+        values["error_message"] = error_message
+    try:
+        with _engine().begin() as conn:
+            conn.execute(
+                rag_documents_table.update()
+                .where(rag_documents_table.c.document_id == document_id)
+                .values(**values)
+            )
+    except SQLAlchemyError as exc:
+        raise DatabaseError(f"Failed to update RAG document {document_id}") from exc
+
+
+def save_rag_chunks(chunks: list[dict]) -> None:
+    if not chunks:
+        return
+    now = _utc_now()
+    records = []
+    for c in chunks:
+        records.append({
+            "document_id": c["document_id"],
+            "chunk_index": c["chunk_index"],
+            "page_number": c.get("page_number", 1),
+            "chunk_text": c["chunk_text"],
+            "chunk_metadata": c.get("chunk_metadata", {}),
+            "embedding": c.get("embedding"),
+            "created_at": now,
+        })
+    try:
+        with _engine().begin() as conn:
+            conn.execute(rag_chunks_table.insert(), records)
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to save RAG chunks") from exc
+
+
+def list_rag_documents(
+    uploader_company: str | None = None,
+    limit: int = 50,
+) -> list[dict]:
+    try:
+        with _engine().begin() as conn:
+            stmt = select(rag_documents_table).order_by(desc(rag_documents_table.c.created_at)).limit(limit)
+            if uploader_company:
+                stmt = stmt.where(rag_documents_table.c.uploader_company == uploader_company)
+            rows = conn.execute(stmt).mappings().all()
+            results = []
+            for r in rows:
+                d = dict(r)
+                if isinstance(d.get("created_at"), datetime):
+                    d["created_at"] = d["created_at"].isoformat()
+                if isinstance(d.get("updated_at"), datetime):
+                    d["updated_at"] = d["updated_at"].isoformat()
+                results.append(d)
+            return results
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to list RAG documents") from exc
+
+
+def get_rag_chunks_for_search(
+    uploader_company: str | None = None,
+    document_ids: list[str] | None = None,
+) -> list[dict]:
+    """Retrieve indexed chunks joined with document metadata for scoped semantic search."""
+    try:
+        with _engine().begin() as conn:
+            stmt = (
+                select(
+                    rag_chunks_table.c.id,
+                    rag_chunks_table.c.document_id,
+                    rag_chunks_table.c.chunk_index,
+                    rag_chunks_table.c.page_number,
+                    rag_chunks_table.c.chunk_text,
+                    rag_chunks_table.c.chunk_metadata,
+                    rag_chunks_table.c.embedding,
+                    rag_documents_table.c.filename,
+                    rag_documents_table.c.uploader_role,
+                    rag_documents_table.c.uploader_company,
+                    rag_documents_table.c.status,
+                )
+                .select_from(
+                    rag_chunks_table.join(
+                        rag_documents_table,
+                        rag_chunks_table.c.document_id == rag_documents_table.c.document_id,
+                    )
+                )
+                .where(rag_documents_table.c.status == "READY")
+            )
+            if uploader_company:
+                stmt = stmt.where(
+                    (rag_documents_table.c.uploader_company == uploader_company)
+                    | (rag_documents_table.c.uploader_company.is_(None))
+                )
+            if document_ids:
+                stmt = stmt.where(rag_chunks_table.c.document_id.in_(document_ids))
+            
+            rows = conn.execute(stmt).mappings().all()
+            return [dict(r) for r in rows]
+    except SQLAlchemyError as exc:
+        raise DatabaseError("Failed to query RAG chunks for search") from exc
+
+
+def delete_rag_document(document_id: str) -> bool:
+    try:
+        with _engine().begin() as conn:
+            conn.execute(
+                rag_chunks_table.delete().where(rag_chunks_table.c.document_id == document_id)
+            )
+            res = conn.execute(
+                rag_documents_table.delete().where(rag_documents_table.c.document_id == document_id)
+            )
+            return bool(res.rowcount and res.rowcount > 0)
+    except SQLAlchemyError as exc:
+        raise DatabaseError(f"Failed to delete RAG document {document_id}") from exc
+

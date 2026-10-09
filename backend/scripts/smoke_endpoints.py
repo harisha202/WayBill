@@ -50,35 +50,41 @@ def main() -> int:
 
     client = TestClient(run.app)
 
+    admin_pwd = os.getenv("TEST_ADMIN_PASSWORD", "")
+    maker_pwd = os.getenv("TEST_MAKER_PASSWORD", "")
+    transporter_pwd = os.getenv("TEST_TRANSPORTER_PASSWORD", "")
+    dealer_pwd = os.getenv("TEST_DEALER_PASSWORD", "")
+    retail_pwd = os.getenv("TEST_RETAIL_PASSWORD", "")
+
     admin = Actor(
-        email="admin@globalsupply.com",
-        password="admin123",
+        email=os.getenv("TEST_ADMIN_EMAIL", "admin@globalsupply.com"),
+        password=admin_pwd,
         role="admin",
-        token=_login(client, email="admin@globalsupply.com", password="admin123", role="admin"),
+        token=_login(client, email=os.getenv("TEST_ADMIN_EMAIL", "admin@globalsupply.com"), password=admin_pwd, role="admin"),
     )
     manufacturer = Actor(
-        email="manufacturer@globalsupply.com",
-        password="maker123",
+        email=os.getenv("TEST_MAKER_EMAIL", "manufacturer@globalsupply.com"),
+        password=maker_pwd,
         role="manufacturer",
-        token=_login(client, email="manufacturer@globalsupply.com", password="maker123", role="manufacturer"),
+        token=_login(client, email=os.getenv("TEST_MAKER_EMAIL", "manufacturer@globalsupply.com"), password=maker_pwd, role="manufacturer"),
     )
     transporter = Actor(
-        email="transporter@globalsupply.com",
-        password="transport123",
+        email=os.getenv("TEST_TRANSPORTER_EMAIL", "transporter@globalsupply.com"),
+        password=transporter_pwd,
         role="transporter",
-        token=_login(client, email="transporter@globalsupply.com", password="transport123", role="transporter"),
+        token=_login(client, email=os.getenv("TEST_TRANSPORTER_EMAIL", "transporter@globalsupply.com"), password=transporter_pwd, role="transporter"),
     )
     dealer = Actor(
-        email="dealer@globalsupply.com",
-        password="dealer123",
+        email=os.getenv("TEST_DEALER_EMAIL", "dealer@globalsupply.com"),
+        password=dealer_pwd,
         role="dealer",
-        token=_login(client, email="dealer@globalsupply.com", password="dealer123", role="dealer"),
+        token=_login(client, email=os.getenv("TEST_DEALER_EMAIL", "dealer@globalsupply.com"), password=dealer_pwd, role="dealer"),
     )
     retail = Actor(
-        email="retail@globalsupply.com",
-        password="retail123",
+        email=os.getenv("TEST_RETAIL_EMAIL", "retail@globalsupply.com"),
+        password=retail_pwd,
         role="retail_shop",
-        token=_login(client, email="retail@globalsupply.com", password="retail123", role="retail_shop"),
+        token=_login(client, email=os.getenv("TEST_RETAIL_EMAIL", "retail@globalsupply.com"), password=retail_pwd, role="retail_shop"),
     )
 
     # Basic health.

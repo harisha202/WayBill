@@ -40,6 +40,14 @@ function readPersistedState() {
     }
 
     const parsed = JSON.parse(raw)
+    if (parsed?.token) {
+      if (!window.localStorage.getItem('token')) {
+        window.localStorage.setItem('token', parsed.token)
+      }
+      if (!window.localStorage.getItem('waybill_token')) {
+        window.localStorage.setItem('waybill_token', parsed.token)
+      }
+    }
     return {
       ...defaultState,
       ...parsed,
@@ -60,6 +68,13 @@ function persistState() {
 
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(authState))
+    if (authState?.token) {
+      window.localStorage.setItem('token', authState.token)
+      window.localStorage.setItem('waybill_token', authState.token)
+    } else {
+      window.localStorage.removeItem('token')
+      window.localStorage.removeItem('waybill_token')
+    }
   } catch {
     // Ignore storage errors in restricted environments.
   }
@@ -86,6 +101,19 @@ function subscribe(listener) {
 
 export function getAuthState() {
   return authState
+}
+
+export function getAuthToken() {
+  if (authState?.token) return authState.token
+  if (typeof window !== 'undefined') {
+    return (
+      window.localStorage.getItem('token') ||
+      window.localStorage.getItem('waybill_token') ||
+      JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '{}')?.token ||
+      ''
+    )
+  }
+  return ''
 }
 
 export const selectAuthState = (state) => state
@@ -126,3 +154,4 @@ export function enterGuest(role = 'Guest', name = 'Guest User') {
 export function logout() {
   setAuthState(defaultState)
 }
+

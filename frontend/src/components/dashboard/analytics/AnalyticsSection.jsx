@@ -4,7 +4,7 @@ import React from 'react';
  * AnalyticsSection — Implements the exact layout spec:
  *   Header → KPI Strip → Main (12/12) → Supporting Grid (6/12 + 6/12) → Wide (12/12) → Insight
  */
-export function AnalyticsSection({ title, description, actions, kpis, main, supportingLeft, supportingRight, supportingWide, insight }) {
+export function AnalyticsSection({ title, description, actions, kpis, main, supportingLeft, supportingRight, supportingWide, insight, children }) {
   return (
     <section className="analytics-section">
       <div className="analytics-section-header">
@@ -29,6 +29,8 @@ export function AnalyticsSection({ title, description, actions, kpis, main, supp
       {supportingWide && <div className="analytics-supporting-wide">{supportingWide}</div>}
 
       {insight && <div className="analytics-insight">{insight}</div>}
+
+      {children && <div className="analytics-children">{children}</div>}
     </section>
   );
 }
@@ -36,14 +38,16 @@ export function AnalyticsSection({ title, description, actions, kpis, main, supp
 /**
  * KPICard — Simple KPI display card
  */
-export function KPICard({ label, value, unit, trend, color, icon }) {
+export function KPICard({ label, title, value, unit, trend, color, icon }) {
+  const displayLabel = label || title || '';
   return (
     <div className="analytics-kpi-card" style={{ borderTop: `3px solid ${color || 'var(--blue)'}` }}>
-      <div className="analytics-kpi-icon">{icon}</div>
-      <div className="analytics-kpi-value" style={{ color: color }}>
-        {value !== undefined && value !== null ? value.toLocaleString() : '—'}{unit && <span className="analytics-kpi-unit">{unit}</span>}
+      {icon && <div className="analytics-kpi-icon">{icon}</div>}
+      <div className="analytics-kpi-value" style={{ color: color || 'var(--text)' }}>
+        {value !== undefined && value !== null ? (typeof value === 'number' ? value.toLocaleString() : value) : '—'}
+        {unit && <span className="analytics-kpi-unit"> {unit}</span>}
       </div>
-      <div className="analytics-kpi-label">{label}</div>
+      <div className="analytics-kpi-label">{displayLabel}</div>
       {trend !== undefined && (
         <div className="analytics-kpi-trend" style={{ color: trend >= 0 ? 'var(--green)' : 'var(--red)' }}>
           {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)}%

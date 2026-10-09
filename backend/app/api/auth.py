@@ -117,7 +117,7 @@ def normalize_role(role: UserRole | str) -> UserRole:
     return UserRole(normalized)
 
 
-def create_access_token(subject: str, role: UserRole) -> str:
+def create_access_token(subject: str, role: UserRole, company_name: Optional[str] = None) -> str:
     settings = get_settings()
     now = datetime.now(timezone.utc)
     # Using hard-coded 15 minutes or config
@@ -127,6 +127,7 @@ def create_access_token(subject: str, role: UserRole) -> str:
         "sub": subject,
         "type": "access",
         "role": role.value,
+        "company_name": company_name,
         "iat": int(now.timestamp()),
         "exp": int(expire_at.timestamp()),
     }
@@ -288,7 +289,7 @@ async def login(request: Request) -> LoginResponse:
             
         reset_failed_logins(db_user["id"])
 
-        token = create_access_token(subject=email, role=db_role)
+        token = create_access_token(subject=email, role=db_role, company_name=db_user.get("company_name"))
         refresh = create_refresh_token(subject=email, role=db_role)
         return LoginResponse(
             access_token=token,
@@ -384,10 +385,15 @@ def me(payload: dict = Depends(get_current_payload)):
     if db_user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return {
-        "id": db_user["id"],
-        "email": db_user["email"],
-        "name": normalize_display_name(db_user["name"], fallback="User"),
-        "role": normalize_role(db_user["role"]),
+        "id": db_user.get("id"),
+        "username": db_user.get("username") or email.split("@")[0],
+        "email": db_user.get("email"),
+        "name": normalize_display_name(db_user.get("name"), fallback="User"),
+        "role": normalize_role(db_user.get("role")),
+        "company_name": db_user.get("company_name") or "Global Supply Corp",
+        "company": db_user.get("company_name") or "Global Supply Corp",
+        "is_active": bool(db_user.get("is_active", 1)),
+        "created_at": str(db_user.get("created_at") or ""),
     }
 
 

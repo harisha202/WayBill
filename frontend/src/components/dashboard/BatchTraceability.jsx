@@ -28,85 +28,170 @@ function MfgTooltip({ active, payload, label }) {
   );
 }
 
-function SankeyChart({ links }) {
-  if (!links?.length) return <div style={{textAlign:'center',color:'var(--muted)',padding:'2rem'}}>No batch flow data</div>;
-  
-  const width = 800, height = 460, nodeW = 20, pad = 8;
-  
-  const nodeMap = {};
-  links.forEach(l => {
-    if (!nodeMap[l.source]) nodeMap[l.source] = { name: l.source, inflow: 0, outflow: 0, value: 0 };
-    if (!nodeMap[l.target]) nodeMap[l.target] = { name: l.target, inflow: 0, outflow: 0, value: 0 };
-    nodeMap[l.source].outflow += l.value;
-    nodeMap[l.target].inflow += l.value;
-  });
-  
-  const layers = { 'Production:': 0, 'QA:': 1, 'Dispatch:': 2 };
-  const nodeList = Object.values(nodeMap).map(n => ({
-    ...n,
-    layer: Object.entries(layers).find(([k]) => n.name.startsWith(k))?.[1] ?? 1,
-    value: Math.max(n.inflow, n.outflow)
-  }));
-  
-  const layerX = [60, 340, 620];
-  const byLayer = [0,1,2].map(l => nodeList.filter(n => n.layer === l));
-  
-  byLayer.forEach(group => {
-    const total = group.reduce((s, n) => s + n.value, 0) || 1;
-    let y = 40;
-    group.forEach(n => {
-      n.h = Math.max(20, ((n.value / total) * (height - 80)));
-      n.y = y;
-      n.x = layerX[n.layer];
-      y += n.h + pad;
-    });
-  });
-  
-  const nodeColor = name => {
-    if (name.includes('COMPLETED') || name.includes('PASSED') || name.includes('DELIVERED')) return '#059669';
-    if (name.includes('FAILED')) return '#DC2626';
-    if (name.includes('PENDING')) return '#F59E0B';
-    if (name.includes('Production')) return '#4F46E5';
-    if (name.includes('QA')) return '#7C3AED';
-    if (name.includes('Dispatch')) return '#06B6D4';
-    return '#64748B';
+function BatchFlowPipeline({ links }) {
+  if (!links?.length) {
+    return (
+      <div style={{ textAlign: 'center', color: 'var(--muted)', padding: '3rem 1rem' }}>
+        No batch flow data available.
+      </div>
+    );
+  }
+
+  // Aggregate counts per stage and status
+  const stages = {
+    production: { title: '1. Production Stage', icon: '⚙️', color: '#3b82f6', items: {} },
+    qa: { title: '2. QA Inspection Stage', icon: '🔍', color: '#8b5cf6', items: {} },
+    dispatch: { title: '3. Dispatch & Custody', icon: '📦', color: '#10b981', items: {} },
   };
-  
-  const nodeOffsets = {};
-  nodeList.forEach(n => { nodeOffsets[n.name] = { src: 0, tgt: 0 }; });
-  
-  const linkPaths = links.map((l, i) => {
-    const src = nodeList.find(n => n.name === l.source);
-    const tgt = nodeList.find(n => n.name === l.target);
-    if (!src || !tgt) return null;
-    const srcTotal = src.value || 1;
-    const tgtTotal = tgt.value || 1;
-    const lh_src = (l.value / srcTotal) * src.h;
-    const lh_tgt = (l.value / tgtTotal) * tgt.h;
-    const y0 = src.y + nodeOffsets[l.source].src;
-    const y1 = tgt.y + nodeOffsets[l.target].tgt;
-    nodeOffsets[l.source].src += lh_src;
-    nodeOffsets[l.target].tgt += lh_tgt;
-    const mx = (src.x + nodeW + tgt.x) / 2;
-    const path = `M${src.x + nodeW},${y0} C${mx},${y0} ${mx},${y1} ${tgt.x},${y1} L${tgt.x},${y1 + lh_tgt} C${mx},${y1 + lh_tgt} ${mx},${y0 + lh_src} ${src.x + nodeW},${y0 + lh_src} Z`;
-    const color = nodeColor(l.source);
-    return <path key={i} d={path} fill={color} opacity={0.5} />;
-  }).filter(Boolean);
-  
+
+  links.forEach(l => {
+    // Sourced entries
+    const parseNode = (str, isSource) => {
+      const parts = str.split(': ');
+      const stageKey = parts[0]?.trim().toLowerCase();
+      const statusName = parts[1]?.trim() || str;
+      return { stageKey, statusName };
+    };
+
+    const src = parseNode(l.source, true);
+    const tgt = parseNode(l.target, false);
+
+    if (src.stageKey === 'production') {
+      stages.production.items[src.statusName] = (stages.production.items[src.statusName] || 0) + (l.value || 0);
+    }
+    if (tgt.stageKey === 'qa') {
+      stages.qa.items[tgt.statusName] = (stages.qa.items[tgt.statusName] || 0) + (l.value || 0);
+    }
+    if (tgt.stageKey === 'dispatch') {
+      stages.dispatch.items[tgt.statusName] = (stages.dispatch.items[tgt.statusName] || 0) + (l.value || 0);
+    }
+  });
+
+  const getStatusTheme = (status) => {
+    const s = String(status || '').toUpperCase();
+    if (s.includes('COMPLETED') || s.includes('PASSED') || s.includes('SEALED') || s.includes('DELIVERED')) {
+      return { bg: 'rgba(16, 185, 129, 0.12)', border: '#10b981', color: '#10b981', badgeBg: '#10b981' };
+    }
+    if (s.includes('STARTED') || s.includes('IN_TRANSIT')) {
+      return { bg: 'rgba(59, 130, 246, 0.12)', border: '#3b82f6', color: '#3b82f6', badgeBg: '#3b82f6' };
+    }
+    if (s.includes('PENDING') || s.includes('PARTIALLY')) {
+      return { bg: 'rgba(245, 158, 11, 0.12)', border: '#f59e0b', color: '#f59e0b', badgeBg: '#f59e0b' };
+    }
+    if (s.includes('FAILED') || s.includes('REJECTED')) {
+      return { bg: 'rgba(239, 68, 68, 0.12)', border: '#ef4444', color: '#ef4444', badgeBg: '#ef4444' };
+    }
+    return { bg: 'rgba(148, 163, 184, 0.12)', border: '#94a3b8', color: '#94a3b8', badgeBg: '#64748b' };
+  };
+
   return (
-    <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}>
-      {linkPaths}
-      {nodeList.map(n => (
-        <g key={n.name}>
-          <rect x={n.x} y={n.y} width={nodeW} height={Math.max(n.h, 4)} fill={nodeColor(n.name)} rx={3} />
-          <text x={n.x + (n.layer === 2 ? nodeW + 6 : -6)} y={n.y + Math.max(n.h, 4)/2}
-            textAnchor={n.layer === 2 ? 'start' : 'end'}
-            dominantBaseline="middle" fontSize={11} fill="var(--text)">
-            {n.name.replace(/^(Production|QA|Dispatch): /, '')} ({n.value})
-          </text>
-        </g>
-      ))}
-    </svg>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', width: '100%', height: '100%' }}>
+      {/* 3-Column Pipeline Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem', alignItems: 'stretch' }}>
+        {Object.entries(stages).map(([key, stage], colIdx) => {
+          const itemsList = Object.entries(stage.items);
+          const stageTotal = itemsList.reduce((acc, [, val]) => acc + val, 0);
+
+          return (
+            <div 
+              key={key} 
+              style={{
+                background: 'var(--bg)',
+                border: `1px solid var(--border)`,
+                borderRadius: '10px',
+                padding: '1.25rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1rem',
+                position: 'relative'
+              }}
+            >
+              {/* Stage Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '1.2rem' }}>{stage.icon}</span>
+                  <strong style={{ fontSize: '0.95rem', color: 'var(--text)' }}>{stage.title}</strong>
+                </div>
+                <span 
+                  style={{ 
+                    padding: '0.2rem 0.6rem', 
+                    borderRadius: '12px', 
+                    fontSize: '0.75rem', 
+                    fontWeight: 700, 
+                    background: `${stage.color}20`, 
+                    color: stage.color, 
+                    border: `1px solid ${stage.color}40` 
+                  }}
+                >
+                  {stageTotal} Total
+                </span>
+              </div>
+
+              {/* Status List Cards */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', flex: 1 }}>
+                {itemsList.length > 0 ? (
+                  itemsList.map(([statusName, count]) => {
+                    const theme = getStatusTheme(statusName);
+                    const pct = stageTotal > 0 ? Math.round((count / stageTotal) * 100) : 0;
+
+                    return (
+                      <div
+                        key={statusName}
+                        style={{
+                          background: 'var(--surface)',
+                          border: `1px solid ${theme.border}40`,
+                          borderLeft: `4px solid ${theme.border}`,
+                          borderRadius: '8px',
+                          padding: '0.85rem 1rem',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.5rem',
+                          transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text)', letterSpacing: '0.02em' }}>
+                            {statusName}
+                          </span>
+                          <span 
+                            style={{ 
+                              padding: '0.2rem 0.65rem', 
+                              borderRadius: '6px', 
+                              fontSize: '0.82rem', 
+                              fontWeight: 800, 
+                              background: theme.bg, 
+                              color: theme.color, 
+                              border: `1px solid ${theme.border}50` 
+                            }}
+                          >
+                            {count} {count === 1 ? 'Batch' : 'Batches'}
+                          </span>
+                        </div>
+
+                        {/* Progress Share Bar */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+                          <div style={{ flex: 1, height: '6px', background: 'var(--border)', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ width: `${pct}%`, height: '100%', background: theme.border, borderRadius: '3px' }} />
+                          </div>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 600, minWidth: '32px', textAlign: 'right' }}>
+                            {pct}%
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--muted)', fontSize: '0.85rem' }}>
+                    No batches in this stage
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -189,9 +274,11 @@ export function BatchTraceability() {
             </div>
           </div>
 
-          <div style={{ ...cardStyle, height: '520px' }}>
-            <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.125rem' }}>Batch Flow Traceability</h3>
-            <SankeyChart links={analytics?.sankey_links || []} />
+          <div style={{ ...cardStyle, minHeight: '380px', height: 'auto' }}>
+            <h3 style={{ margin: '0 0 1.25rem 0', fontSize: '1.125rem', fontWeight: 700, color: 'var(--dashboard-heading)' }}>
+              Batch Flow Traceability
+            </h3>
+            <BatchFlowPipeline links={analytics?.sankey_links || []} />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem' }}>

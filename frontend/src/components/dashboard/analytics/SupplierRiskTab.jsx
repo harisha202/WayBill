@@ -95,14 +95,21 @@ export function SupplierRiskTab() {
     setFilters({ supplierId: '' });
   };
 
+  const normalizeScoreTo100 = (v) => {
+    if (v == null) return 0;
+    const num = Number(v);
+    if (Number.isNaN(num)) return 0;
+    return num > 1 ? Math.round(num) : Math.round(num * 100);
+  };
+
   const barData = [...(data.suppliers || [])]
     .sort((a,b) => b.overall_score - a.overall_score)
     .slice(0, 20)
     .map(s => ({
       name: s.name.length > 20 ? s.name.slice(0,18)+'...' : s.name,
-      score: Math.round(s.overall_score * 100),
+      score: normalizeScoreTo100(s.overall_score),
       risk_level: s.risk_level,
-      on_time: s.on_time_pct
+      on_time: normalizeScoreTo100(s.on_time_pct)
     }));
 
   const getBarColor = (riskLevel) => {
@@ -117,17 +124,17 @@ export function SupplierRiskTab() {
 
   const selectedSupplier = data.suppliers?.[selectedIdx] || data.suppliers?.[0];
   const radarData = selectedSupplier ? [
-    { axis: 'Financial', value: Math.round((selectedSupplier.financial_score||0.5) * 100), fullMark: 100 },
-    { axis: 'Geopolitical', value: Math.round((selectedSupplier.geopolitical_score||0.5) * 100), fullMark: 100 },
-    { axis: 'Operational', value: Math.round((selectedSupplier.operational_score||0.5) * 100), fullMark: 100 },
-    { axis: 'Delivery', value: Math.round((selectedSupplier.delivery_score||0.5) * 100), fullMark: 100 },
-    { axis: 'ESG', value: Math.round((selectedSupplier.esg_score||0.5) * 100), fullMark: 100 },
+    { axis: 'Financial', value: normalizeScoreTo100(selectedSupplier.financial_score ?? 0.5), fullMark: 100 },
+    { axis: 'Geopolitical', value: normalizeScoreTo100(selectedSupplier.geopolitical_score ?? 0.5), fullMark: 100 },
+    { axis: 'Operational', value: normalizeScoreTo100(selectedSupplier.operational_score ?? 0.5), fullMark: 100 },
+    { axis: 'Delivery', value: normalizeScoreTo100(selectedSupplier.delivery_score ?? 0.5), fullMark: 100 },
+    { axis: 'ESG', value: normalizeScoreTo100(selectedSupplier.esg_score ?? 0.5), fullMark: 100 },
   ] : [];
 
   const scatterData = (data.suppliers || []).map(s => ({
-    x: s.on_time_pct,
-    y: Math.round(s.overall_score * 100),
-    z: 30 + s.total_deliveries * 2,
+    x: normalizeScoreTo100(s.on_time_pct),
+    y: normalizeScoreTo100(s.overall_score),
+    z: 30 + (s.total_deliveries || 0) * 2,
     name: s.name,
     risk_level: s.risk_level
   }));
@@ -175,7 +182,7 @@ export function SupplierRiskTab() {
         <KPICard title="Total Suppliers" value={data.kpis?.total_suppliers || 0} />
         <KPICard title="Critical Suppliers" value={data.kpis?.critical_suppliers || 0} />
         <KPICard title="High Risk Suppliers" value={data.kpis?.high_risk || 0} />
-        <KPICard title="Avg On-Time %" value={`${Math.round((data.kpis?.avg_on_time_pct || 0) * 100)}%`} />
+        <KPICard title="Avg On-Time %" value={`${normalizeScoreTo100(data.kpis?.avg_on_time_pct || 0)}%`} />
       </AnalyticsSection>
 
       <AnalyticsSection title="Supplier Risk Overview">

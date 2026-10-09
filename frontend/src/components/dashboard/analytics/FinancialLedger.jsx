@@ -129,6 +129,22 @@ function CostMekko({ monthly, costColors }) {
 
 export function FinancialLedger() {
   const [filters, setFilters] = useState({ dateFrom:'', dateTo:'', entityType:'all' });
+  const [targets, setTargets] = useState(() => {
+    try {
+      const saved = localStorage.getItem('financial_targets');
+      return saved ? JSON.parse(saved) : { growthPct: 10, marginPct: 25, slaPct: 90 };
+    } catch (_) {
+      return { growthPct: 10, marginPct: 25, slaPct: 90 };
+    }
+  });
+  const [showTargetConfig, setShowTargetConfig] = useState(false);
+
+  const handleSaveTargets = (newT) => {
+    setTargets(newT);
+    try {
+      localStorage.setItem('financial_targets', JSON.stringify(newT));
+    } catch (_) {}
+  };
   const analytics = useAnalytics('/admin/analytics/financial', filters);
   const data = analytics.data || {};
   const { loading, error, isEmpty } = analytics;
@@ -153,12 +169,16 @@ export function FinancialLedger() {
   const scatterLow = marginScatter.filter(d => d.isLowMargin && !d.isNegative);
   const scatterNeg = marginScatter.filter(d => d.isNegative);
 
-  const targetData = (data.revenue_cost_trend || []).map((m, i, arr) => ({
-    month: m.month,
-    actual: Math.round(m.revenue),
-    target: i > 0 ? Math.round(arr[i-1].revenue * 1.05) : Math.round(m.revenue * 0.95),
-    profit: Math.round(m.profit)
-  })).map(d => ({
+  const growthMultiplier = 1 + (Number(targets.growthPct) || 10) / 100;
+  const targetData = (data.revenue_cost_trend || []).map((m, i, arr) => {
+    const computedTarget = i > 0 ? Math.round(arr[i-1].revenue * growthMultiplier) : Math.round(m.revenue * growthMultiplier);
+    return {
+      month: m.month,
+      actual: Math.round(m.revenue),
+      target: computedTarget,
+      profit: Math.round(m.profit)
+    };
+  }).map(d => ({
     ...d,
     color: d.actual >= d.target ? FINANCIAL.revenue : (d.actual >= d.target * 0.9 ? SEMANTIC.warning : SEMANTIC.critical)
   }));
@@ -181,7 +201,7 @@ export function FinancialLedger() {
   
   const totalTxns = (data.verification_summary || []).reduce((s,d)=>s+d.count,0);
   const verifiedCount = (data.verification_summary || []).find(d=>d.status==='Verified')?.count || 0;
-  const slaTarget = 90; 
+  const slaTarget = Number(targets.slaPct) || 90; 
   const actualPct = totalTxns > 0 ? Math.round((verifiedCount / totalTxns) * 100) : 0;
 
   const entityBarData = (data.verification_by_entity || []).map(e => ({
@@ -271,6 +291,67 @@ export function FinancialLedger() {
           </div>
 
           <div style={{gridColumn:'span 12'}}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setShowTargetConfig(!showTargetConfig)}
+                style={{
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text)',
+                  borderRadius: '6px',
+                  padding: '6px 12px',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                ⚙️ {showTargetConfig ? 'Hide Target Settings' : `Configure Targets (Growth: ${targets.growthPct}%, SLA: ${targets.slaPct}%)`}
+              </button>
+            </div>
+
+            {showTargetConfig && (
+              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '12px 16px', marginBottom: '12px', display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <label style={{ fontSize: '0.8rem', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  Target Revenue Growth (%)
+                  <input
+                    type="number"
+                    value={targets.growthPct}
+                    onChange={(e) => handleSaveTargets({ ...targets, growthPct: e.target.value })}
+                    style={{ width: '90px', padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)' }}
+                  />
+                </label>
+                <label style={{ fontSize: '0.8rem', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  Healthy Margin Threshold (%)
+                  <input
+                    type="number"
+                    value={targets.marginPct}
+                    onChange={(e) => handleSaveTargets({ ...targets, marginPct: e.target.value })}
+                    style={{ width: '90px', padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)' }}
+                  />
+                </label>
+                <label style={{ fontSize: '0.8rem', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  Verification SLA Target (%)
+                  <input
+                    type="number"
+                    value={targets.slaPct}
+                    onChange={(e) => handleSaveTargets({ ...targets, slaPct: e.target.value })}
+                    style={{ width: '90px', padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)' }}
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => handleSaveTargets({ growthPct: 10, marginPct: 25, slaPct: 90 })}
+                  style={{ alignSelf: 'flex-end', padding: '5px 10px', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}
+                >
+                  Reset Defaults
+                </button>
+              </div>
+            )}
+
             <AnalyticsCard title="Actual vs Target Revenue" loading={loading} error={error} isEmpty={isEmpty} height={380}>
               <ResponsiveContainer width="100%" height={320}>
                 <ComposedChart data={targetData} margin={{top:10,right:20,left:0,bottom:0}}>

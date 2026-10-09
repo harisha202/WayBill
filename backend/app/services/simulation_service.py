@@ -1,120 +1,84 @@
 import asyncio
 import random
 import logging
-from datetime import datetime
-from app.services.database_service import create_or_update_shipment, update_shipment_location
+from datetime import datetime, timezone
+from app.services.database_service import _engine, shipments_table
+from sqlalchemy import select
 from app.services.tracking_service import tracking_service
 from app.services.websocket_manager import manager
 from app.models.tracking import GPSEvent
 
 logger = logging.getLogger(__name__)
 
-def lerp(a, b, t):
+def lerp(a: float, b: float, t: float) -> float:
     return a + (b - a) * t
 
 async def simulate_gps_ping():
-    logger.info("Starting advanced GPS simulation (Bangalore -> Chennai)")
+    logger.info("Starting unified GPS telematics simulation across active shipments...")
     
-    vehicle_id = "TRUCK-001"
-    shipment_id = "SHP-001"
-    num_steps = 500
-    delay_seconds = 4
+    num_steps = 200
+    delay_seconds = 5
+    step = 0
     
-    start_lat, start_lng = 12.9716, 77.5946
-    end_lat, end_lng = 13.0827, 80.2707
-    
-    i = 0
     while True:
-        t = (i % num_steps) / float(num_steps)
-        
-        current_lat = lerp(start_lat, end_lat, t)
-        current_lng = lerp(start_lng, end_lng, t)
-        
-        # Simulate severe route deviation midway
-        if (i % num_steps) > 100 and (i % num_steps) < 150:
-            current_lat += 0.2
-            current_lng -= 0.1
-            speed = 15.0
-        else:
-            speed = 55.0
-
-        event = GPSEvent(
-            vehicle_id=vehicle_id,
-            shipment_id=shipment_id,
-            latitude=current_lat,
-            longitude=current_lng,
-            speed=speed,
-            heading=90.0,
-            timestamp=datetime.utcnow().isoformat(),
-            accuracy=1.0
-        )
-        
         try:
-            state_update = tracking_service.ingest_gps_ping(
-                shipment_id=event.shipment_id,
-                lat=event.latitude,
-                lng=event.longitude,
-                speed=event.speed,
-                heading=event.heading,
-                actor_id="system_sim",
-                actor_role="system"
-            )
-            await manager.broadcast_event(
-                "shipment.location.updated",
-                state_update
-            )
-            # logger.info(f"Broadcasted GPS ping for {vehicle_id}")
+            with _engine().begin() as conn:
+                shipment_rows = conn.execute(
+                    select(shipments_table).where(
+                        shipments_table.c.status.in_(["in_transit", "IN_TRANSIT", "ASSIGNED"])
+                    )
+                ).fetchall()
+
+                if not shipment_rows:
+                    shipment_rows = conn.execute(
+                        select(shipments_table).order_by(shipments_table.c.id.desc()).limit(8)
+                    ).fetchall()
+
+            for s in shipment_rows:
+                s_dict = dict(s._mapping)
+                shipment_id = s_dict.get("shipment_id")
+                if not shipment_id:
+                    continue
+
+                origin = s_dict.get("origin") or "Bangalore"
+                destination = s_dict.get("destination") or "Chennai"
+                
+                start_lat, start_lng = tracking_service.geocode(origin)
+                end_lat, end_lng = tracking_service.geocode(destination)
+                
+                offset = abs(hash(shipment_id)) % num_steps
+                t = ((step + offset) % num_steps) / float(num_steps)
+                
+                cur_lat = lerp(start_lat, end_lat, t)
+                cur_lng = lerp(start_lng, end_lng, t)
+                
+                speed = 45.0 + (abs(hash(shipment_id) + step) % 30)
+                heading = 90.0
+                
+                state_update = tracking_service.ingest_gps_ping(
+                    shipment_id=shipment_id,
+                    lat=round(cur_lat, 6),
+                    lng=round(cur_lng, 6),
+                    speed=speed,
+                    heading=heading,
+                    actor_id="telematics_sim",
+                    actor_role="system"
+                )
+                
+                await manager.broadcast_event("shipment.location.updated", state_update)
+                await manager.broadcast_event("GPS_UPDATED", state_update)
+                
         except Exception as e:
-            logger.error(f"Failed to process/broadcast GPS ping: {e}")
+            logger.error(f"Error in GPS telematics simulation: {e}")
             
-        i += 1
+        step += 1
         await asyncio.sleep(delay_seconds)
-
-async def simulate_truck_movement():
-    logger.info("Starting legacy truck movement simulation in backend...")
-    start_lat = 19.0760
-    start_lng = 72.8777
-    shipment_id = "TRK-001"
-    
-    try:
-        create_or_update_shipment(
-            shipment_id=shipment_id,
-            lat=start_lat,
-            lng=start_lng,
-            status="in_transit",
-            origin="Mumbai",
-            destination="Delhi",
-            vehicle_number="MH-01-AB-1234",
-            assignment_status="Assigned",
-            order_code=None
-        )
-    except Exception as e:
-        logger.error(f"Failed to create simulation shipment: {e}")
-        return
-
-    lat = start_lat
-    lng = start_lng
-
-    while True:
-        await asyncio.sleep(6)
-        lat += random.uniform(0.005, 0.015)
-        lng += random.uniform(0.005, 0.015)
-        
-        try:
-            update_shipment_location(
-                shipment_id=shipment_id,
-                lat=lat,
-                lng=lng,
-                status="in_transit"
-            )
-        except Exception as e:
-            logger.error(f"Failed to update simulation shipment: {e}")
 
 def start_simulation(app):
     import os
-    if os.getenv("ENABLE_GPS_SIMULATION", "false").lower() == "true":
-        import asyncio
+    enabled = os.getenv("ENABLE_GPS_SIMULATION", "true").lower() in ("true", "1", "yes")
+    if enabled:
         asyncio.create_task(simulate_gps_ping())
-        # asyncio.create_task(simulate_truck_movement())
+        logger.info("GPS telematics background simulation task launched.")
     else:
         logger.info("GPS simulation is disabled (set ENABLE_GPS_SIMULATION=true to enable).")

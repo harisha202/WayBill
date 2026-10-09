@@ -427,11 +427,26 @@ export function AIForecast() {
             </div>
           </div>
 
-          {/* Main chart */}
+          {/* Main chart: Historical Actuals vs AI Future Forecast */}
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '1.25rem' }}>
-            <p style={{ margin: '0 0 1rem', fontWeight: 700, fontSize: '0.9375rem', color: 'var(--text)' }}>Demand Trend</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <div>
+                <p style={{ margin: '0 0 0.25rem', fontWeight: 700, fontSize: '1rem', color: 'var(--text)' }}>Demand Trend & AI Forecast</p>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--muted)' }}>Actual historical order demand strictly distinguished from AI projected demand</p>
+              </div>
+              <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: MFG_COLORS.forecast.actual }}>
+                  <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: MFG_COLORS.forecast.actual }} />
+                  Actual Orders
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#f59e0b' }}>
+                  <span style={{ width: '16px', height: '2px', background: '#f59e0b', borderTop: '2px dashed #f59e0b' }} />
+                  AI 7-Day Forecast
+                </span>
+              </div>
+            </div>
             <ResponsiveContainer width="100%" height={480}>
-              <AreaChart data={demandTrend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <ComposedChart data={demandTrend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorDemand" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={MFG_COLORS.forecast.actual} stopOpacity={0.3}/>
@@ -443,8 +458,9 @@ export function AIForecast() {
                 <YAxis stroke={CHART_STYLE.axisColor} fontSize={12} tickLine={false} axisLine={false} />
                 <Tooltip content={<MfgTooltip />} />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
-                <Area isAnimationActive={false} type="monotone" dataKey="demand_qty" name="Actual Demand" stroke={MFG_COLORS.forecast.actual} fillOpacity={1} fill="url(#colorDemand)" />
-              </AreaChart>
+                <Area isAnimationActive={false} type="monotone" dataKey="actual_demand" name="Actual Demand" stroke={MFG_COLORS.forecast.actual} fillOpacity={1} fill="url(#colorDemand)" connectNulls={false} />
+                <Line isAnimationActive={false} type="monotone" dataKey="forecast_demand" name="AI Projected Demand (7-Day Forecast)" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="5 5" dot={{ r: 4, fill: '#f59e0b' }} connectNulls={false} />
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
 

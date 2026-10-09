@@ -1795,21 +1795,20 @@ a[href]:active {
 .bg-theme-role { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%) !important; }
 .bg-theme-feedback { background: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%) !important; }
 
-/* Ensure no animations globally in standard auth */
+/* Ensure standard auth inputs/buttons and role cards have polished, responsive transitions */
 .standard-auth-input,
 .standard-auth-btn-primary,
-.standard-auth-btn-outline,
+.standard-auth-btn-outline {
+  transition: all 0.2s ease;
+}
+
 .standard-role-card {
-  transition: none !important;
-  transform: none !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease !important;
 }
 
 .standard-role-card:hover {
-  transform: none !important;
-}
-.bg-theme-feedback { background: #4c0519 !important; }
-.fb-scene.bg-theme-feedback {
-  background: #4c0519 !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 10px 20px -3px rgba(0, 0, 0, 0.12) !important;
 }
 
 /* UI COMPONENTS GLOBAL DESIGN SYSTEM */

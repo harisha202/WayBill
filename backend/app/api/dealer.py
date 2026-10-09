@@ -116,8 +116,10 @@ def _inventory_items() -> list[dict]:
     return items
 
 
-def _pipeline_rows(limit: int = 100) -> list[dict]:
+def _pipeline_rows(limit: int = 100, dealer_id: Optional[str] = None) -> list[dict]:
     orders = list_orders(limit=limit)
+    if dealer_id:
+        orders = [o for o in orders if o.get("dealer_id") == dealer_id or o.get("dealer_id") == "dealer"]
     rows: list[dict] = []
     for order in orders:
         sku = str(order.get("product_sku"))
@@ -392,8 +394,13 @@ def retail_receive(order_code: str, payload: dict = Depends(require_roles(UserRo
 
 
 @router.get("/orders/pipeline", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer, UserRole.manufacturer, UserRole.transporter, UserRole.retail_shop))])
-def pipeline_orders(limit: int = Query(100, ge=1, le=500)):
-    return {"items": _pipeline_rows(limit=limit)}
+def pipeline_orders(
+    limit: int = Query(100, ge=1, le=500),
+    payload: dict = Depends(require_roles(UserRole.admin, UserRole.dealer, UserRole.manufacturer, UserRole.transporter, UserRole.retail_shop))
+):
+    role = payload.get("role")
+    dealer_id = payload.get("sub") if role == "dealer" else None
+    return {"items": _pipeline_rows(limit=limit, dealer_id=dealer_id)}
 
 
 @router.get("/orders/recent", dependencies=[Depends(require_roles(UserRole.admin, UserRole.dealer))])

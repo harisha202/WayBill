@@ -50,6 +50,19 @@ def create_waybill_endpoint(
     
     return APIResponse(success=True, data=waybill, message="Waybill created successfully")
 
+@router.post("/{waybill_id}/seal", response_model=APIResponse[dict])
+def seal_waybill_endpoint(
+    waybill_id: str,
+    payload: dict = Depends(require_roles(UserRole.manufacturer, UserRole.admin))
+):
+    actor_id = payload.get("sub", "unknown")
+    actor_role = payload.get("role", "unknown")
+    try:
+        res = waybill_service.seal_waybill(waybill_id, actor_id, actor_role)
+        return APIResponse(success=True, data=res, message="Waybill sealed successfully")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
 @router.post("/{waybill_id}/transfer", response_model=APIResponse[dict])
 def transfer_waybill_custody(
     waybill_id: str,
@@ -109,7 +122,7 @@ def verify_waybill_endpoint(
     request: Request,
     payload: dict = Depends(require_roles(UserRole.admin, UserRole.manufacturer, UserRole.dealer, UserRole.transporter, UserRole.retail_shop))
 ):
-    if check_and_record_idempotency_key(req.idempotency_key):
+    if req.idempotency_key and check_and_record_idempotency_key(req.idempotency_key):
         return APIResponse(success=True, message="Already processed (idempotent)")
 
     actor_id = payload.get("sub", "anonymous")

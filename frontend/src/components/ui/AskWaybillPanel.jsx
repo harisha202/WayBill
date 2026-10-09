@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { aiApi } from '../../api/axiosInstance';
+import { aiApi, buildUrl } from '../../api/axiosInstance';
+import { getAuthState } from '../../store/useAuthStore';
 
 
 export const AskWaybillPanel = () => {
@@ -22,8 +23,10 @@ export const AskWaybillPanel = () => {
         setLoading(true);
 
         try {
-            const token = localStorage.getItem('waybill_token');
-            const response = await fetch(`http://localhost:8000/api/ai/query`, {
+            const authState = getAuthState();
+            const token = authState?.user?.token || localStorage.getItem('waybill_token') || '';
+            const targetUrl = buildUrl('/ai/query');
+            const response = await fetch(targetUrl, {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',

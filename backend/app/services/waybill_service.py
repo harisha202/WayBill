@@ -22,13 +22,15 @@ class WaybillService:
         order_id: str,
         initial_custodian: str,
         actor_id: str,
-        actor_role: str
+        actor_role: str,
+        conn: Optional[Any] = None,
+        adjust_inventory: bool = True
     ) -> dict:
         timestamp = datetime.now(timezone.utc)
         waybill_id = f"WAY-{str(uuid.uuid4())[:8].upper()}"
         
-        with _engine().begin() as conn:
-            result = conn.execute(
+        def _execute_ops(c):
+            c.execute(
                 insert(waybill_documents_table).values(
                     waybill_id=waybill_id,
                     batch_id=batch_id,
@@ -42,17 +44,18 @@ class WaybillService:
                 )
             )
             
-            # P3-2: Increment in_transit quantity
-            from app.services.database_service import products_table
-            conn.execute(
-                update(products_table)
-                .where(products_table.c.sku == sku)
-                .values(in_transit=products_table.c.in_transit + quantity)
-            )
+            # Increment in_transit quantity if requested
+            if adjust_inventory:
+                from app.services.database_service import products_table
+                c.execute(
+                    update(products_table)
+                    .where(products_table.c.sku == sku)
+                    .values(in_transit=products_table.c.in_transit + quantity)
+                )
             
             # Initial Custody Event
             event_hash = WaybillService._generate_hash(f"None:{waybill_id}:CREATE:{initial_custodian}:{timestamp.isoformat()}")
-            conn.execute(
+            c.execute(
                 insert(custody_events_table).values(
                     waybill_id=waybill_id,
                     event_type="CREATE",
@@ -66,6 +69,12 @@ class WaybillService:
                     created_at=timestamp
                 )
             )
+
+        if conn is not None:
+            _execute_ops(conn)
+        else:
+            with _engine().begin() as new_conn:
+                _execute_ops(new_conn)
 
         audit_service.log_action(
             user=actor_id,

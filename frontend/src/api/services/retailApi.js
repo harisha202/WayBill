@@ -89,5 +89,18 @@ export const retailApi = {
     verifyWaybillTrust: async (waybillId) => {
         const response = await apiClient.get(`/waybills/${waybillId}/verify`);
         return response;
+    },
+
+    getShipments: async () => {
+        const response = await apiClient.get('/retail/shipments');
+        return response;
+    },
+
+    receiveOrder: async (orderCode, receivedQuantity, notes = '') => {
+        const response = await apiClient.post(`/retail/orders/${encodeURIComponent(orderCode)}/receive`, {
+            received_quantity: Number(receivedQuantity),
+            notes
+        });
+        return response;
     }
 };

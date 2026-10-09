@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { getAuthToken } from '../../store/useAuthStore';
+import QRScanner from '../qr/QRScanner';
 
 const SealVerificationCenter = () => {
   const [waybillId, setWaybillId] = useState('');
@@ -6,6 +8,32 @@ const SealVerificationCenter = () => {
   const [status, setStatus] = useState('idle'); // 'idle', 'loading', 'verified', 'tampered', 'error'
   const [verifyResult, setVerifyResult] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
+  const [showScanner, setShowScanner] = useState(false);
+
+  const handleQRScanned = (scanned) => {
+    if (!scanned) return;
+    const raw = String(scanned).trim();
+    let id = '';
+    let hash = '';
+    if (raw.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(raw);
+        id = parsed.waybill_id || parsed.id || '';
+        hash = parsed.seal_hash || parsed.sealHash || '';
+      } catch (_) {
+        id = raw;
+      }
+    } else if (raw.includes('|')) {
+      const parts = raw.split('|');
+      id = parts[0];
+      hash = parts[1] || '';
+    } else {
+      id = raw;
+    }
+    if (id) setWaybillId(id);
+    if (hash) setSealHash(hash);
+    setShowScanner(false);
+  };
 
   const handleVerify = async (e) => {
     e.preventDefault();
@@ -15,14 +43,14 @@ const SealVerificationCenter = () => {
     setErrorMsg('');
 
     try {
-      const token = localStorage.getItem('token');
+      const token = getAuthToken();
       const res = await fetch(`/api/waybills/${encodeURIComponent(waybillId.trim())}/verify`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ seal_hash: sealHash.trim() }),
+        body: JSON.stringify({ seal_hash: sealHash.trim(), idempotency_key: `verify_${Date.now()}` }),
       });
 
       if (!res.ok) {
@@ -53,9 +81,69 @@ const SealVerificationCenter = () => {
       fontFamily: 'system-ui, sans-serif'
     }}>
       <h2 style={{ fontSize: '1.5rem', fontWeight: '700', marginBottom: '4px' }}>Seal Verification Center</h2>
-      <p style={{ color: 'var(--muted)', marginBottom: '24px', fontSize: '0.95rem' }}>
+      <p style={{ color: 'var(--muted)', marginBottom: '20px', fontSize: '0.95rem' }}>
         Enter Waybill ID and Seal Hash to verify cryptographic seal and custody chain.
       </p>
+
+      {/* Quick Select Panel */}
+      <div style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: '12px',
+        padding: '16px',
+        marginBottom: '20px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '10px'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <strong style={{ fontSize: '0.85rem', color: 'var(--dashboard-heading)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            🛡️ Quick-Fill Verified Sealed Waybills
+          </strong>
+          <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>Click to auto-populate</span>
+        </div>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '10px' }}>
+          {[
+            { id: 'WAY-C9D39153', hash: '4d2894b0747fd893f84af428df09f71671c083476ee84001e800e35f371270b3', batch: 'BATCH-287e0d' },
+            { id: 'WAY-0C5590F8', hash: 'b05f75478eade55f324a3306140a820df1d04f72848c55c2c4c39388002a2b0e', batch: 'BATCH-4d44eb' },
+            { id: 'WAY-88E3C50A', hash: '01ce2bd880e95987adb9a13882c1f1e696322b4615e8384c82907b1806f5f0e1', batch: 'BATCH-693a40' },
+            { id: 'WAY-53C79AB1', hash: 'ead7ce7fd17dd6bfe84307c0aad52a1fa9c4c89a202f4b3e4cbd3ce5ef9359e8', batch: 'BATCH-fc5adb' },
+          ].map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => {
+                setWaybillId(item.id);
+                setSealHash(item.hash);
+                setStatus('idle');
+                setVerifyResult(null);
+                setErrorMsg('');
+              }}
+              style={{
+                background: 'var(--bg)',
+                border: waybillId === item.id ? '1px solid var(--primary)' : '1px solid var(--border)',
+                borderRadius: '8px',
+                padding: '10px 12px',
+                textAlign: 'left',
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text)' }}>📦 {item.id}</span>
+                <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(16,185,129,0.15)', color: '#10b981', fontWeight: 700 }}>SEALED</span>
+              </div>
+              <span style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                Hash: {item.hash.substring(0, 24)}...
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div style={{
         background: 'var(--bg)',

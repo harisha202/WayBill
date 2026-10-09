@@ -4,7 +4,7 @@ import math
 from sqlalchemy import insert, select, update
 from typing import Dict, Any, List
 
-from app.services.database_service import _engine, shipments_table, trucks_table, drivers_table, gps_events_table, interventions_table
+from app.services.database_service import _engine, shipments_table, trucks_table, drivers_table, gps_events_table, interventions_table, orders_table
 from app.services.audit_service import audit_service
 from app.services.domain_events import emit_event_sync
 
@@ -84,20 +84,41 @@ class TrackingService:
                 risk_level = "CRITICAL"
             elif risk_score > 25:
                 risk_level = "MEDIUM"
-                
+
+            predicted_delay = max(0, int(eta_minutes - 45))
+            
+            # Sourcing weight from shipment or linked order/batch
+            effective_weight = shipment.weight
+            if effective_weight is None or effective_weight == 0:
+                if shipment.order_code:
+                    ord_row = conn.execute(
+                        select(orders_table).where(orders_table.c.order_code == shipment.order_code)
+                    ).first()
+                    if ord_row and ord_row.quantity:
+                        effective_weight = float(ord_row.quantity * 2.5)
+                    else:
+                        effective_weight = 1250.0
+                else:
+                    effective_weight = 1250.0
+
+            update_data = {
+                "lat": lat,
+                "lng": lng,
+                "eta": f"{eta_minutes} mins",
+                "predicted_delay_minutes": predicted_delay,
+                "delay_risk_score": risk_score,
+                "route_deviation": route_deviation,
+                "weight": effective_weight,
+                "last_gps_at": timestamp,
+                "risk_updated_at": timestamp,
+            }
+
             conn.execute(
                 update(shipments_table)
                 .where(shipments_table.c.shipment_id == shipment_id)
-                .values(
-                    lat=lat,
-                    lng=lng,
-                    delay_risk_score=risk_score,
-                    route_deviation=route_deviation,
-                    last_gps_at=timestamp,
-                    risk_updated_at=timestamp
-                )
+                .values(**update_data)
             )
-            
+
             # Persist GPS event
             conn.execute(
                 insert(gps_events_table).values(
@@ -136,8 +157,9 @@ class TrackingService:
             "lng": lng,
             "speed": speed,
             "heading": heading,
+            "weight": effective_weight,
             "eta_minutes": eta_minutes,
-            "delay_minutes": max(0, eta_minutes - 60) if eta_minutes is not None else None,
+            "delay_minutes": predicted_delay,
             "risk_score": risk_score,
             "risk_level": risk_level,
             "route_deviation": route_deviation,
@@ -162,31 +184,61 @@ class TrackingService:
             
             if not shipment:
                 raise ValueError("Shipment not found")
+            if str(shipment.status or "").upper() == "DELIVERED":
+                raise ValueError("Cannot assign vehicle to an already delivered shipment")
+
             truck = conn.execute(
                 select(trucks_table).where(trucks_table.c.plate_number == truck_id)
             ).first()
             if not truck:
-                raise ValueError("Truck not found")
-            if str(truck.maintenance_status or "").lower() in {"maintenance", "unavailable", "out_of_service"}:
-                raise ValueError("Truck is not available for assignment")
+                raise ValueError(f"Truck '{truck_id}' not found in fleet registry")
+            if str(truck.maintenance_status or "").lower() in {"maintenance", "unavailable", "out_of_service", "repair"}:
+                raise ValueError(f"Truck {truck_id} is currently under maintenance or unavailable")
             if shipment.weight is not None and truck.capacity is not None and float(shipment.weight) > float(truck.capacity):
-                raise ValueError("Shipment weight exceeds truck capacity")
+                raise ValueError(f"Shipment weight ({shipment.weight} kg) exceeds vehicle capacity ({truck.capacity} kg)")
 
             driver = conn.execute(
                 select(drivers_table).where(drivers_table.c.license_id == driver_id)
             ).first()
             if not driver:
-                raise ValueError("Driver not found")
+                raise ValueError(f"Driver with license ID '{driver_id}' not found in driver roster")
                 
+            # 1. Update Shipment to IN_TRANSIT & ASSIGNED
+            assigned_transporter = actor_id if actor_role == "transporter" else (shipment.transporter_id or "transporter")
             conn.execute(
                 update(shipments_table)
                 .where(shipments_table.c.shipment_id == shipment_id)
                 .values(
                     vehicle_number=truck_id,
                     assignment_status="ASSIGNED",
-                    transporter_id=actor_id if actor_role == "transporter" else None,
+                    transporter_id=assigned_transporter,
                     status="IN_TRANSIT",
                     timestamp=timestamp
+                )
+            )
+
+            # 2. Mutually exclusive order transition: dispatched -> in_transit (dealer_in_transit)
+            if shipment.order_code:
+                conn.execute(
+                    update(orders_table)
+                    .where(orders_table.c.order_code == shipment.order_code)
+                    .values(
+                        current_stage="dealer_in_transit",
+                        status="in_transit",
+                        transporter_id=assigned_transporter,
+                        updated_at=timestamp
+                    )
+                )
+
+            # 3. Update Truck route and current load percentage
+            load_pct = min(100.0, round((float(shipment.weight or 0) / float(truck.capacity or 1.0)) * 100, 1)) if truck.capacity else 50.0
+            route_str = f"{shipment.origin or 'Manufacturer Hub'} -> {shipment.destination or 'Dealer Hub'}"
+            conn.execute(
+                update(trucks_table)
+                .where(trucks_table.c.plate_number == truck_id)
+                .values(
+                    assigned_route=route_str,
+                    current_load_percent=load_pct
                 )
             )
 

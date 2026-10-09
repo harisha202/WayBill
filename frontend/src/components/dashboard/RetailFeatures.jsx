@@ -5,6 +5,7 @@ import { retailApi } from '../../api/services/retailApi';
 import { DataTable } from '../ui/DataTable';
 import { StatusPill } from '../ui/StatusPill';
 import { AnalyticsSection } from './analytics/AnalyticsSection';
+import QRScanner from '../qr/QRScanner';
 import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, LineChart, Line, ScatterChart, Scatter, ComposedChart, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, FunnelChart, Funnel, Sankey } from 'recharts';
 import { RETAIL_SALES, RETAIL_INVENTORY, RETAIL_REVENUE, RETAIL_REPLENISHMENT, RETAIL_WAYBILL, RETAIL_TRACEABILITY, RETAIL_RECEIVING, RETAIL_RISK, getRetailStatusColor, SEMANTIC, CHART_STYLE } from './analytics/chartColors';
 
@@ -420,11 +421,35 @@ export function RetailReplenishmentOrders() {
 // ─── 5. WAYBILLS / SHIPMENTS ────────────────────────────────────────────────
 export function RetailWaybillsShipments() {
     const { data: analytics, loading, error } = useApi('/retail/analytics/waybills');
+    const { data: shipmentsData, loading: shipLoading, refetch: refetchShipments } = useApi('/retail/shipments');
+    const shipmentsList = Array.isArray(shipmentsData) ? shipmentsData : (shipmentsData?.data || []);
+
+    const shipmentColumns = [
+        { key: 'order_code', header: 'Order Code', render: val => <strong>{val}</strong> },
+        { key: 'product_sku', header: 'SKU' },
+        { key: 'quantity', header: 'Ordered Qty' },
+        { key: 'waybill_id', header: 'Waybill ID', render: val => val ? <span style={{fontFamily:'monospace',fontSize:'0.8rem'}}>{val}</span> : <span style={{color:'var(--muted)'}}>Unassigned</span> },
+        { key: 'carrier_vehicle', header: 'Vehicle', render: val => val || 'Pending' },
+        { key: 'origin', header: 'Origin' },
+        { key: 'current_stage', header: 'Stage', render: val => <StatusPill status={val?.includes('receive') ? 'success' : val?.includes('transit') ? 'warning' : 'info'} text={val?.replace(/_/g, ' ') || 'Pending'} /> }
+    ];
 
     if (error) return <div style={{color:'var(--red)'}}>{error.message}</div>;
 
     return (
-        <AnalyticsSection title="Shipments & Logistics" description="Track incoming orders and shipment risk.">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <div style={{ background: 'var(--surface)', padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <div>
+                        <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--dashboard-heading)' }}>Inbound Waybills & Active Shipments</h3>
+                        <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--muted)' }}>Live ledger of cargo waybills assigned to this retail location</p>
+                    </div>
+                    <button onClick={refetchShipments} style={{ padding: '0.45rem 0.85rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', cursor: 'pointer', fontSize: '0.8rem' }}>Refresh</button>
+                </div>
+                {shipLoading ? <div>Loading shipments...</div> : <DataTable data={shipmentsList} columns={shipmentColumns} />}
+            </div>
+
+            <AnalyticsSection title="Shipments & Logistics Analytics" description="Track incoming order velocity and lifecycle progression.">
             {/* Main: Funnel Chart */}
             <div style={{ gridColumn: '1 / -1', background: 'var(--surface)', padding: '1.5rem', borderRadius: '12px', height: '420px' }}>
                 <h3 style={{ margin: '0 0 1rem 0' }}>Shipment Lifecycle</h3>
@@ -476,6 +501,7 @@ export function RetailWaybillsShipments() {
                 ) : <div style={{display:'flex',justifyContent:'center',alignItems:'center',height:'100%',color:'var(--muted)'}}>No risk data available.</div>)}
             </div>
         </AnalyticsSection>
+        </div>
     );
 }
 
@@ -486,38 +512,45 @@ export function RetailQRTraceability() {
     const [result, setResult] = useState(null);
     const [processing, setProcessing] = useState(false);
 
-    const handleScan = async (e) => {
-        e.preventDefault();
-        if (scanId.trim()) {
-            setProcessing(true);
-            try {
-                const data = await retailApi.verifyWaybillTrust(scanId);
-                if (data.success && data.data && data.data.is_valid) {
-                    setResult({ 
-                        status: 'VERIFIED', 
-                        message: 'Waybill Document is authentic and matches hash-chain records.', 
-                        timestamp: new Date().toISOString(),
-                        details: data.data 
-                    });
-                } else {
-                    setResult({ status: 'FAILED', message: data.message || 'QR Verification failed or Waybill invalid.' });
-                }
-            } catch (err) {
-                setResult({ status: 'FAILED', message: 'Could not connect to verification server.' });
-            } finally {
-                setProcessing(false);
+    const performVerification = async (val) => {
+        const queryVal = (val || scanId).trim();
+        if (!queryVal) return;
+        setProcessing(true);
+        setScanId(queryVal);
+        try {
+            const data = await retailApi.verifyWaybillTrust(queryVal);
+            if (data.success && data.data && data.data.is_valid) {
+                setResult({ 
+                    status: 'VERIFIED', 
+                    message: 'Waybill Document is authentic and matches hash-chain records.', 
+                    timestamp: new Date().toISOString(),
+                    details: data.data 
+                });
+            } else {
+                setResult({ status: 'FAILED', message: data.message || 'QR Verification failed or Waybill invalid.' });
             }
+        } catch (err) {
+            setResult({ status: 'FAILED', message: 'Could not connect to verification server.' });
+        } finally {
+            setProcessing(false);
         }
+    };
+
+    const handleScan = (e) => {
+        e.preventDefault();
+        performVerification(scanId);
     };
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div style={{ maxWidth: '600px' }}>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '1.5rem', color: 'var(--dashboard-heading)' }}>Blockchain QR Verification</h2>
-                <form onSubmit={handleScan} style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
-                    <input type="text" value={scanId} onChange={e => setScanId(e.target.value)} placeholder="Scan or enter Document Hash" style={{ flex: 1, padding: '0.75rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)' }} />
-                    <button type="submit" disabled={processing} style={{ padding: '0.75rem 1.5rem', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>{processing ? 'Verifying...' : 'Verify'}</button>
-                </form>
+                <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.5rem', color: 'var(--dashboard-heading)' }}>Blockchain QR Verification</h2>
+                <p style={{ margin: '0 0 1.25rem 0', color: 'var(--muted)', fontSize: '0.9rem' }}>
+                    Scan shipment QR code using your device camera or enter Waybill hash to verify cryptographic seal.
+                </p>
+                <div style={{ marginBottom: '1.5rem' }}>
+                    <QRScanner onScan={(text) => performVerification(text)} />
+                </div>
                 {result && (
                     <div style={{ background: 'var(--surface)', padding: '1.5rem', borderRadius: '12px', border: `1px solid ${result.status === 'VERIFIED' ? 'var(--green)' : 'var(--red)'}`, borderLeft: `4px solid ${result.status === 'VERIFIED' ? 'var(--green)' : 'var(--red)'}` }}>
                         <h3 style={{ margin: '0 0 0.5rem 0', color: result.status === 'VERIFIED' ? 'var(--green)' : 'var(--red)' }}>
@@ -591,10 +624,155 @@ export function RetailQRTraceability() {
 
 // ─── 7. RECEIVING ───────────────────────────────────────────────────────────
 export function RetailReceiving() {
-    const { data: analytics, loading } = useApi('/retail/analytics/receiving');
+    const { data: analytics, loading, refetch: refetchAnalytics } = useApi('/retail/analytics/receiving');
+    const { data: shipmentsData, loading: shipLoading, refetch: refetchShipments } = useApi('/retail/shipments');
+    const shipmentsList = Array.isArray(shipmentsData) ? shipmentsData : (shipmentsData?.data || []);
+
+    const [selectedOrder, setSelectedOrder] = useState(null);
+    const [receiveQty, setReceiveQty] = useState('');
+    const [receiveNotes, setReceiveNotes] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [receiveStatusMsg, setReceiveStatusMsg] = useState(null);
+
+    const handleOpenReceive = (order) => {
+        setSelectedOrder(order);
+        setReceiveQty(order.quantity || '');
+        setReceiveNotes('Cargo received and inspected at store dock.');
+        setReceiveStatusMsg(null);
+    };
+
+    const handleSubmitReceive = async (e) => {
+        e.preventDefault();
+        if (!selectedOrder) return;
+        setIsSubmitting(true);
+        try {
+            const res = await retailApi.receiveOrder(selectedOrder.order_code, Number(receiveQty), receiveNotes);
+            if (res.data?.success || res.success) {
+                setReceiveStatusMsg({ type: 'success', text: `Order ${selectedOrder.order_code} received successfully! Stock updated.` });
+                setTimeout(() => {
+                    setSelectedOrder(null);
+                    refetchShipments();
+                    refetchAnalytics();
+                }, 1200);
+            } else {
+                setReceiveStatusMsg({ type: 'error', text: res.data?.detail || res.message || 'Failed to receive order.' });
+            }
+        } catch (err) {
+            setReceiveStatusMsg({ type: 'error', text: err.response?.data?.detail || err.message || 'Error communicating with server.' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const receivingColumns = [
+        { key: 'order_code', header: 'Order Code', render: val => <strong>{val}</strong> },
+        { key: 'product_sku', header: 'SKU' },
+        { key: 'quantity', header: 'Ordered Qty' },
+        { key: 'received_quantity', header: 'Received Qty', render: (val, row) => row.current_stage === 'retail_received' ? <span style={{color:'var(--green)',fontWeight:700}}>{val}</span> : 'Pending' },
+        { key: 'current_stage', header: 'Stage', render: val => <StatusPill status={val === 'retail_received' ? 'success' : val === 'dealer_received' ? 'warning' : 'info'} text={val?.replace(/_/g, ' ') || 'Pending'} /> },
+        {
+            key: 'actions',
+            header: 'Action',
+            render: (_, row) => {
+                const isReceived = row.current_stage === 'retail_received';
+                return (
+                    <button
+                        onClick={() => handleOpenReceive(row)}
+                        disabled={isReceived}
+                        style={{
+                            padding: '0.45rem 0.85rem',
+                            borderRadius: '6px',
+                            border: 'none',
+                            background: isReceived ? 'var(--border)' : 'var(--primary)',
+                            color: isReceived ? 'var(--muted)' : 'white',
+                            fontWeight: 600,
+                            cursor: isReceived ? 'default' : 'pointer',
+                            fontSize: '0.8rem'
+                        }}
+                    >
+                        {isReceived ? '✓ Stock Added' : '📥 Receive Stock'}
+                    </button>
+                );
+            }
+        }
+    ];
 
     return (
-        <AnalyticsSection title="Receiving & Discrepancies" description="Monitor delivery accuracy and order fulfillment.">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            {/* Interactive Receiving Action Card */}
+            <div style={{ background: 'var(--surface)', padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <div>
+                        <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--dashboard-heading)' }}>Store Inbound Stock Receiving</h3>
+                        <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--muted)' }}>Verify and intake shipments delivered from the Dealer into store inventory</p>
+                    </div>
+                    <button onClick={refetchShipments} style={{ padding: '0.45rem 0.85rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', cursor: 'pointer', fontSize: '0.8rem' }}>Refresh</button>
+                </div>
+                {shipLoading ? <div>Loading orders...</div> : <DataTable data={shipmentsList} columns={receivingColumns} />}
+            </div>
+
+            {/* Receiving Intake Dialog */}
+            {selectedOrder && (
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px', padding: '1.75rem', width: '100%', maxWidth: '480px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)' }}>
+                        <h3 style={{ margin: '0 0 0.5rem 0', color: 'var(--dashboard-heading)', fontSize: '1.3rem' }}>Confirm Store Delivery Intake</h3>
+                        <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.85rem', color: 'var(--muted)' }}>
+                            Reconcile received physical units for order <strong>{selectedOrder.order_code}</strong> ({selectedOrder.product_sku}).
+                        </p>
+
+                        <form onSubmit={handleSubmitReceive} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text)', marginBottom: '0.35rem' }}>Ordered Quantity</label>
+                                <input type="text" readOnly value={selectedOrder.quantity} style={{ width: '100%', padding: '0.65rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--muted)' }} />
+                            </div>
+
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text)', marginBottom: '0.35rem' }}>Actual Received Quantity</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max={selectedOrder.quantity * 2}
+                                    value={receiveQty}
+                                    onChange={(e) => setReceiveQty(e.target.value)}
+                                    required
+                                    style={{ width: '100%', padding: '0.65rem', borderRadius: '6px', border: '1px solid var(--primary)', background: 'var(--bg)', color: 'var(--text)', fontWeight: 700, fontSize: '1.05rem' }}
+                                />
+                                {Number(receiveQty) < Number(selectedOrder.quantity) && (
+                                    <span style={{ fontSize: '0.75rem', color: '#f59e0b', marginTop: '0.25rem', display: 'block' }}>
+                                        ⚠️ Shortage of {selectedOrder.quantity - Number(receiveQty)} units will be automatically registered as an open discrepancy claim.
+                                    </span>
+                                )}
+                            </div>
+
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text)', marginBottom: '0.35rem' }}>Dock Intake Notes</label>
+                                <input
+                                    type="text"
+                                    value={receiveNotes}
+                                    onChange={(e) => setReceiveNotes(e.target.value)}
+                                    placeholder="Condition of package, seal verification, etc."
+                                    style={{ width: '100%', padding: '0.65rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)' }}
+                                />
+                            </div>
+
+                            {receiveStatusMsg && (
+                                <div style={{ padding: '0.75rem', borderRadius: '6px', fontSize: '0.85rem', background: receiveStatusMsg.type === 'success' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', color: receiveStatusMsg.type === 'success' ? 'var(--green)' : 'var(--red)', border: `1px solid ${receiveStatusMsg.type === 'success' ? 'var(--green)' : 'var(--red)'}` }}>
+                                    {receiveStatusMsg.text}
+                                </div>
+                            )}
+
+                            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
+                                <button type="button" onClick={() => setSelectedOrder(null)} disabled={isSubmitting} style={{ padding: '0.65rem 1.25rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer' }}>Cancel</button>
+                                <button type="submit" disabled={isSubmitting} style={{ padding: '0.65rem 1.5rem', borderRadius: '6px', border: 'none', background: 'var(--primary)', color: 'white', fontWeight: 700, cursor: 'pointer' }}>
+                                    {isSubmitting ? 'Recording...' : 'Confirm Receipt & Add Stock'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            <AnalyticsSection title="Receiving & Discrepancies Analytics" description="Monitor delivery accuracy and order fulfillment across shipments.">
             {/* Main: Clustered Column Ordered vs Received */}
             <div style={{ gridColumn: '1 / -1', background: 'var(--surface)', padding: '1.5rem', borderRadius: '12px', height: '420px' }}>
                 <h3 style={{ margin: '0 0 1rem 0' }}>Ordered vs Received Quantity</h3>
@@ -647,6 +825,7 @@ export function RetailReceiving() {
                 ) : <div style={{display:'flex',justifyContent:'center',alignItems:'center',height:'100%',color:'var(--muted)'}}>No receiving status data.</div>)}
             </div>
         </AnalyticsSection>
+        </div>
     );
 }
 
@@ -748,7 +927,7 @@ export function RetailReports() {
                             <XAxis dataKey="day" stroke={CHART_STYLE.axisColor} />
                             <YAxis stroke={CHART_STYLE.axisColor} />
                             <Tooltip contentStyle={{ backgroundColor: CHART_STYLE.tooltipBg, color: CHART_STYLE.tooltipText }} />
-                            <Line type="monotone" dataKey="revenue" stroke={RETAIL_REVENUE.primary} strokeWidth={2} name="Revenue ($)" dot={false} />
+                            <Line type="monotone" dataKey="revenue" stroke={RETAIL_REVENUE.primary} strokeWidth={2} name="Revenue (₹)" dot={false} />
                         </LineChart>
                     </ResponsiveContainer>
                 ) : <div style={{display:'flex',justifyContent:'center',alignItems:'center',height:'100%',color:'var(--muted)'}}>No revenue data available.</div>)}
@@ -763,7 +942,7 @@ export function RetailReports() {
                             <CartesianGrid strokeDasharray="3 3" stroke={CHART_STYLE.gridColor} horizontal={false} />
                             <XAxis type="number" stroke={CHART_STYLE.axisColor} />
                             <YAxis dataKey="sku" type="category" width={80} stroke={CHART_STYLE.axisColor} />
-                            <Tooltip contentStyle={{ backgroundColor: CHART_STYLE.tooltipBg, color: CHART_STYLE.tooltipText }} formatter={(value) => `$${value}`} />
+                            <Tooltip contentStyle={{ backgroundColor: CHART_STYLE.tooltipBg, color: CHART_STYLE.tooltipText }} formatter={(value) => `₹${Number(value || 0).toLocaleString()}`} />
                             <Bar dataKey="revenue" fill={RETAIL_REVENUE.trend} name="Total Revenue" radius={[0, 4, 4, 0]} />
                         </BarChart>
                     </ResponsiveContainer>
