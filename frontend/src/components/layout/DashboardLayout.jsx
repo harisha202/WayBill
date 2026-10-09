@@ -288,14 +288,27 @@ function DashboardLayout({
 
   const shouldShowCommandGrid = isMainOverview && !!enrichedStats.length
 
+  const roleDisplay = (role === 'RetailShop' || role === 'retail_shop' || role === 'retail') ? 'Retail Shop' : role;
+  const linkParts = String(activeLink || 'Dashboard').trim().split(' ');
+  const hasIcon = linkParts[0] && linkParts[0].length <= 3 && !/^[A-Za-z0-9]/.test(linkParts[0]);
+  const activeTitle = hasIcon ? linkParts.slice(1).join(' ') : (activeLink || 'Dashboard');
+
   return (
     <div className={shellClassName}>
       <Sidebar role={role} activeLink={activeLink} onNavigate={handleNavigate} />
       <section className="dashboard-main">
         <header className="topbar">
           <div>
-            <h3>{role} Role accessed</h3>
-            <p className="muted">Active view: {activeLink}</p>
+            <nav aria-label="Breadcrumb" className="topbar-breadcrumb" style={{ fontSize: '0.78rem', color: 'var(--muted, #64748b)', fontWeight: 500, marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span>WayBill</span>
+              <span aria-hidden="true" style={{ opacity: 0.5 }}>/</span>
+              <span>{roleDisplay}</span>
+              <span aria-hidden="true" style={{ opacity: 0.5 }}>/</span>
+              <span style={{ color: 'var(--text, #0f172a)', fontWeight: 600 }}>{activeTitle}</span>
+            </nav>
+            <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--text, #0f172a)', letterSpacing: '-0.01em' }}>
+              {activeTitle}
+            </h2>
           </div>
           <UserMenu
             userName={userName}

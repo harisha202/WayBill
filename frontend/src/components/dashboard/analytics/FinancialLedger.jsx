@@ -143,7 +143,9 @@ export function FinancialLedger() {
     setTargets(newT);
     try {
       localStorage.setItem('financial_targets', JSON.stringify(newT));
-    } catch (_) {}
+    } catch (e) {
+      void e;
+    }
   };
   const analytics = useAnalytics('/admin/analytics/financial', filters);
   const data = analytics.data || {};

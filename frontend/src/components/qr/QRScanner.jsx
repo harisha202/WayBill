@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useId } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 
 const QRScanner = ({ onScan }) => {
@@ -8,7 +8,8 @@ const QRScanner = ({ onScan }) => {
   const [cameras, setCameras] = useState([]);
   const [selectedCameraId, setSelectedCameraId] = useState('');
   const html5QrCodeRef = useRef(null);
-  const scannerContainerId = useRef(`qr-reader-${Math.random().toString(36).substring(2, 9)}`);
+  const uniqueId = useId();
+  const containerId = `qr-reader-${uniqueId.replace(/[^a-zA-Z0-9_-]/g, '')}`;
 
   useEffect(() => {
     // Check available video devices
@@ -20,7 +21,7 @@ const QRScanner = ({ onScan }) => {
         }
       })
       .catch((err) => {
-        // Cameras not available or permission requested on start
+        void err;
       });
 
     return () => {
@@ -30,11 +31,13 @@ const QRScanner = ({ onScan }) => {
           html5QrCodeRef.current
             .stop()
             .then(() => html5QrCodeRef.current.clear())
-            .catch(() => {});
+            .catch((err) => { void err; });
         } else {
           try {
             html5QrCodeRef.current.clear();
-          } catch (_) {}
+          } catch (e) {
+            void e;
+          }
         }
       }
     };
@@ -44,7 +47,7 @@ const QRScanner = ({ onScan }) => {
     setCameraPermissionError(null);
     try {
       if (!html5QrCodeRef.current) {
-        html5QrCodeRef.current = new Html5Qrcode(scannerContainerId.current);
+        html5QrCodeRef.current = new Html5Qrcode(containerId);
       }
 
       const cameraId = cameraIdToUse || selectedCameraId || { facingMode: 'environment' };
@@ -118,7 +121,7 @@ const QRScanner = ({ onScan }) => {
       >
         {/* Real Video Scanner DOM Element */}
         <div
-          id={scannerContainerId.current}
+          id={containerId}
           style={{
             width: '100%',
             maxWidth: '360px',
