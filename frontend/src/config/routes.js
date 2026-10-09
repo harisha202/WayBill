@@ -455,6 +455,24 @@ export const CANONICAL_ROUTES = [
     permission: 'retail.batch.view',
     apiDependency: '/api/blockchain/transactions',
   },
+  {
+    role: 'RetailShop',
+    path: '/retail/receiving',
+    label: '📥 Inbound Receiving',
+    icon: '📥',
+    componentKey: 'RetailReceiving',
+    permission: 'retail.receiving.manage',
+    apiDependency: '/api/retail/orders',
+  },
+  {
+    role: 'RetailShop',
+    path: '/retail/waybills-shipments',
+    label: '🚚 Inbound Waybills & Shipments',
+    icon: '🚚',
+    componentKey: 'RetailWaybillsShipments',
+    permission: 'retail.shipments.view',
+    apiDependency: '/api/retail/shipments',
+  },
 ];
 
 // Helper Lookups

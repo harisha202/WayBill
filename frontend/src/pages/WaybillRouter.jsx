@@ -31,6 +31,8 @@ import {
     RetailReplenishmentOrders, 
     RetailQRTraceability, 
     RetailAlertCenter, 
+    RetailReceiving,
+    RetailWaybillsShipments,
 } from '../components/dashboard/RetailFeatures';
 import { RetailFinancialLedger } from '../components/dashboard/RetailFinancialLedger';
 import { RetailDisputeCenter } from '../components/dashboard/RetailDisputeCenter';
@@ -91,6 +93,8 @@ const COMPONENT_MAP = {
   RetailFinancialLedger: RetailFinancialLedger,
   RetailAlertCenter: RetailAlertCenter,
   RetailDisputeCenter: RetailDisputeCenter,
+  RetailReceiving: RetailReceiving,
+  RetailWaybillsShipments: RetailWaybillsShipments,
 
   // Shared
   SealVerificationCenter: SealVerificationCenter,
