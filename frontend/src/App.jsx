@@ -85,7 +85,6 @@ function App() {
   const [screen, setScreen] = useState('home')
   const [pendingRole, setPendingRole] = useState('Admin')
   const [entryIntent, setEntryIntent] = useState('login')
-  const [logoutFeedbackPrefill, setLogoutFeedbackPrefill] = useState(null)
   const currentPath = useSyncExternalStore(subscribeToLocationChanges, getCurrentPathSnapshot, () => '/')
 
   useEffect(() => {
@@ -114,17 +113,6 @@ function App() {
   }
 
   const handleLogout = () => {
-    const activeUser = auth.user
-    const activeRole = auth.role
-    const entryMethod = auth.entryMethod || 'login'
-
-    setLogoutFeedbackPrefill({
-      name: activeUser?.name || '',
-      email: activeUser?.email || '',
-      role: activeRole === 'RetailShop' ? 'Retail Shop' : activeRole || '',
-      source: 'logout_form',
-    })
-
     logout()
     
     setScreen('home')
