@@ -65,3 +65,13 @@ frontend/.npm-cache/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Test Reports & Captured Screenshots
+playwright-report/
+test-results/
+frontend/playwright-report/
+frontend/test-results/
+frontend/e2e/screenshots/
+*.png
+*.jpg
+*.jpeg
