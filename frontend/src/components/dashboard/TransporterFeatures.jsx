@@ -80,14 +80,19 @@ function EmptyCard({ msg, height = 200 }) {
 // ─── 1. Transport Overview (Dashboard) ───────────────────────────────────────
 export function TransporterDashboard() {
   const { data, loading, error } = useAnalytics('/tracking/analytics/overview');
-  const { data: shipmentsData } = useAnalytics('/tracking/shipments');
+  const { data: volumeData, loading: volumeLoading } = useAnalytics('/tracking/analytics/shipments');
+  const { data: fleetData, loading: fleetLoading } = useAnalytics('/tracking/analytics/fleet');
+
   if (error) return <ErrorCard msg={error.message} />;
 
   const slaRate = data?.slaRate || 0;
   const delayed = data?.delayedCount || 0;
   const onTime = data?.onTimeCount || 0;
   const reasons = data?.delayReasons || [];
-  const shipments = Array.isArray(shipmentsData?.data || shipmentsData) ? (shipmentsData?.data || shipmentsData) : [];
+
+  const volumeTrend = volumeData?.volumeTrend || [];
+  const fleetStatus = fleetData?.status || [];
+  const fleetUtil = fleetData?.utilization || [];
 
   return (
     <div>
@@ -108,62 +113,96 @@ export function TransporterDashboard() {
       </div>
 
       <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:'1.5rem' }}>
-        {/* Main: Large Operational Geo Map */}
-        <div style={{ ...card, padding:0, overflow:'hidden', height: 560, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding:'1rem 1.5rem', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-             <div>
-               <p style={chartLabel}>Live Geospatial Telematics</p>
-               <p style={{...chartDesc, margin:0}}>Real-time fleet positions, routes, and risk telemetry.</p>
-             </div>
-             <span style={{ padding:'0.25rem 0.75rem', borderRadius:4, fontSize:'0.75rem', fontWeight:700, background:'rgba(16,185,129,0.15)', color:'#10b981', border:'1px solid rgba(16,185,129,0.35)', textTransform:'uppercase', letterSpacing:'0.05em' }}>
-               LIVE GPS TELEMATICS
-             </span>
+        {/* Left Column: Shipment Volume Trend & Fleet Utilization Breakdown */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Primary Chart: Shipment Volume Trend */}
+          <div style={{ ...card, height: 280, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+              <div>
+                <p style={chartLabel}>Shipment Volume Trend</p>
+                <p style={{ ...chartDesc, margin: 0 }}>Daily dispatched consignment counts and logistics flow</p>
+              </div>
+              <span style={{ padding: '0.25rem 0.65rem', borderRadius: 4, fontSize: '0.75rem', fontWeight: 700, background: 'rgba(139, 92, 246, 0.12)', color: TRANSPORTER_MAP.primary, border: '1px solid rgba(139, 92, 246, 0.25)', textTransform: 'uppercase' }}>
+                DAILY VOLUME
+              </span>
+            </div>
+            {volumeLoading ? <LoadingCard height={200} /> : volumeTrend.length > 0 ? (
+              <ResponsiveContainer width="100%" height={210}>
+                <AreaChart data={volumeTrend} margin={{ top: 10, right: 15, left: -10, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="volGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={TRANSPORTER_MAP.primary} stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor={TRANSPORTER_MAP.primary} stopOpacity={0.0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke={CHART_STYLE.gridColor} />
+                  <XAxis dataKey="day" tick={{ fontSize: 11, fill: CHART_STYLE.axisColor }} />
+                  <YAxis tick={{ fontSize: 11, fill: CHART_STYLE.axisColor }} />
+                  <Tooltip content={<DTooltip />} />
+                  <Area type="monotone" dataKey="shipments" name="Shipments" stroke={TRANSPORTER_MAP.primary} strokeWidth={2.5} fillOpacity={1} fill="url(#volGradient)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: '0.85rem' }}>
+                No historical shipment volume records available.
+              </div>
+            )}
           </div>
 
-          <div style={{ flex: 1, width: '100%', minHeight: 480 }}>
-            <MapContainer center={[20.5937, 78.9629]} zoom={4.5} style={{ height: '100%', width: '100%' }}>
-              <TileLayer 
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" 
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' 
-              />
-              {shipments
-                .filter(s => s.lat != null && s.lng != null && !isNaN(Number(s.lat)) && !isNaN(Number(s.lng)))
-                .map((s, idx) => {
-                  const lat = Number(s.lat);
-                  const lng = Number(s.lng);
-                  const weightDisplay = s.weight ? `${Number(s.weight).toLocaleString()} kg` : 'Weight not recorded';
-                  const delayDisplay = s.predicted_delay_minutes ? `${s.predicted_delay_minutes} min delay` : 'On Schedule';
-                  return (
-                    <Marker key={s.shipment_id || idx} position={[lat, lng]}>
-                      <Popup>
-                        <div style={{ padding: '6px', fontSize: '0.85rem', color: '#1E293B', minWidth: '180px' }}>
-                          <div style={{ fontWeight: 800, fontSize: '0.95rem', borderBottom: '1px solid #E2E8F0', paddingBottom: '4px', marginBottom: '6px', color: '#0F172A' }}>
-                            📦 {s.shipment_id}
-                          </div>
-                          <div style={{ display: 'grid', gap: '3px' }}>
-                            <div><strong>Route:</strong> {s.origin || 'Origin'} ➔ {s.destination || 'Destination'}</div>
-                            <div><strong>Status:</strong> <span style={{ color: '#10b981', fontWeight: 700 }}>{s.status || 'IN_TRANSIT'}</span></div>
-                            <div><strong>Weight:</strong> {weightDisplay}</div>
-                            <div><strong>ETA:</strong> {s.eta || s.planned_eta || 'ETA unavailable'}</div>
-                            <div><strong>Delay Risk:</strong> {delayDisplay}</div>
-                            {s.vehicle_number && <div><strong>Vehicle:</strong> {s.vehicle_number}</div>}
-                          </div>
-                        </div>
-                      </Popup>
-                    </Marker>
-                  );
-                })}
-            </MapContainer>
+          {/* Secondary Chart: Fleet Utilization & Capacity Breakdown */}
+          <div style={{ ...card, height: 265, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+              <div>
+                <p style={chartLabel}>Fleet Utilization &amp; Availability</p>
+                <p style={{ ...chartDesc, margin: 0 }}>Vehicle operational distribution and active load capacity</p>
+              </div>
+              <span style={{ padding: '0.25rem 0.65rem', borderRadius: 4, fontSize: '0.75rem', fontWeight: 700, background: 'rgba(16, 185, 129, 0.12)', color: SEMANTIC.success, border: '1px solid rgba(16, 185, 129, 0.25)', textTransform: 'uppercase' }}>
+                ACTIVE FLEET
+              </span>
+            </div>
+            {fleetLoading ? <LoadingCard height={180} /> : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: '1rem', height: 185, alignItems: 'center' }}>
+                {fleetStatus.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={175}>
+                    <PieChart>
+                      <Pie data={fleetStatus} cx="50%" cy="50%" innerRadius="45%" outerRadius="75%" dataKey="count" nameKey="status" paddingAngle={3}>
+                        {fleetStatus.map((e, i) => (
+                          <Cell key={i} fill={e.status === 'AVAILABLE' || e.status === 'OPERATIONAL' ? SEMANTIC.success : e.status === 'MAINTENANCE' || e.status === 'IN_SHOP' ? SEMANTIC.critical : SEMANTIC.warning} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<DTooltip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: '0.8rem' }}>No status data</div>
+                )}
+
+                {fleetUtil.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={175}>
+                    <BarChart data={fleetUtil.slice(0, 5)} margin={{ top: 5, right: 10, left: -15, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={CHART_STYLE.gridColor} />
+                      <XAxis dataKey="truckId" tick={{ fontSize: 9, fill: CHART_STYLE.axisColor }} />
+                      <YAxis tick={{ fontSize: 10, fill: CHART_STYLE.axisColor }} />
+                      <Tooltip content={<DTooltip />} />
+                      <Bar dataKey="loadPercent" name="Load %" fill={TRANSPORTER_MAP.primary} radius={[3, 3, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: '0.8rem' }}>No utilization data</div>
+                )}
+              </div>
+            )}
           </div>
         </div>
         
+        {/* Right Column: Delay Reasons & SLA Gauge */}
         <div style={{ display:'flex', flexDirection:'column', gap:'1.5rem' }}>
             {/* Supp 1: Delay Reasons */}
-            <div style={{ ...card, height: 265, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ ...card, height: 280, display: 'flex', flexDirection: 'column' }}>
                 <p style={chartLabel}>Delay Risk Factors</p>
                 <p style={{ ...chartDesc, margin: '0 0 0.5rem 0' }}>Breakdown of identified route delay factors</p>
-                {loading ? <LoadingCard height={170} /> : reasons.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={180}>
+                {loading ? <LoadingCard height={180} /> : reasons.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={190}>
                     <BarChart data={reasons} layout="vertical" margin={{ left: 10, right: 10 }}>
                         <XAxis type="number" hide />
                         <YAxis dataKey="reason" type="category" tick={{ fontSize:11, fill:CHART_STYLE.axisColor }} width={100} />

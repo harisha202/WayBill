@@ -59,7 +59,101 @@ function formatMetadataValue(value) {
   }
 }
 
-function AlertsDrawer({ open, items = [], onClose }) {
+function resolveTargetTab(item, role) {
+  if (!item) return null;
+  const title = (item.title || '').toLowerCase();
+  const msg = (item.message || '').toLowerCase();
+  const meta = item.metadata || {};
+  const entityType = String(meta.entity_type || meta.type || '').toLowerCase();
+
+  // Role-specific routing logic
+  if (role === 'Transporter') {
+    if (title.includes('maintenance') || msg.includes('maintenance') || entityType.includes('maintenance') || entityType.includes('truck')) {
+      return { path: '/transporter/maintenance', label: '🔧 Maintenance Alerts' };
+    }
+    if (title.includes('route') || title.includes('optimize') || msg.includes('route')) {
+      return { path: '/transporter/routes', label: '🗺️ Route Optimizer' };
+    }
+    if (title.includes('driver') || msg.includes('driver')) {
+      return { path: '/transporter/logs', label: '📋 Driver Logs' };
+    }
+    if (title.includes('fleet') || msg.includes('fleet') || msg.includes('vehicle')) {
+      return { path: '/transporter/fleet', label: '🚛 Fleet Management' };
+    }
+    if (title.includes('dispute') || msg.includes('dispute')) {
+      return { path: '/transporter/disputes', label: '⚖️ Dispute Center' };
+    }
+    if (title.includes('delay') || title.includes('gps') || title.includes('telematics') || title.includes('shipment') || msg.includes('shipment')) {
+      return { path: '/transporter/map', label: '📡 Live Map' };
+    }
+    return { path: '/transporter/alerts', label: '🔔 Alert Center' };
+  }
+
+  if (role === 'Admin') {
+    if (title.includes('dispute') || msg.includes('dispute')) {
+      return { path: '/admin/disputes', label: '⚖️ Dispute Center' };
+    }
+    if (title.includes('seal') || title.includes('verify') || msg.includes('seal')) {
+      return { path: '/admin/verify', label: '✅ Seal Verification' };
+    }
+    if (title.includes('batch') || msg.includes('batch')) {
+      return { path: '/admin/batch', label: '📦 Batch Traceability' };
+    }
+    if (title.includes('user') || msg.includes('user') || title.includes('permission')) {
+      return { path: '/admin/users', label: '👥 User & Role Management' };
+    }
+    return { path: '/admin/alerts', label: '🔔 Alert Center' };
+  }
+
+  if (role === 'Manufacturer') {
+    if (title.includes('quality') || title.includes('qa') || msg.includes('quality')) {
+      return { path: '/manufacturer/assurance', label: '✅ Quality Assurance' };
+    }
+    if (title.includes('batch') || msg.includes('batch')) {
+      return { path: '/manufacturer/batch', label: '📦 Batch Traceability' };
+    }
+    if (title.includes('material') || title.includes('sourcing') || msg.includes('supplier')) {
+      return { path: '/manufacturer/sourcing', label: '🪨 Raw Material Sourcing' };
+    }
+    if (title.includes('dispute') || msg.includes('dispute')) {
+      return { path: '/manufacturer/disputes', label: '⚖️ Dispute Center' };
+    }
+    return { path: '/manufacturer/alerts', label: '🔔 Alert Center' };
+  }
+
+  if (role === 'Dealer') {
+    if (title.includes('arrival') || title.includes('inbound') || msg.includes('arrival')) {
+      return { path: '/dealer/arrivals', label: '🚚 Inbound Consignments' };
+    }
+    if (title.includes('order') || msg.includes('order')) {
+      return { path: '/dealer/orders', label: '📑 Order Management' };
+    }
+    if (title.includes('stock') || title.includes('inventory') || msg.includes('inventory')) {
+      return { path: '/dealer/inventory', label: '📦 Stock Management' };
+    }
+    if (title.includes('dispute') || msg.includes('dispute')) {
+      return { path: '/dealer/disputes', label: '⚖️ Dispute Center' };
+    }
+    return { path: '/dealer/alerts', label: '🔔 Alert Center' };
+  }
+
+  if (role === 'RetailShop' || role === 'retail_shop' || role === 'retail') {
+    if (title.includes('inventory') || title.includes('stock') || msg.includes('stock')) {
+      return { path: '/retail/inventory', label: '📦 Stock & Reorder' };
+    }
+    if (title.includes('pos') || title.includes('sale') || msg.includes('sale')) {
+      return { path: '/retail/pos', label: '💳 Point of Sale' };
+    }
+    if (title.includes('dispute') || msg.includes('dispute')) {
+      return { path: '/retail/disputes', label: '⚖️ Dispute Center' };
+    }
+    return { path: '/retail/alerts', label: '🔔 Alert Center' };
+  }
+
+  return null;
+}
+
+function AlertsDrawer({ open, items = [], onClose, role, onNavigate, onResolveAlert }) {
   const [selectedItemId, setSelectedItemId] = useState('')
 
   if (!open) return null
@@ -69,15 +163,16 @@ function AlertsDrawer({ open, items = [], onClose }) {
     items[0] ??
     null
   const detailEntries = Object.entries(selectedItem?.metadata || {}).filter(([, value]) => value !== undefined)
+  const targetTab = resolveTargetTab(selectedItem, role)
 
   return (
     <div className="alerts-drawer-overlay" role="dialog" aria-modal="true" aria-label="Alerts">
       <div className="alerts-drawer">
         <div className="alerts-drawer-header">
           <div>
-            <div className="alerts-drawer-title">Alerts</div>
+            <div className="alerts-drawer-title">Alerts &amp; Notifications</div>
             <div className="muted" style={{ fontSize: 12 }}>
-              {items.length ? `${items.length} recent message(s)` : 'No alerts yet.'}
+              {items.length ? `${items.length} active notification(s)` : 'No alerts yet.'}
             </div>
           </div>
           <button type="button" className="subtle-btn" onClick={onClose}>
@@ -87,9 +182,9 @@ function AlertsDrawer({ open, items = [], onClose }) {
 
         <div className="alerts-drawer-body">
           {!items.length && (
-            <div className="card" style={{ margin: 0 }}>
-              <p className="muted" style={{ margin: 0 }}>
-                No alert messages to show.
+            <div className="card" style={{ margin: 0, padding: '24px 16px', textAlign: 'center' }}>
+              <p className="muted" style={{ margin: 0, fontSize: '0.875rem' }}>
+                All notifications resolved. No active alerts.
               </p>
             </div>
           )}
@@ -129,7 +224,7 @@ function AlertsDrawer({ open, items = [], onClose }) {
               <div className="alerts-box-head">
                 <div className="alerts-section-heading">
                   <span className="alerts-section-icon" aria-hidden="true">i</span>
-                  <strong className="alerts-box-title">Information</strong>
+                  <strong className="alerts-box-title">Alert Details</strong>
                 </div>
               </div>
               <div className="alerts-detail-hero">
@@ -141,6 +236,60 @@ function AlertsDrawer({ open, items = [], onClose }) {
                 <div className="alerts-box-meta muted" style={{ marginTop: 10 }}>
                   {formatNotificationTimestamp(selectedItem.timestamp)}
                 </div>
+              </div>
+
+              {/* Action Buttons: Navigate to Respective Tab & Resolve Alert */}
+              <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {targetTab && onNavigate && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onNavigate(targetTab.path);
+                    }}
+                    style={{
+                      flex: 1,
+                      minWidth: '140px',
+                      padding: '8px 14px',
+                      background: 'var(--primary, #3b82f6)',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: 8,
+                      fontWeight: 700,
+                      fontSize: '0.8rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6
+                    }}
+                  >
+                    <span>➔ Open {targetTab.label.split(' ')[1] || 'Tab'}</span>
+                  </button>
+                )}
+                {onResolveAlert && (
+                  <button
+                    type="button"
+                    onClick={() => onResolveAlert(selectedItem.id)}
+                    style={{
+                      flex: targetTab ? '0 0 auto' : 1,
+                      padding: '8px 14px',
+                      background: 'rgba(16, 185, 129, 0.15)',
+                      color: '#059669',
+                      border: '1px solid rgba(16, 185, 129, 0.35)',
+                      borderRadius: 8,
+                      fontWeight: 700,
+                      fontSize: '0.8rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 4
+                    }}
+                  >
+                    <span>✓ Resolve</span>
+                  </button>
+                )}
               </div>
 
               {!!detailEntries.length && (
@@ -169,8 +318,6 @@ function AlertsDrawer({ open, items = [], onClose }) {
     </div>
   )
 }
-
-
 
 function getLinkForPath(role, path) {
   const linkMap = PATH_BY_ROLE_LINK[role]
@@ -204,7 +351,6 @@ function DashboardLayout({
     () =>
       stats.map((item, index) => ({
         ...item,
-        // P4-4: Calculate a dynamic deterministic sparkline based on the metric value
         sparkline: item.sparkline ?? Array.from({ length: 7 }, (_, i) => {
             const base = (typeof item.value === 'number') ? item.value : 100;
             return base * (0.8 + (Math.sin(index + i * 2) * 0.2));
@@ -223,6 +369,11 @@ function DashboardLayout({
     setNotificationItems([])
   }, [socketUserId])
 
+  const handleResolveAlert = (alertId) => {
+    setNotificationItems((prev) => prev.filter((item) => item.id !== alertId))
+    toast.success('Alert marked as resolved')
+  }
+
   useEffect(() => {
     if (!socketUserId) {
       return undefined
@@ -239,9 +390,34 @@ function DashboardLayout({
         if (payload.type === 'notification') {
           const next = normalizeNotification(payload)
           if (next) {
-            toast(next.title, {
-              icon: next.severity === 'high' || next.severity === 'critical' ? '⚠️' : 'ℹ️',
-            })
+            const target = resolveTargetTab(next, role)
+            toast(
+              (t) => (
+                <div
+                  style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 2 }}
+                  onClick={() => {
+                    toast.dismiss(t.id)
+                    if (target && onNavigate) {
+                      onNavigate(target.path)
+                    } else {
+                      setAlertsOpen(true)
+                    }
+                  }}
+                >
+                  <strong style={{ fontSize: '0.85rem' }}>{next.title}</strong>
+                  <span style={{ fontSize: '0.78rem', opacity: 0.9 }}>{next.message || 'Click to view and resolve'}</span>
+                  {target && (
+                    <span style={{ fontSize: '0.72rem', color: '#3b82f6', fontWeight: 600, marginTop: 2 }}>
+                      ➔ View in {target.label}
+                    </span>
+                  )}
+                </div>
+              ),
+              {
+                icon: next.severity === 'high' || next.severity === 'critical' ? '⚠️' : 'ℹ️',
+                duration: 6000,
+              }
+            )
             setNotificationItems((items) => {
               const deduped = items.filter((item) => item.id !== next.id)
               return [next, ...deduped].slice(0, 50)
@@ -254,7 +430,7 @@ function DashboardLayout({
     return () => {
       disconnectNotificationSocket()
     }
-  }, [socketUserId])
+  }, [socketUserId, role, onNavigate])
 
   const handleNavigate = (link) => {
     const path = PATH_BY_ROLE_LINK[role]?.[link]
@@ -338,7 +514,14 @@ function DashboardLayout({
           {children}
         </main>
       </section>
-      <AlertsDrawer open={alertsOpen} items={notificationItems} onClose={() => setAlertsOpen(false)} />
+      <AlertsDrawer
+        open={alertsOpen}
+        items={notificationItems}
+        onClose={() => setAlertsOpen(false)}
+        role={role}
+        onNavigate={onNavigate}
+        onResolveAlert={handleResolveAlert}
+      />
       <AskWaybillPanel />
       <Toaster position="top-right" />
     </div>
